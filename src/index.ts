@@ -2,11 +2,19 @@ import fs from 'fs';
 import path from 'path';
 
 import {
+  ANDY_BUSY_ACK_COOLDOWN_MS,
+  ANDY_BUSY_PREEMPT_MS,
+  ANDY_ERROR_NOTICE_COOLDOWN_MS,
   ASSISTANT_NAME,
   DATA_DIR,
+  ENABLE_CONTROL_PLANE_SNAPSHOTS,
+  ENABLE_DYNAMIC_GROUP_REGISTRATION,
+  ENABLE_SCHEDULER,
+  ENABLE_WORKER_STEERING,
   IDLE_TIMEOUT,
   MAIN_GROUP_FOLDER,
   POLL_INTERVAL,
+  RUNTIME_OPS_EXTENDED,
   SHUTDOWN_DRAIN_MS,
   TRIGGER_PATTERN,
 } from './config.js';
@@ -25,14 +33,20 @@ import {
   ensureContainerRuntimeRunning,
 } from './container-runtime.js';
 import {
+  createAndyRequestIfAbsent,
+  acceptWorkerRunCompletion,
   completeWorkerRun,
   getAllChats,
   getAllRegisteredGroups,
   getAllSessions,
   getAllTasks,
+  getAndyRequestById,
+  getAndyRequestByMessageId,
+  getLatestAndyRequestForChat,
   getMessagesSince,
   getLatestReusableWorkerSession,
   getNewMessages,
+  getWorkerRunProgress,
   getWorkerRuns,
   getWorkerRun,
   getRouterState,
@@ -41,17 +55,20 @@ import {
   getProcessedMessageIds,
   isNonRetryableWorkerStatus,
   markMessagesProcessed,
-  recoverWorkerRunForCompletionAccept,
+  linkAndyRequestToWorkerRun,
   requeueWorkerRunForReplay,
   setRegisteredGroup,
   setRouterState,
   setSession,
   storeChatMetadata,
   storeMessage,
-  updateWorkerRunCompletion,
   updateWorkerRunDispatchMetadata,
   updateWorkerRunSessionMetadata,
   updateWorkerRunStatus,
+  updateAndyRequestState,
+  updateAndyRequestByWorkerRun,
+  setAndyRequestCoordinatorSession,
+  listActiveAndyRequests,
 } from './db.js';
 import {
   type DispatchPayload,
@@ -84,11 +101,15 @@ let whatsapp: WhatsAppChannel;
 const channels: Channel[] = [];
 const queue = new GroupQueue();
 const ANDY_DEVELOPER_FOLDER = 'andy-developer';
+const MISSION_CORE_FOLDERS = new Set([
+  MAIN_GROUP_FOLDER,
+  ANDY_DEVELOPER_FOLDER,
+  'jarvis-worker-1',
+  'jarvis-worker-2',
+]);
 const ACTIVE_WORKER_RUN_STATUSES = ['queued', 'running', 'review_requested'] as const;
 const WORKER_RUN_STALE_MS = 2 * 60 * 60 * 1000;
-const WORKER_NO_CONTAINER_GRACE_MS = 15 * 60 * 1000; // 15 minutes to allow for container image pull
 const WORKER_QUEUED_CURSOR_GRACE_MS = 10 * 60 * 1000; // Avoid false pre-spawn stale failures during normal queueing
-const WORKER_REPAIR_HANDOFF_GRACE_MS = 2 * 60 * 1000;
 const WORKER_LEASE_TTL_MS = 90 * 1000;
 const WORKER_RESTART_SUPPRESSION_WINDOW_MS = 60 * 1000;
 const WORKER_SNAPSHOT_REFRESH_INTERVAL_MS = 15_000;
@@ -96,11 +117,14 @@ const WORKER_SUPERVISOR_OWNER = `nanoclaw-${process.pid}`;
 const PROCESS_START_AT_MS = Date.now();
 const PROCESS_START_AT_ISO = new Date(PROCESS_START_AT_MS).toISOString();
 const SIMPLE_ANDY_GREETING_PATTERN = /^(hi|hello|hey|yo|hiya|sup|ping|what'?s up|good (morning|afternoon|evening))[\s!.,?]*$/i;
+const ANDY_PROGRESS_QUERY_PATTERN = /\b(progress|status|update|what(?:'|’)s happening|what is happening|where are we|how far|eta|current progress|current status)\b/i;
+const ANDY_STATUS_BY_ID_PATTERN = /\bstatus\s+(req-[a-z0-9-]+)\b/i;
+const ANDY_REQUEST_ID_PATTERN = /\b(req-[a-z0-9-]+)\b/i;
+const andyBusyAckLastSentMs: Record<string, number> = {};
+const andyRetryNoticeState: Record<string, { sentAtMs: number; signature: string }> = {};
 const workerRunSupervisor = new WorkerRunSupervisor({
   hardTimeoutMs: WORKER_RUN_STALE_MS,
-  noContainerGraceMs: WORKER_NO_CONTAINER_GRACE_MS,
   queuedCursorGraceMs: WORKER_QUEUED_CURSOR_GRACE_MS,
-  repairHandoffGraceMs: WORKER_REPAIR_HANDOFF_GRACE_MS,
   leaseTtlMs: WORKER_LEASE_TTL_MS,
   processStartAtMs: PROCESS_START_AT_MS,
   restartSuppressionWindowMs: WORKER_RESTART_SUPPRESSION_WINDOW_MS,
@@ -127,6 +151,10 @@ interface RunAgentResult {
   error?: string;
 }
 
+function isMissionCoreAllowedFolder(folder: string): boolean {
+  return MISSION_CORE_FOLDERS.has(folder);
+}
+
 function isSyntheticWorkerGroup(group: RegisteredGroup): boolean {
   return isJarvisWorkerFolder(group.folder);
 }
@@ -143,7 +171,8 @@ function sanitizeUserFacingOutput(group: RegisteredGroup, text: string): string 
   const parsed = parseDispatchPayload(stripCodeFence(text));
   if (!parsed) return text;
 
-  return `Dispatched \`${parsed.run_id}\` to \`${parsed.repo}\` on \`${parsed.branch}\` (${parsed.task_type}).`;
+  const requestLabel = parsed.request_id ? ` for \`${parsed.request_id}\`` : '';
+  return `Dispatched \`${parsed.run_id}\`${requestLabel} to \`${parsed.repo}\` on \`${parsed.branch}\` (${parsed.task_type}).`;
 }
 
 function timestampToMs(value: string | undefined): number | null {
@@ -213,6 +242,246 @@ function isSimpleAndyGreeting(group: RegisteredGroup, messages: NewMessage[]): b
   const body = stripAssistantTrigger(messages[0].content);
   if (!body) return true;
   return SIMPLE_ANDY_GREETING_PATTERN.test(body);
+}
+
+function getAndyProgressQueryContext(
+  group: RegisteredGroup,
+  messages: NewMessage[],
+): {
+  queryMessage: NewMessage;
+  handledMessages: NewMessage[];
+  containsNonQueryWork: boolean;
+} | null {
+  if (group.folder !== ANDY_DEVELOPER_FOLDER) return null;
+  if (messages.length === 0) return null;
+
+  let queryMessage: NewMessage | null = null;
+  let containsNonQueryWork = false;
+  for (const message of messages) {
+    if (parseDispatchPayload(message.content)) return null;
+    const body = stripAssistantTrigger(message.content).trim();
+    if (!body) continue;
+    if (ANDY_STATUS_BY_ID_PATTERN.test(body) || ANDY_PROGRESS_QUERY_PATTERN.test(body)) {
+      queryMessage = message;
+      continue;
+    }
+    if (SIMPLE_ANDY_GREETING_PATTERN.test(body)) continue;
+    containsNonQueryWork = true;
+  }
+
+  if (!queryMessage) return null;
+  return { queryMessage, handledMessages: messages, containsNonQueryWork };
+}
+
+function extractAndyStatusRequestId(message: NewMessage): string | undefined {
+  const body = stripAssistantTrigger(message.content).trim();
+  if (!body) return undefined;
+
+  const explicit = body.match(ANDY_STATUS_BY_ID_PATTERN);
+  if (explicit?.[1]) return explicit[1];
+
+  if (!ANDY_PROGRESS_QUERY_PATTERN.test(body)) return undefined;
+  const anyId = body.match(ANDY_REQUEST_ID_PATTERN);
+  return anyId?.[1];
+}
+
+function isAndyWorkIntakeMessage(group: RegisteredGroup, message: NewMessage): boolean {
+  if (group.folder !== ANDY_DEVELOPER_FOLDER) return false;
+  if (parseDispatchPayload(message.content)) return false;
+
+  const body = stripAssistantTrigger(message.content).trim();
+  if (!body) return false;
+  if (SIMPLE_ANDY_GREETING_PATTERN.test(body)) return false;
+  if (ANDY_STATUS_BY_ID_PATTERN.test(body) || ANDY_PROGRESS_QUERY_PATTERN.test(body)) return false;
+  return true;
+}
+
+function generateAndyRequestId(messageId: string): string {
+  const suffix = messageId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(-8) || Math.random().toString(36).slice(2, 10);
+  return `req-${Date.now()}-${suffix}`;
+}
+
+function getAndyRequestsForMessages(messages: NewMessage[]): Array<{
+  requestId: string;
+  messageId: string;
+}> {
+  const seen = new Set<string>();
+  const rows: Array<{ requestId: string; messageId: string }> = [];
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const request = getAndyRequestByMessageId(messages[i].id);
+    if (!request || seen.has(request.request_id)) continue;
+    seen.add(request.request_id);
+    rows.push({ requestId: request.request_id, messageId: messages[i].id });
+  }
+  return rows;
+}
+
+function buildAndyFrontdeskContextBlock(chatJid: string, requestId: string): string {
+  return [
+    '<frontdesk_request>',
+    `request_id: ${requestId}`,
+    `chat_jid: ${chatJid}`,
+    `status_command: status ${requestId}`,
+    'If you dispatch strict JSON to jarvis-worker-*, include request_id exactly as above.',
+    '</frontdesk_request>',
+  ].join('\n');
+}
+
+async function trackAndAckAndyIntakeMessages(
+  chatJid: string,
+  group: RegisteredGroup,
+  messages: NewMessage[],
+  channel: Channel,
+): Promise<void> {
+  if (group.folder !== ANDY_DEVELOPER_FOLDER) return;
+
+  for (const message of messages) {
+    if (!isAndyWorkIntakeMessage(group, message)) continue;
+    const body = stripAssistantTrigger(message.content).trim();
+    const requestId = generateAndyRequestId(message.id);
+    const created = createAndyRequestIfAbsent({
+      request_id: requestId,
+      chat_jid: chatJid,
+      source_group_folder: group.folder,
+      user_message_id: message.id,
+      user_prompt: body,
+      intent: 'work_intake',
+      state: 'queued_for_coordinator',
+    });
+    if (!created.created) continue;
+
+    const ackText = `${ASSISTANT_NAME}: Got it. Tracking this as \`${created.request_id}\`. Ask \`status ${created.request_id}\` anytime.`;
+    try {
+      await channel.sendMessage(chatJid, ackText);
+    } catch (err) {
+      logger.warn({ chatJid, requestId: created.request_id, err }, 'Andy intake ack send failed');
+    }
+  }
+}
+
+function formatElapsedSince(startedAt: string): string {
+  const startedMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedMs)) return 'elapsed unknown';
+  const elapsedMs = Math.max(0, Date.now() - startedMs);
+  const totalMinutes = Math.floor(elapsedMs / 60_000);
+  if (totalMinutes < 1) return 'elapsed <1m';
+  if (totalMinutes < 60) return `elapsed ${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0
+    ? `elapsed ${hours}h`
+    : `elapsed ${hours}h ${minutes}m`;
+}
+
+function buildAndyProgressStatusReply(chatJid: string, requestId?: string): string {
+  if (requestId) {
+    const request = getAndyRequestById(requestId);
+    if (!request) {
+      return `${ASSISTANT_NAME}: I couldn't find request \`${requestId}\`.`;
+    }
+    if (request.chat_jid !== chatJid) {
+      return `${ASSISTANT_NAME}: Request \`${requestId}\` belongs to a different chat.`;
+    }
+
+    if (request.worker_run_id) {
+      const run = getWorkerRun(request.worker_run_id);
+      if (run) {
+        const progress = getWorkerRunProgress(run.run_id);
+        const progressSummary = progress?.last_progress_summary?.trim();
+        const suffix = progressSummary ? ` - ${progressSummary}` : '';
+        return `${ASSISTANT_NAME}: \`${request.request_id}\` is \`${request.state}\`. Worker run \`${run.run_id}\` on \`${run.group_folder}\` is \`${run.status}\` (${formatElapsedSince(run.started_at)})${suffix}.`;
+      }
+    }
+
+    const lastText = request.last_status_text ? ` ${request.last_status_text}` : '';
+    return `${ASSISTANT_NAME}: \`${request.request_id}\` is \`${request.state}\`.${lastText}`;
+  }
+
+  const activeRequests = listActiveAndyRequests(chatJid, 3);
+  if (activeRequests.length > 0) {
+    const lines = activeRequests.map((request) => {
+      if (request.worker_run_id) {
+        const run = getWorkerRun(request.worker_run_id);
+        if (run) {
+          const progress = getWorkerRunProgress(run.run_id);
+          const progressSummary = progress?.last_progress_summary?.trim();
+          const suffix = progressSummary ? ` - ${progressSummary}` : '';
+          return `- \`${request.request_id}\`: ${request.state}; run \`${run.run_id}\` is \`${run.status}\` (${formatElapsedSince(run.started_at)})${suffix}`;
+        }
+      }
+      return `- \`${request.request_id}\`: ${request.state}`;
+    });
+    return `${ASSISTANT_NAME}: Current tracked requests:\n${lines.join('\n')}`;
+  }
+
+  const activeRuns = getWorkerRuns({
+    groupFolderLike: 'jarvis-worker-%',
+    statuses: ['queued', 'running'],
+    limit: 5,
+  });
+
+  if (activeRuns.length === 0) {
+    const latestRun = getWorkerRuns({
+      groupFolderLike: 'jarvis-worker-%',
+      limit: 1,
+    })[0];
+    if (!latestRun) {
+      return `${ASSISTANT_NAME}: There are no worker runs yet.`;
+    }
+
+    const latestAt = latestRun.completed_at ?? latestRun.started_at;
+    return `${ASSISTANT_NAME}: No worker run is active right now. Latest run \`${latestRun.run_id}\` on \`${latestRun.group_folder}\` is \`${latestRun.status}\` (${latestAt}).`;
+  }
+
+  const queuedCount = activeRuns.filter((run) => run.status === 'queued').length;
+  const runningCount = activeRuns.filter((run) => run.status === 'running').length;
+  const visibleRuns = activeRuns.slice(0, 3);
+  const lines = visibleRuns.map((run) => {
+    const detail = run.phase && run.phase !== run.status
+      ? `${run.status}/${run.phase}`
+      : run.status;
+    const progress = getWorkerRunProgress(run.run_id);
+    const progressSummary = progress?.last_progress_summary?.trim();
+    const suffix = progressSummary ? ` - ${progressSummary}` : '';
+    return `- \`${run.run_id}\` (${run.group_folder}) ${detail}, ${formatElapsedSince(run.started_at)}${suffix}`;
+  });
+  if (activeRuns.length > visibleRuns.length) {
+    lines.push(`- ...and ${activeRuns.length - visibleRuns.length} more active run(s).`);
+  }
+  return `${ASSISTANT_NAME}: Current progress: ${runningCount} running, ${queuedCount} queued.\n${lines.join('\n')}`;
+}
+
+async function trySendAndyProgressStatus(
+  chatJid: string,
+  group: RegisteredGroup,
+  messages: NewMessage[],
+  channel: Channel,
+): Promise<boolean> {
+  const progressContext = getAndyProgressQueryContext(group, messages);
+  if (!progressContext) return false;
+  const requestId = extractAndyStatusRequestId(progressContext.queryMessage);
+
+  const lastTimestamp = messages[messages.length - 1].timestamp;
+  if (!progressContext.containsNonQueryWork) {
+    markCursorInFlight(chatJid, lastTimestamp);
+  }
+  try {
+    await channel.sendMessage(chatJid, buildAndyProgressStatusReply(chatJid, requestId));
+    if (progressContext.containsNonQueryWork) {
+      // Status asked alongside other work: answer immediately, then continue
+      // normal processing so pending work is not starved.
+      return false;
+    }
+    markBatchProcessed(chatJid, progressContext.handledMessages);
+    commitInFlightCursor(chatJid);
+    return true;
+  } catch (err) {
+    if (!progressContext.containsNonQueryWork) {
+      clearInFlightCursor(chatJid);
+    }
+    logger.warn({ chatJid, err }, 'Andy progress status send failed');
+    return false;
+  }
 }
 
 function getDispatchBlocksForGroup(
@@ -465,6 +734,8 @@ function buildAndyPromptWorkerContext(snapshot: WorkerRunsSnapshot): string {
 }
 
 function refreshWorkerRunSnapshotsForGroups(folders?: string[]): void {
+  if (!ENABLE_CONTROL_PLANE_SNAPSHOTS) return;
+
   const seen = new Set<string>();
   const targets: RegisteredGroup[] = [];
 
@@ -546,6 +817,7 @@ function buildWorkerDispatchPrompt(payload: DispatchPayload): string {
     'You are a Jarvis worker.',
     'Execute exactly one dispatch task and return a strict completion contract.',
     `Run ID: ${payload.run_id}`,
+    `Request ID: ${payload.request_id ?? 'n/a'}`,
     `Task Type: ${payload.task_type}`,
     `Repository: ${payload.repo}`,
     `Branch: ${payload.branch}`,
@@ -665,7 +937,7 @@ function reconcileStaleWorkerRuns(): void {
     lastAgentTimestamp,
     resolveChatJid: findChatJidByGroupFolder,
   });
-  if (changed) {
+  if (changed && ENABLE_CONTROL_PLANE_SNAPSHOTS) {
     refreshWorkerRunSnapshotsForGroups();
   }
 }
@@ -682,9 +954,17 @@ function loadState(): void {
   inFlightAgentTimestamp = {};
   sessions = getAllSessions();
   registeredGroups = getAllRegisteredGroups();
+  if (!RUNTIME_OPS_EXTENDED) {
+    registeredGroups = Object.fromEntries(
+      Object.entries(registeredGroups).filter(([, group]) => isMissionCoreAllowedFolder(group.folder)),
+    );
+  }
   reconcileStaleWorkerRuns();
   logger.info(
-    { groupCount: Object.keys(registeredGroups).length },
+    {
+      groupCount: Object.keys(registeredGroups).length,
+      runtimeProfile: RUNTIME_OPS_EXTENDED ? 'ops_extended' : 'mission_core',
+    },
     'State loaded',
   );
 }
@@ -698,6 +978,22 @@ function saveState(): void {
 }
 
 function registerGroup(jid: string, group: RegisteredGroup): void {
+  if (!ENABLE_DYNAMIC_GROUP_REGISTRATION) {
+    logger.warn(
+      { jid, folder: group.folder },
+      'Dynamic group registration is disabled in mission-core profile',
+    );
+    return;
+  }
+
+  if (!RUNTIME_OPS_EXTENDED && !isMissionCoreAllowedFolder(group.folder)) {
+    logger.warn(
+      { jid, folder: group.folder },
+      'Rejecting group registration outside mission-core lane allowlist',
+    );
+    return;
+  }
+
   let groupDir: string;
   try {
     groupDir = resolveGroupFolderPath(group.folder);
@@ -740,7 +1036,9 @@ export function getAvailableGroups(): import('./container-runner.js').AvailableG
 }
 
 /** @internal - exported for testing */
-export function _setRegisteredGroups(groups: Record<string, RegisteredGroup>): void {
+export function _setRegisteredGroups(
+  groups: Record<string, RegisteredGroup>,
+): void {
   registeredGroups = groups;
 }
 
@@ -793,6 +1091,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (!hasTrigger) return true;
   }
 
+  if (channel) {
+    await trackAndAckAndyIntakeMessages(chatJid, group, messagesToProcess, channel);
+  }
+
   if (channel && isSimpleAndyGreeting(group, messagesToProcess)) {
     markCursorInFlight(chatJid, batchLastTimestamp);
     try {
@@ -807,10 +1109,30 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     }
   }
 
+  if (channel && await trySendAndyProgressStatus(chatJid, group, messagesToProcess, channel)) {
+    return true;
+  }
+
+  const andyRequestsInBatch = group.folder === ANDY_DEVELOPER_FOLDER
+    ? getAndyRequestsForMessages(messagesToProcess)
+    : [];
+  if (andyRequestsInBatch.length > 0) {
+    const coordinatorText = messagesToProcess.length > 1
+      ? `Coordinator picked up ${messagesToProcess.length} pending message(s)`
+      : 'Coordinator is processing your request';
+    for (const request of andyRequestsInBatch) {
+      updateAndyRequestState(request.requestId, 'coordinator_active', coordinatorText);
+    }
+  }
+  const activeAndyRequestId = andyRequestsInBatch[0]?.requestId;
+
   const workerRun = extractWorkerRunContext(group, messagesToProcess);
-  const prompt = workerRun
+  const basePrompt = workerRun
     ? buildWorkerDispatchPrompt(workerRun.dispatchPayload)
     : formatMessages(messagesToProcess);
+  const prompt = (!workerRun && group.folder === ANDY_DEVELOPER_FOLDER && activeAndyRequestId)
+    ? `${buildAndyFrontdeskContextBlock(chatJid, activeAndyRequestId)}\n\n${basePrompt}`
+    : basePrompt;
   let workerOutputBuffer = '';
 
   let workerSessionSelection: WorkerSessionSelection | null = null;
@@ -843,12 +1165,18 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       const queueState = insertWorkerRun(workerRun.runId, group.folder, {
         dispatch_repo: workerRun.dispatchPayload.repo,
         dispatch_branch: workerRun.dispatchPayload.branch,
+        request_id: workerRun.dispatchPayload.request_id,
         context_intent: workerRun.dispatchPayload.context_intent,
         dispatch_payload: JSON.stringify(workerRun.dispatchPayload),
         parent_run_id: workerRun.dispatchPayload.parent_run_id,
         dispatch_session_id: workerRun.dispatchPayload.session_id,
       });
       if (queueState !== 'duplicate') {
+        updateAndyRequestByWorkerRun(
+          workerRun.runId,
+          'failed',
+          'Dispatch requires existing session context, but no reusable session was found',
+        );
         completeWorkerRun(
           workerRun.runId,
           'failed_contract',
@@ -880,6 +1208,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     const dispatchMetadata = {
       dispatch_repo: workerRun.dispatchPayload.repo,
       dispatch_branch: workerRun.dispatchPayload.branch,
+      request_id: workerRun.dispatchPayload.request_id,
       context_intent: workerRun.dispatchPayload.context_intent,
       dispatch_payload: JSON.stringify(workerRun.dispatchPayload),
       parent_run_id: workerRun.dispatchPayload.parent_run_id,
@@ -914,9 +1243,22 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         summary: `[andy-dev] → queued ${workerRun.dispatchPayload.task_type || 'task'} (run: ${workerRun.runId.slice(0, 8)})`,
         metadata: { agent: 'andy-developer', tier: 'andy-developer', run_id: workerRun.runId, group_folder: group.folder },
       });
+      updateAndyRequestByWorkerRun(
+        workerRun.runId,
+        'worker_queued',
+        `Worker run ${workerRun.runId} queued on ${group.folder}`,
+      );
       workerRunSupervisor.markQueued(workerRun.runId);
     } else {
       updateWorkerRunDispatchMetadata(workerRun.runId, dispatchMetadata);
+    }
+
+    if (workerRun.dispatchPayload.request_id) {
+      linkAndyRequestToWorkerRun(
+        workerRun.dispatchPayload.request_id,
+        workerRun.runId,
+        group.folder,
+      );
     }
 
   }
@@ -937,7 +1279,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      logger.debug({ group: group.name }, 'Idle timeout, closing container stdin');
+      logger.debug(
+        { group: group.name },
+        'Idle timeout, closing container stdin',
+      );
       queue.closeStdin(chatJid);
     }, idleTimeoutMs);
   };
@@ -957,6 +1302,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         workerSpawnContainerName = containerName;
         workerRunSupervisor.markSpawnStarted(workerRun.runId, containerName, 'active');
         updateWorkerRunStatus(workerRun.runId, 'running');
+        updateAndyRequestByWorkerRun(
+          workerRun.runId,
+          'worker_running',
+          `Worker started on ${group.folder} (run ${workerRun.runId})`,
+        );
         void emitBridgeEvent({
           event_type: 'worker_started',
           summary: `[${group.folder}] started (run: ${workerRun.runId.slice(0, 8)})`,
@@ -1133,14 +1483,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     }
 
     if (completion && completionCheck.valid) {
-      const recovery = recoverWorkerRunForCompletionAccept(workerRun.runId);
-      if (recovery.recovered) {
-        logger.info(
-          { runId: workerRun.runId, group: group.name, reason: recovery.reason },
-          'Recovered worker run from terminal failure before completion accept',
-        );
-      }
-      updateWorkerRunCompletion(workerRun.runId, {
+      const accepted = acceptWorkerRunCompletion(workerRun.runId, {
         branch_name: completion.branch,
         pr_url: completion.pr_url,
         commit_sha: completion.commit_sha,
@@ -1151,20 +1494,60 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         session_resume_status: runtimeSessionResumeStatus ?? null,
         session_resume_error: runtimeSessionResumeError ?? null,
       });
-      updateWorkerRunStatus(workerRun.runId, 'review_requested');
-      void emitBridgeEvent({
-        event_type: 'worker_completed',
-        summary: `[${group.folder}] ✓ review: ${completion.branch}`,
-        metadata: { agent: group.folder, tier: 'worker', run_id: workerRun.runId, group_folder: group.folder },
-      });
-      workerRunSupervisor.markTerminal(workerRun.runId);
-      refreshWorkerRunSnapshotsForGroups();
-      logger.info(
-        { runId: workerRun.runId, group: group.name },
-        'Worker completion contract accepted',
-      );
+      if (accepted.ok) {
+        if (accepted.recovered) {
+          logger.info(
+            { runId: workerRun.runId, group: group.name },
+            'Recovered worker run from terminal failure before completion accept',
+          );
+        }
+        updateAndyRequestByWorkerRun(
+          workerRun.runId,
+          'worker_review_requested',
+          `Worker run ${workerRun.runId} reached review_requested on ${group.folder}`,
+        );
+        void emitBridgeEvent({
+          event_type: 'worker_completed',
+          summary: `[${group.folder}] ✓ review: ${completion.branch}`,
+          metadata: { agent: group.folder, tier: 'worker', run_id: workerRun.runId, group_folder: group.folder },
+        });
+        workerRunSupervisor.markTerminal(workerRun.runId);
+        refreshWorkerRunSnapshotsForGroups();
+        logger.info(
+          { runId: workerRun.runId, group: group.name },
+          'Worker completion contract accepted',
+        );
+      } else {
+        logger.warn(
+          { runId: workerRun.runId, group: group.name },
+          'Completion accept rejected by atomic transaction — marking failed_contract',
+        );
+        updateAndyRequestByWorkerRun(
+          workerRun.runId,
+          'failed',
+          `Completion accept rejected for run ${workerRun.runId}`,
+        );
+        completeWorkerRun(
+          workerRun.runId,
+          'failed_contract',
+          'Completion accept rejected',
+          JSON.stringify({ reason: 'completion_accept_rejected' }),
+        );
+        void emitBridgeEvent({
+          event_type: 'worker_failed',
+          summary: `[${group.folder}] ✗ contract: completion accept rejected`,
+          metadata: { agent: group.folder, tier: 'worker', run_id: workerRun.runId, group_folder: group.folder },
+        });
+        workerRunSupervisor.markTerminal(workerRun.runId);
+        refreshWorkerRunSnapshotsForGroups();
+      }
     } else if (runOutcome.status === 'error' || hadError) {
       if (workerSpawnFailedBeforeRunning) {
+        updateAndyRequestByWorkerRun(
+          workerRun.runId,
+          'failed',
+          `Worker failed before running state for ${workerRun.runId}`,
+        );
         completeWorkerRun(
           workerRun.runId,
           'failed',
@@ -1194,6 +1577,13 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         workerRunSupervisor.markTerminal(workerRun.runId);
       } else {
         const missingSummary = completionCheck.missing.join(', ');
+        updateAndyRequestByWorkerRun(
+          workerRun.runId,
+          'failed',
+          missingSummary
+            ? `Worker execution failed; missing ${missingSummary}`
+            : `Worker execution failed for ${workerRun.runId}`,
+        );
         completeWorkerRun(
           workerRun.runId,
           'failed',
@@ -1227,6 +1617,13 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       refreshWorkerRunSnapshotsForGroups();
     } else {
       const missingSummary = completionCheck.missing.join(', ');
+      updateAndyRequestByWorkerRun(
+        workerRun.runId,
+        'failed',
+        missingSummary
+          ? `Completion contract missing fields: ${missingSummary}`
+          : `Invalid completion contract for ${workerRun.runId}`,
+      );
       completeWorkerRun(
         workerRun.runId,
         'failed_contract',
@@ -1254,6 +1651,29 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       );
       workerRunSupervisor.markTerminal(workerRun.runId);
       refreshWorkerRunSnapshotsForGroups();
+    }
+  }
+
+  if (!workerRun && andyRequestsInBatch.length > 0) {
+    const coordinatorSessionId = runOutcome.newSessionId ?? sessions[group.folder] ?? null;
+    for (const request of andyRequestsInBatch) {
+      setAndyRequestCoordinatorSession(request.requestId, coordinatorSessionId);
+      const current = getAndyRequestById(request.requestId);
+      if (!current) continue;
+      if (current.worker_run_id || `${current.state}`.startsWith('worker_')) continue;
+      if (runOutcome.status === 'error' || hadError) {
+        updateAndyRequestState(
+          request.requestId,
+          'failed',
+          runOutcome.error || 'Coordinator failed before dispatch',
+        );
+      } else {
+        updateAndyRequestState(
+          request.requestId,
+          'completed',
+          'Coordinator response delivered',
+        );
+      }
     }
   }
 
@@ -1312,34 +1732,37 @@ async function runAgent(
     setSession(group.folder, sessionId);
   }
 
-  // Update tasks snapshot for container to read (filtered by group)
-  const tasks = getAllTasks();
-  writeTasksSnapshot(
-    group.folder,
-    isMain,
-    tasks.map((t) => ({
-      id: t.id,
-      groupFolder: t.group_folder,
-      prompt: t.prompt,
-      schedule_type: t.schedule_type,
-      schedule_value: t.schedule_value,
-      status: t.status,
-      next_run: t.next_run,
-    })),
-  );
+  let workerRunsSnapshot: WorkerRunsSnapshot | null = null;
+  if (ENABLE_CONTROL_PLANE_SNAPSHOTS) {
+    // Update tasks snapshot for container to read (filtered by group)
+    const tasks = getAllTasks();
+    writeTasksSnapshot(
+      group.folder,
+      isMain,
+      tasks.map((t) => ({
+        id: t.id,
+        groupFolder: t.group_folder,
+        prompt: t.prompt,
+        schedule_type: t.schedule_type,
+        schedule_value: t.schedule_value,
+        status: t.status,
+        next_run: t.next_run,
+      })),
+    );
 
-  // Update available groups snapshot (main group only can see all groups)
-  const availableGroups = getAvailableGroups();
-  writeGroupsSnapshot(
-    group.folder,
-    isMain,
-    availableGroups,
-    new Set(Object.keys(registeredGroups)),
-  );
+    // Update available groups snapshot (main group only can see all groups)
+    const availableGroups = getAvailableGroups();
+    writeGroupsSnapshot(
+      group.folder,
+      isMain,
+      availableGroups,
+      new Set(Object.keys(registeredGroups)),
+    );
 
-  const workerRunsSnapshot = buildWorkerRunsSnapshot(group, isMain);
-  writeWorkerRunsSnapshot(group.folder, workerRunsSnapshot);
-  const effectivePrompt = group.folder === ANDY_DEVELOPER_FOLDER
+    workerRunsSnapshot = buildWorkerRunsSnapshot(group, isMain);
+    writeWorkerRunsSnapshot(group.folder, workerRunsSnapshot);
+  }
+  const effectivePrompt = (group.folder === ANDY_DEVELOPER_FOLDER && workerRunsSnapshot)
     ? `${buildAndyPromptWorkerContext(workerRunsSnapshot)}\n\n${prompt}`
     : prompt;
 
@@ -1365,6 +1788,10 @@ async function runAgent(
         chatJid,
         isMain,
         assistantName: ASSISTANT_NAME,
+        opsExtended: RUNTIME_OPS_EXTENDED,
+        schedulerEnabled: ENABLE_SCHEDULER,
+        workerSteeringEnabled: ENABLE_WORKER_STEERING,
+        dynamicGroupRegistrationEnabled: ENABLE_DYNAMIC_GROUP_REGISTRATION,
       },
       (proc, containerName) => {
         queue.registerProcess(chatJid, proc, containerName, group.folder);
@@ -1478,6 +1905,10 @@ async function startMessageLoop(): Promise<void> {
             if (!hasTrigger) continue;
           }
 
+          if (channel) {
+            await trackAndAckAndyIntakeMessages(chatJid, group, groupMessages, channel);
+          }
+
           // Pull all messages since the effective cursor (committed + in-flight)
           // so non-trigger context that accumulated between triggers is included.
           const allPending = getMessagesSince(
@@ -1487,12 +1918,32 @@ async function startMessageLoop(): Promise<void> {
           );
           const messagesToSend =
             allPending.length > 0 ? allPending : groupMessages;
-          const formatted = formatMessages(messagesToSend);
+          const andyRequestsToSend = group.folder === ANDY_DEVELOPER_FOLDER
+            ? getAndyRequestsForMessages(messagesToSend)
+            : [];
+          if (andyRequestsToSend.length > 0) {
+            for (const request of andyRequestsToSend) {
+              updateAndyRequestState(
+                request.requestId,
+                'coordinator_active',
+                'Coordinator is processing your request',
+              );
+            }
+          }
+          const activeRequestForSend = andyRequestsToSend[0]?.requestId;
+          const baseFormatted = formatMessages(messagesToSend);
+          const formatted = (group.folder === ANDY_DEVELOPER_FOLDER && activeRequestForSend)
+            ? `${buildAndyFrontdeskContextBlock(chatJid, activeRequestForSend)}\n\n${baseFormatted}`
+            : baseFormatted;
 
           // Worker lanes must execute one dispatch per container run.
           // Never pipe additional dispatches into an active worker session.
           if (syntheticWorker) {
             queue.enqueueMessageCheck(chatJid);
+            continue;
+          }
+
+          if (channel && await trySendAndyProgressStatus(chatJid, group, messagesToSend, channel)) {
             continue;
           }
 
@@ -1506,6 +1957,21 @@ async function startMessageLoop(): Promise<void> {
             channel?.setTyping?.(chatJid, true)?.catch((err) =>
               logger.warn({ chatJid, err }, 'Failed to set typing indicator'),
             );
+            // Immediate ack for simple greetings when Andy is busy
+            if (
+              group.folder === ANDY_DEVELOPER_FOLDER
+              && channel
+              && isSimpleAndyGreeting(group, messagesToSend)
+            ) {
+              const lastAck = andyBusyAckLastSentMs[chatJid] ?? 0;
+              if (Date.now() - lastAck > ANDY_BUSY_ACK_COOLDOWN_MS) {
+                andyBusyAckLastSentMs[chatJid] = Date.now();
+                channel.sendMessage(
+                  chatJid,
+                  `${ASSISTANT_NAME}: I'm working on something, I'll be with you shortly.`,
+                ).catch((err) => logger.warn({ chatJid, err }, 'Busy ack send failed'));
+              }
+            }
           } else {
             // No active container — enqueue for a new one
             queue.enqueueMessageCheck(chatJid);
@@ -1627,8 +2093,13 @@ async function main(): Promise<void> {
   // Channel callbacks (shared by all channels)
   const channelOpts = {
     onMessage: (_chatJid: string, msg: NewMessage) => storeMessage(msg),
-    onChatMetadata: (chatJid: string, timestamp: string, name?: string, channel?: string, isGroup?: boolean) =>
-      storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
+    onChatMetadata: (
+      chatJid: string,
+      timestamp: string,
+      name?: string,
+      channel?: string,
+      isGroup?: boolean,
+    ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     registeredGroups: () => registeredGroups,
   };
 
@@ -1638,21 +2109,25 @@ async function main(): Promise<void> {
   await whatsapp.connect();
 
   // Start subsystems (independently of connection handler)
-  startSchedulerLoop({
-    registeredGroups: () => registeredGroups,
-    getSessions: () => sessions,
-    queue,
-    onProcess: (groupJid, proc, containerName, groupFolder) => queue.registerProcess(groupJid, proc, containerName, groupFolder),
-    sendMessage: async (jid, rawText) => {
-      const channel = findChannel(channels, jid);
-      if (!channel) {
-        console.log(`Warning: no channel owns JID ${jid}, cannot send message`);
-        return;
-      }
-      const text = formatOutbound(rawText);
-      if (text) await channel.sendMessage(jid, text);
-    },
-  });
+  if (ENABLE_SCHEDULER) {
+    startSchedulerLoop({
+      registeredGroups: () => registeredGroups,
+      getSessions: () => sessions,
+      queue,
+      onProcess: (groupJid, proc, containerName, groupFolder) => queue.registerProcess(groupJid, proc, containerName, groupFolder),
+      sendMessage: async (jid, rawText) => {
+        const channel = findChannel(channels, jid);
+        if (!channel) {
+          console.log(`Warning: no channel owns JID ${jid}, cannot send message`);
+          return;
+        }
+        const text = formatOutbound(rawText);
+        if (text) await channel.sendMessage(jid, text);
+      },
+    });
+  } else {
+    logger.info('Scheduler disabled by runtime profile');
+  }
   startIpcWatcher({
     sendMessage: (jid, text, sourceGroup) => {
       const target = registeredGroups[jid];
@@ -1678,9 +2153,15 @@ async function main(): Promise<void> {
     },
     registeredGroups: () => registeredGroups,
     registerGroup,
-    syncGroupMetadata: (force) => whatsapp?.syncGroupMetadata(force) ?? Promise.resolve(),
+    syncGroupMetadata: (force) =>
+      whatsapp?.syncGroupMetadata(force) ?? Promise.resolve(),
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) => writeGroupsSnapshot(gf, im, ag, rj),
+    options: {
+      taskControlEnabled: ENABLE_SCHEDULER,
+      workerSteeringEnabled: ENABLE_WORKER_STEERING,
+      dynamicGroupRegistrationEnabled: ENABLE_DYNAMIC_GROUP_REGISTRATION,
+    },
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverInterruptedWorkerDispatches();
@@ -1694,7 +2175,8 @@ async function main(): Promise<void> {
 // Guard: only run when executed directly, not when imported by tests
 const isDirectRun =
   process.argv[1] &&
-  new URL(import.meta.url).pathname === new URL(`file://${process.argv[1]}`).pathname;
+  new URL(import.meta.url).pathname ===
+    new URL(`file://${process.argv[1]}`).pathname;
 
 if (isDirectRun) {
   main().catch((err) => {

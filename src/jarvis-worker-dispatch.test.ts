@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   _initTestDatabase,
+  createAndyRequestIfAbsent,
   insertWorkerRun,
   completeWorkerRun,
   getWorkerRun,
   getWorkerRuns,
+  getAndyRequestById,
+  linkAndyRequestToWorkerRun,
   recoverWorkerRunForCompletionAccept,
   recoverWorkerRunFromNoContainerFailure,
+  updateAndyRequestByWorkerRun,
   updateWorkerRunLifecycle,
   updateWorkerRunStatus,
   updateWorkerRunCompletion,
@@ -319,6 +323,61 @@ describe('worker run status transition guards', () => {
   });
 });
 
+describe('andy request tracking', () => {
+  beforeEach(() => {
+    _initTestDatabase();
+  });
+
+  it('creates request idempotently per user message id', () => {
+    const first = createAndyRequestIfAbsent({
+      request_id: 'req-1',
+      chat_jid: 'chat-1',
+      source_group_folder: 'andy-developer',
+      user_message_id: 'msg-1',
+      user_prompt: 'do work',
+      intent: 'work_intake',
+      state: 'queued_for_coordinator',
+    });
+    const second = createAndyRequestIfAbsent({
+      request_id: 'req-2',
+      chat_jid: 'chat-1',
+      source_group_folder: 'andy-developer',
+      user_message_id: 'msg-1',
+      user_prompt: 'do work',
+      intent: 'work_intake',
+      state: 'queued_for_coordinator',
+    });
+
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(false);
+    expect(second.request_id).toBe('req-1');
+  });
+
+  it('links request to worker run and tracks run-state updates', () => {
+    createAndyRequestIfAbsent({
+      request_id: 'req-link-1',
+      chat_jid: 'chat-2',
+      source_group_folder: 'andy-developer',
+      user_message_id: 'msg-link-1',
+      user_prompt: 'implement x',
+      intent: 'work_intake',
+      state: 'queued_for_coordinator',
+    });
+
+    insertWorkerRun('run-link-1', 'jarvis-worker-1', { request_id: 'req-link-1' });
+    linkAndyRequestToWorkerRun('req-link-1', 'run-link-1', 'jarvis-worker-1');
+    updateAndyRequestByWorkerRun('run-link-1', 'worker_running', 'worker started');
+    updateAndyRequestByWorkerRun('run-link-1', 'worker_review_requested', 'ready for review');
+
+    const request = getAndyRequestById('req-link-1');
+    expect(request?.worker_run_id).toBe('run-link-1');
+    expect(request?.worker_group_folder).toBe('jarvis-worker-1');
+    expect(request?.state).toBe('worker_review_requested');
+    expect(request?.last_status_text).toBe('ready for review');
+    expect(request?.closed_at).toBeNull();
+  });
+});
+
 describe('getWorkerRun', () => {
   beforeEach(() => _initTestDatabase());
 
@@ -407,6 +466,16 @@ describe('dispatch payload validation', () => {
 
   it('rejects run_id longer than 64 chars', () => {
     const { valid } = validateDispatchPayload({ ...validPayload, run_id: 'a'.repeat(65) });
+    expect(valid).toBe(false);
+  });
+
+  it('accepts optional request_id when valid', () => {
+    const { valid } = validateDispatchPayload({ ...validPayload, request_id: 'req-12345' });
+    expect(valid).toBe(true);
+  });
+
+  it('rejects request_id with whitespace', () => {
+    const { valid } = validateDispatchPayload({ ...validPayload, request_id: 'req bad' });
     expect(valid).toBe(false);
   });
 

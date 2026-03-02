@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-01T18:51:33.396142+00:00",
+  "updated_at": "2026-03-01T19:47:39.430571+00:00",
   "incidents": [
     {
       "id": "incident-worker-connectivity-block-20260227",
@@ -8,32 +8,27 @@
       "status": "open",
       "severity": "high",
       "created_at": "2026-02-27T13:02:09.098285+00:00",
-      "updated_at": "2026-03-01T18:51:33.396101+00:00",
+      "updated_at": "2026-03-01T19:47:39.430528+00:00",
       "summary": {
         "symptom": "Workers are not connected and I don't have access to restart them. To restart the push task: start worker containers manually via deployment system, then I will dispatch push task. Alternative: push branches manually from local environment.",
-        "suspected_cause": "running_without_container watchdog races with worker completion handoff/repair: run can be auto-failed in the gap between first container...",
+        "suspected_cause": "andy_no_output_timeout",
         "impact": "Valid worker output can be produced after auto-fail, but DB status remains failed because failed->review_requested transition is blocked; Andy reports workers disconnected and re-dispatch loops",
         "next_action": "Implement watchdog guard for in-flight worker processing/repair handoff and optionally track no-container elapsed separately; then re-run probe + real multi-step dispatch and confirm no invalid transition logs"
       },
       "evidence": {
-        "bundle_count": 3,
-        "last_bundle_dir": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260227T150005Z",
-        "last_manifest_path": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260227T150005Z/manifest.json",
-        "last_root_cause": "wa_conflict_churn",
+        "bundle_count": 4,
+        "last_bundle_dir": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260301T194730Z",
+        "last_manifest_path": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260301T194730Z/manifest.json",
+        "last_root_cause": "andy_no_output_timeout",
         "last_status": "warn",
-        "last_checked_at": "2026-02-27T15:00:08.106276+00:00",
+        "last_checked_at": "2026-03-01T19:47:39.430523+00:00",
         "non_zero_command_count": 3,
-        "debug_summary": "root_cause=wa_conflict_churn; messages=12; worker_runs=0; dispatch_blocks=4; non_zero_commands=3"
+        "debug_summary": "root_cause=andy_no_output_timeout; messages=17; worker_runs=0; dispatch_blocks=0; non_zero_commands=3"
       },
       "context": {
         "lane": "andy-developer"
       },
       "notes": [
-        {
-          "ts": "2026-02-28T00:00:00.000000+00:00",
-          "author": "operator",
-          "text": "Resolved. 5-layer enforcement deployed: (1) PreToolUse hook in andy-developer container blocks invalid dispatches, (2) worker completion retry with rework prompt, (3) container-runner always-merges settings + copies hooks, (4) ipc.ts run_id in block messages, (5) worker Pre-Exit Gate checklist. Additional fix: dispatch-validator.ts changed optional field guards from !== undefined to != null so explicit null values are treated as absent. E2E smoke test: PASS in 52.8s, status=review_requested. Branch: andy-developer-optimization."
-        },
         {
           "ts": "2026-03-01T08:54:58.372961+00:00",
           "author": "operator",
@@ -43,6 +38,11 @@
           "ts": "2026-03-01T18:51:33.396097+00:00",
           "author": "operator",
           "text": "2026-03-02: Added queued cursor grace gate to WorkerRunSupervisor (queued_stale_before_spawn now requires age>=queuedCursorGraceMs, default 10m). Also wired explicit runId handoff host->container-runner->agent-runner and guarded simple Andy greeting cursor on send failure. Validation: vitest src/worker-run-supervisor.test.ts + src/jarvis-worker-dispatch.test.ts (86/86 pass), npm run typecheck pass."
+        },
+        {
+          "ts": "2026-03-01T19:34:48.890041+00:00",
+          "author": "operator",
+          "text": "2026-03-02: New Wi-Fi + stale Tailscale DNS path caused EAI_AGAIN in andy-developer (api.minimax.io). Host resolver had supplemental 100.100.100.100 (utun5). Applied Wi-Fi DNS 1.1.1.1/8.8.8.8 and full Apple Container reset (container system stop/start, builder start), then restarted com.nanoclaw. Verification: container TCP to 1.1.1.1:443 OK and container DNS lookup api.minimax.io OK."
         }
       ]
     },

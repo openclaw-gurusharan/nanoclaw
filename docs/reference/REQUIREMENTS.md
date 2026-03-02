@@ -118,6 +118,7 @@ A personal Claude assistant accessible via WhatsApp, with minimal custom code.
 - Schedule types: cron expressions, intervals (ms), or one-time (ISO timestamp)
 - From main: can schedule tasks for any group, view/manage all tasks
 - From other groups: can only manage that group's tasks
+- Runtime profile note: `mission_core` can disable scheduler/control-plane task management by default; task controls remain available via `ops_extended` or explicit feature flags.
 
 ### Group Management
 - New groups are added explicitly via the main channel

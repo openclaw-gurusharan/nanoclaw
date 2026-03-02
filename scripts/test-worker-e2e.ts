@@ -22,11 +22,11 @@ import {
   validateDispatchPayload,
 } from '../src/dispatch-validator.js';
 import {
+  acceptWorkerRunCompletion,
   initDatabase,
   _initTestDatabase,
   getWorkerRun,
   insertWorkerRun,
-  updateWorkerRunCompletion,
   updateWorkerRunStatus,
 } from '../src/db.js';
 import { canIpcAccessTarget } from '../src/ipc.js';
@@ -116,6 +116,7 @@ async function main() {
   const useLiveDb = !useIsolatedDb;
   const uniqueToken = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
   const smokeRunId = `smoke-${uniqueToken}`;
+  const smokeRequestId = `req-${uniqueToken}`;
   const smokeBranch = `jarvis-smoke-${uniqueToken}`;
   const smokeFile = `smoke-flow-${uniqueToken}.txt`;
   const startMs = Date.now();
@@ -141,7 +142,9 @@ async function main() {
     'Return ONLY one strict JSON object (no markdown).',
     'Create a worker dispatch payload with these exact values:',
     `- run_id: ${smokeRunId}`,
+    `- request_id: ${smokeRequestId}`,
     '- task_type: code',
+    '- context_intent: fresh',
     '- repo: openclaw-gurusharan/nanoclaw',
     `- branch: ${smokeBranch}`,
     `- acceptance_tests: ["test -f ${smokeFile}","grep -q 'smoke' ${smokeFile}"]`,
@@ -250,7 +253,7 @@ async function main() {
     throw new Error(`completion validation failed: ${completionCheck.missing.join(', ')}`);
   }
 
-  updateWorkerRunCompletion(dispatch.run_id, {
+  const accepted = acceptWorkerRunCompletion(dispatch.run_id, {
     branch_name: completion.branch,
     pr_url: completion.pr_url,
     commit_sha: completion.commit_sha,
@@ -258,7 +261,10 @@ async function main() {
     test_summary: completion.test_result,
     risk_summary: completion.risk,
   });
-  updateWorkerRunStatus(dispatch.run_id, 'review_requested');
+  if (!accepted.ok) {
+    updateWorkerRunStatus(dispatch.run_id, 'failed_contract');
+    throw new Error('atomic completion accept rejected');
+  }
   console.log('completion_validation: PASS');
 
   const row = getWorkerRun(dispatch.run_id);

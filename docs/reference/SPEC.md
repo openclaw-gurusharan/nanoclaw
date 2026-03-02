@@ -198,6 +198,25 @@ export const TRIGGER_PATTERN = new RegExp(`^@${ASSISTANT_NAME}\\b`, 'i');
 
 **Note:** Paths must be absolute for container volume mounts to work correctly.
 
+### Runtime Profiles
+
+NanoClaw supports two runtime profiles:
+
+- `mission_core` (default): fixed lane execution path with strict dispatch/completion contracts and minimal control-plane features.
+- `ops_extended`: enables scheduler, dynamic group registration, steering/progress, and broader control-plane helpers.
+
+Profile and gate env vars:
+
+```bash
+NANOCLAW_RUNTIME_PROFILE=mission_core   # default
+# Optional overrides:
+NANOCLAW_ENABLE_SCHEDULER=false
+NANOCLAW_ENABLE_WORKER_STEERING=false
+NANOCLAW_ENABLE_DYNAMIC_GROUP_REGISTRATION=false
+NANOCLAW_ENABLE_CONTROL_PLANE_SNAPSHOTS=false
+EVENT_BRIDGE_ENABLED=false
+```
+
 ### Container Configuration
 
 Groups can have additional directories mounted via `containerConfig` in the SQLite `registered_groups` table (stored as JSON in the `container_config` column). Example registration:

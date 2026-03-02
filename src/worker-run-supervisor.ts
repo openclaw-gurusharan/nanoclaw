@@ -10,9 +10,7 @@ import { logger } from './logger.js';
 
 export interface WorkerRunSupervisorConfig {
   hardTimeoutMs: number;
-  noContainerGraceMs: number;
   queuedCursorGraceMs: number;
-  repairHandoffGraceMs: number;
   leaseTtlMs: number;
   processStartAtMs: number;
   restartSuppressionWindowMs: number;
@@ -40,13 +38,6 @@ function phaseForRun(run: WorkerRunRecord): WorkerRunPhase {
   return raw as WorkerRunPhase;
 }
 
-function noContainerFailurePhase(phase: WorkerRunPhase): boolean {
-  return phase === 'spawning'
-    || phase === 'active'
-    || phase === 'completion_validating'
-    || phase === 'completion_repair_pending'
-    || phase === 'completion_repair_active';
-}
 
 export class WorkerRunSupervisor {
   constructor(private readonly config: WorkerRunSupervisorConfig) {}
@@ -237,60 +228,6 @@ export class WorkerRunSupervisor {
             phase: phase === 'completion_repair_pending' ? 'completion_repair_active' : phase,
           });
           changed = true;
-        }
-      } else if (noContainerFailurePhase(phase)) {
-        let noContainerSinceMs = toMs(run.no_container_since);
-        if (noContainerSinceMs === null) {
-          updateWorkerRunLifecycle(run.run_id, {
-            no_container_since: nowIso(),
-            active_container_name: null,
-            supervisor_owner: this.config.ownerId,
-          });
-          changed = true;
-          noContainerSinceMs = nowMs;
-        }
-
-        const lastHeartbeatMs = toMs(run.last_heartbeat_at);
-        const heartbeatAgeMs = lastHeartbeatMs === null
-          ? Number.POSITIVE_INFINITY
-          : nowMs - lastHeartbeatMs;
-        const leaseExpiresMs = toMs(run.lease_expires_at);
-        const leaseExpired = leaseExpiresMs === null
-          ? heartbeatAgeMs > this.config.leaseTtlMs
-          : nowMs > leaseExpiresMs;
-        const noContainerAgeMs = nowMs - noContainerSinceMs;
-        const graceMs = phase === 'completion_repair_pending' || phase === 'completion_repair_active'
-          ? this.config.repairHandoffGraceMs
-          : this.config.noContainerGraceMs;
-
-        if (noContainerAgeMs > graceMs && leaseExpired && heartbeatAgeMs > this.config.leaseTtlMs) {
-          completeWorkerRun(
-            run.run_id,
-            'failed',
-            'Auto-failed worker run with no active container',
-            JSON.stringify({
-              reason: 'running_without_container',
-              status: run.status,
-              phase,
-              started_at: run.started_at,
-              stale_ms: ageMs,
-              no_container_ms: noContainerAgeMs,
-              heartbeat_age_ms: Number.isFinite(heartbeatAgeMs) ? heartbeatAgeMs : null,
-            }),
-          );
-          logger.warn(
-            {
-              runId: run.run_id,
-              group: run.group_folder,
-              startedAt: run.started_at,
-              phase,
-              noContainerAgeMs,
-              heartbeatAgeMs,
-            },
-            'Auto-failed running worker run with no container',
-          );
-          changed = true;
-          continue;
         }
       }
 

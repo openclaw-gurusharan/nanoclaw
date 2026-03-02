@@ -18,6 +18,7 @@ Commands:
   hi-timeline     Alias for message-timeline
   verify-worker-connectivity
                   Validate worker lane connectivity gate using probe + DB checks
+  happiness-gate  Run user-facing happiness gate (status + andy user e2e probe)
   dispatch-lint   Validate worker dispatch payload against current rules
   db-doctor       Diagnose database schema/index/readiness drift (read-only)
   incident        Manage incident registry (list/show/resolve/reopen/note)
@@ -56,6 +57,9 @@ case "$command_name" in
     ;;
   verify-worker-connectivity)
     exec "$SCRIPT_DIR/jarvis-verify-worker-connectivity.sh" "$@"
+    ;;
+  happiness-gate)
+    exec "$SCRIPT_DIR/jarvis-happiness-gate.sh" "$@"
     ;;
   dispatch-lint)
     exec "$SCRIPT_DIR/jarvis-dispatch-lint.sh" "$@"

@@ -4,7 +4,11 @@ import fs from 'fs';
 
 import {
   ASSISTANT_NAME,
+  ENABLE_DYNAMIC_GROUP_REGISTRATION,
+  ENABLE_SCHEDULER,
+  ENABLE_WORKER_STEERING,
   MAIN_GROUP_FOLDER,
+  RUNTIME_OPS_EXTENDED,
   SCHEDULER_POLL_INTERVAL,
   TIMEZONE,
 } from './config.js';
@@ -144,6 +148,10 @@ async function runTask(
         isMain,
         isScheduledTask: true,
         assistantName: ASSISTANT_NAME,
+        opsExtended: RUNTIME_OPS_EXTENDED,
+        schedulerEnabled: ENABLE_SCHEDULER,
+        workerSteeringEnabled: ENABLE_WORKER_STEERING,
+        dynamicGroupRegistrationEnabled: ENABLE_DYNAMIC_GROUP_REGISTRATION,
       },
       (proc, containerName) =>
         deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),

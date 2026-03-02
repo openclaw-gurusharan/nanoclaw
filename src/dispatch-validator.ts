@@ -17,6 +17,7 @@ export type DispatchContextIntent = 'continue' | 'fresh';
 
 export interface DispatchPayload {
   run_id: string;
+  request_id?: string;
   task_type: DispatchTaskType;
   context_intent: DispatchContextIntent;
   input: string;
@@ -132,6 +133,18 @@ export function validateDispatchPayload(payload: DispatchPayload): { valid: bool
     errors.push('run_id must be a non-empty string with no whitespace');
   } else if (payload.run_id.length > RUN_ID_MAX_LENGTH) {
     errors.push(`run_id must be ${RUN_ID_MAX_LENGTH} characters or fewer`);
+  }
+
+  if (
+    payload.request_id != null
+    && (
+      typeof payload.request_id !== 'string'
+      || !payload.request_id.trim()
+      || /\s/.test(payload.request_id)
+      || payload.request_id.length > RUN_ID_MAX_LENGTH
+    )
+  ) {
+    errors.push(`request_id must be a non-empty id with no whitespace and <= ${RUN_ID_MAX_LENGTH} chars when provided`);
   }
 
   if (!payload.task_type || !ALLOWED_TASK_TYPES.has(payload.task_type)) {

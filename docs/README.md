@@ -16,6 +16,8 @@ docs/
 ## Start Points
 
 - Architecture first: `docs/architecture/nanoclaw-system-architecture.md`
+- Mission baseline profile: `docs/architecture/mission-core-profile.md`
+- Optional ops profile: `docs/architecture/mission-optional-features.md`
 - Architecture optimization plan: `docs/architecture/nanoclaw-architecture-optimization-plan.md`
 - Workflow contract: `docs/workflow/nanoclaw-jarvis-dispatch-contract.md`
 - Runtime behavior: `docs/workflow/nanoclaw-jarvis-worker-runtime.md`

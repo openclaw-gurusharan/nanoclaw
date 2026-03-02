@@ -10,6 +10,7 @@ Screenshot capture/analysis is prohibited in worker dispatch and completion evid
 ```json
 {
   "run_id": "task-20260222-001",
+  "request_id": "req-20260302-001",
   "task_type": "implement",
   "context_intent": "fresh",
   "ui_impacting": true,
@@ -44,6 +45,7 @@ Screenshot capture/analysis is prohibited in worker dispatch and completion evid
 | Field | Rule |
 |-------|------|
 | `run_id` | required, max 64 chars, no whitespace |
+| `request_id` | optional tracking id, max 64 chars, no whitespace |
 | `task_type` | one of `analyze`, `implement`, `fix`, `refactor`, `test`, `release`, `research`, `code` |
 | `context_intent` | required; `fresh` (new context) or `continue` (resume related context) |
 | `input` | required non-empty string |

@@ -5,6 +5,9 @@ import { CronExpressionParser } from 'cron-parser';
 
 import {
   DATA_DIR,
+  ENABLE_DYNAMIC_GROUP_REGISTRATION,
+  ENABLE_SCHEDULER,
+  ENABLE_WORKER_STEERING,
   IPC_POLL_INTERVAL,
   MAIN_GROUP_FOLDER,
   TIMEZONE,
@@ -24,6 +27,7 @@ import {
   insertSteeringEvent,
   insertWorkerRun,
   isNonRetryableWorkerStatus,
+  linkAndyRequestToWorkerRun,
   updateTask,
   updateWorkerRunProgress,
 } from './db.js';
@@ -43,6 +47,13 @@ export interface IpcDeps {
     availableGroups: AvailableGroup[],
     registeredJids: Set<string>,
   ) => void;
+  options?: IpcRuntimeOptions;
+}
+
+export interface IpcRuntimeOptions {
+  taskControlEnabled: boolean;
+  workerSteeringEnabled: boolean;
+  dynamicGroupRegistrationEnabled: boolean;
 }
 
 let ipcWatcherRunning = false;
@@ -98,6 +109,7 @@ function buildDispatchBlockedMessage(event: DispatchBlockEvent): string {
 
   const template = {
     run_id: event.run_id || 'task-<timestamp>-001',
+    request_id: 'req-<timestamp>-001',
     task_type: 'implement',
     context_intent: 'fresh',
     input: 'Implement the requested change',
@@ -279,6 +291,58 @@ function validateAndyToWorkerPayload(
   return { valid: true };
 }
 
+function normalizeWorkerDispatchPayloadText(
+  sourceGroup: string,
+  targetGroup: RegisteredGroup | undefined,
+  text: string,
+): { text: string; normalized: boolean } {
+  if (
+    sourceGroup !== 'andy-developer'
+    || !targetGroup
+    || !isJarvisWorkerFolder(targetGroup.folder)
+  ) {
+    return { text, normalized: false };
+  }
+
+  const payload = parseDispatchPayload(text);
+  if (!payload) return { text, normalized: false };
+  if (!payload.output_contract || !Array.isArray(payload.output_contract.required_fields)) {
+    return { text, normalized: false };
+  }
+
+  const before = payload.output_contract.required_fields;
+  const required = new Set(
+    before
+      .filter((v) => typeof v === 'string')
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0),
+  );
+
+  // Canonical completion fields required by worker contract.
+  required.add('run_id');
+  required.add('branch');
+  required.add('commit_sha');
+  required.add('files_changed');
+  required.add('test_result');
+  required.add('risk');
+  if (!required.has('pr_url') && !required.has('pr_skipped_reason')) {
+    required.add('pr_url');
+  }
+
+  const after = Array.from(required);
+  const changed = after.length !== before.length || after.some((field) => !before.includes(field));
+  if (!changed) return { text, normalized: false };
+
+  const normalizedPayload = {
+    ...payload,
+    output_contract: {
+      ...payload.output_contract,
+      required_fields: after,
+    },
+  };
+  return { text: JSON.stringify(normalizedPayload), normalized: true };
+}
+
 export function validateAndyWorkerDispatchMessage(
   sourceGroup: string,
   targetGroup: RegisteredGroup | undefined,
@@ -346,6 +410,7 @@ export function queueAndyWorkerDispatchRun(
   const queueState = insertWorkerRun(parsed.run_id, targetGroup.folder, {
     dispatch_repo: parsed.repo,
     dispatch_branch: parsed.branch,
+    request_id: parsed.request_id,
     context_intent: parsed.context_intent,
     dispatch_payload: JSON.stringify(parsed),
     parent_run_id: parsed.parent_run_id,
@@ -363,6 +428,15 @@ export function queueAndyWorkerDispatchRun(
       runId: parsed.run_id,
       reason: `duplicate run_id blocked: ${parsed.run_id}`,
     };
+  }
+
+  if (parsed.request_id) {
+    linkAndyRequestToWorkerRun(
+      parsed.request_id,
+      parsed.run_id,
+      targetGroup.folder,
+      'worker_queued',
+    );
   }
 
   return {
@@ -502,6 +576,15 @@ export function startIpcWatcher(deps: IpcDeps): void {
 
   const ipcBaseDir = IPC_BASE_DIR;
   fs.mkdirSync(ipcBaseDir, { recursive: true });
+  const runtimeOptions: IpcRuntimeOptions = {
+    taskControlEnabled: deps.options?.taskControlEnabled ?? ENABLE_SCHEDULER,
+    workerSteeringEnabled: deps.options?.workerSteeringEnabled ?? ENABLE_WORKER_STEERING,
+    dynamicGroupRegistrationEnabled: deps.options?.dynamicGroupRegistrationEnabled
+      ?? ENABLE_DYNAMIC_GROUP_REGISTRATION,
+  };
+  const shouldProcessTaskDir = runtimeOptions.taskControlEnabled
+    || runtimeOptions.workerSteeringEnabled
+    || runtimeOptions.dynamicGroupRegistrationEnabled;
 
   const processIpcFiles = async () => {
     // Scan all group IPC directories (identity determined by directory)
@@ -538,19 +621,31 @@ export function startIpcWatcher(deps: IpcDeps): void {
                 // Authorization: verify this group can send to this chatJid
                 const targetGroup = registeredGroups[data.chatJid];
                 const canAccessTarget = canIpcAccessTarget(sourceGroup, isMain, targetGroup);
-                const dispatchValidation = validateAndyWorkerDispatchMessage(
+                const normalizedDispatch = normalizeWorkerDispatchPayloadText(
                   sourceGroup,
                   targetGroup,
                   data.text,
                 );
+                const outboundText = normalizedDispatch.text;
+                const dispatchValidation = validateAndyWorkerDispatchMessage(
+                  sourceGroup,
+                  targetGroup,
+                  outboundText,
+                );
                 const queueDecision = (
                   canAccessTarget && dispatchValidation.valid
                 )
-                  ? queueAndyWorkerDispatchRun(sourceGroup, targetGroup, data.text)
+                  ? queueAndyWorkerDispatchRun(sourceGroup, targetGroup, outboundText)
                   : { allowSend: true };
 
                 if (canAccessTarget && dispatchValidation.valid && queueDecision.allowSend) {
-                  await deps.sendMessage(data.chatJid, data.text, sourceGroup);
+                  await deps.sendMessage(data.chatJid, outboundText, sourceGroup);
+                  if (normalizedDispatch.normalized) {
+                    logger.info(
+                      { sourceGroup, targetFolder: targetGroup?.folder },
+                      'Normalized worker dispatch required_fields before send',
+                    );
+                  }
                   if (queueDecision.runId && queueDecision.queueState) {
                     logger.info(
                       {
@@ -583,7 +678,7 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   );
 
                   if (targetGroup && isJarvisWorkerFolder(targetGroup.folder)) {
-                    const parsed = parseDispatchPayload(data.text);
+                    const parsed = parseDispatchPayload(outboundText);
                     const reasonCode: DispatchBlockEvent['reason_code'] = !canAccessTarget
                       ? 'target_authorization_failed'
                       : isDuplicateRunId
@@ -662,7 +757,7 @@ export function startIpcWatcher(deps: IpcDeps): void {
 
       // Process tasks from this group's IPC directory
       try {
-        if (fs.existsSync(tasksDir)) {
+        if (shouldProcessTaskDir && fs.existsSync(tasksDir)) {
           const taskFiles = fs
             .readdirSync(tasksDir)
             .filter((f) => f.endsWith('.json'));
@@ -671,7 +766,7 @@ export function startIpcWatcher(deps: IpcDeps): void {
             try {
               const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
               // Pass source group identity to processTaskIpc for authorization
-              await processTaskIpc(data, sourceGroup, isMain, deps);
+              await processTaskIpc(data, sourceGroup, isMain, deps, runtimeOptions);
               fs.unlinkSync(filePath);
             } catch (err) {
               logger.error(
@@ -696,7 +791,11 @@ export function startIpcWatcher(deps: IpcDeps): void {
   };
 
   processIpcFiles();
-  startProgressPoller(deps);
+  if (runtimeOptions.workerSteeringEnabled) {
+    startProgressPoller(deps);
+  } else {
+    logger.info('Worker steering progress poller disabled by runtime profile');
+  }
   logger.info('IPC watcher started (per-group namespaces)');
 }
 
@@ -725,11 +824,20 @@ export async function processTaskIpc(
   sourceGroup: string, // Verified identity from IPC directory
   isMain: boolean, // Verified from directory path
   deps: IpcDeps,
+  runtimeOptions: IpcRuntimeOptions = {
+    taskControlEnabled: true,
+    workerSteeringEnabled: true,
+    dynamicGroupRegistrationEnabled: true,
+  },
 ): Promise<void> {
   const registeredGroups = deps.registeredGroups();
 
   switch (data.type) {
     case 'schedule_task':
+      if (!runtimeOptions.taskControlEnabled) {
+        logger.warn({ sourceGroup }, 'schedule_task ignored: task control disabled');
+        break;
+      }
       if (
         data.prompt &&
         data.schedule_type &&
@@ -864,6 +972,10 @@ export async function processTaskIpc(
       break;
 
     case 'pause_task':
+      if (!runtimeOptions.taskControlEnabled) {
+        logger.warn({ sourceGroup }, 'pause_task ignored: task control disabled');
+        break;
+      }
       if (data.taskId) {
         const task = getTaskById(data.taskId);
         if (task && canIpcAccessTaskGroup(sourceGroup, isMain, task.group_folder)) {
@@ -882,6 +994,10 @@ export async function processTaskIpc(
       break;
 
     case 'resume_task':
+      if (!runtimeOptions.taskControlEnabled) {
+        logger.warn({ sourceGroup }, 'resume_task ignored: task control disabled');
+        break;
+      }
       if (data.taskId) {
         const task = getTaskById(data.taskId);
         if (task && canIpcAccessTaskGroup(sourceGroup, isMain, task.group_folder)) {
@@ -900,6 +1016,10 @@ export async function processTaskIpc(
       break;
 
     case 'cancel_task':
+      if (!runtimeOptions.taskControlEnabled) {
+        logger.warn({ sourceGroup }, 'cancel_task ignored: task control disabled');
+        break;
+      }
       if (data.taskId) {
         const task = getTaskById(data.taskId);
         if (task && canIpcAccessTaskGroup(sourceGroup, isMain, task.group_folder)) {
@@ -918,6 +1038,10 @@ export async function processTaskIpc(
       break;
 
     case 'refresh_groups':
+      if (!runtimeOptions.dynamicGroupRegistrationEnabled) {
+        logger.warn({ sourceGroup }, 'refresh_groups ignored: dynamic group registration disabled');
+        break;
+      }
       // Only main group can request a refresh
       if (isMain) {
         logger.info(
@@ -942,6 +1066,10 @@ export async function processTaskIpc(
       break;
 
     case 'register_group':
+      if (!runtimeOptions.dynamicGroupRegistrationEnabled) {
+        logger.warn({ sourceGroup }, 'register_group ignored: dynamic group registration disabled');
+        break;
+      }
       // Only main group can register new groups
       if (!isMain) {
         logger.warn(
@@ -975,6 +1103,10 @@ export async function processTaskIpc(
       break;
 
     case 'steer_worker': {
+      if (!runtimeOptions.workerSteeringEnabled) {
+        logger.warn({ sourceGroup }, 'steer_worker ignored: worker steering disabled');
+        break;
+      }
       const { run_id, message } = data;
 
       if (!run_id || !message) {

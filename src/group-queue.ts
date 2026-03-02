@@ -18,6 +18,7 @@ const DEAD_LETTER_RETRY_MS = 5 * 60 * 1000;
 
 interface GroupState {
   active: boolean;
+  activeSinceMs: number | null;
   idleWaiting: boolean;
   isTaskContainer: boolean;
   pendingMessages: boolean;
@@ -83,6 +84,7 @@ export class GroupQueue {
     if (!state) {
       state = {
         active: false,
+        activeSinceMs: null,
         idleWaiting: false,
         isTaskContainer: false,
         pendingMessages: false,
@@ -110,6 +112,23 @@ export class GroupQueue {
 
   setProcessMessagesFn(fn: (groupJid: string) => Promise<boolean>): void {
     this.processMessagesFn = fn;
+  }
+
+  getRuntimeState(groupJid: string): {
+    active: boolean;
+    activeSinceMs: number | null;
+    idleWaiting: boolean;
+    isTaskContainer: boolean;
+    pendingMessages: boolean;
+  } {
+    const state = this.getGroup(groupJid);
+    return {
+      active: state.active,
+      activeSinceMs: state.activeSinceMs,
+      idleWaiting: state.idleWaiting,
+      isTaskContainer: state.isTaskContainer,
+      pendingMessages: state.pendingMessages,
+    };
   }
 
   enqueueMessageCheck(groupJid: string): void {
@@ -248,6 +267,7 @@ export class GroupQueue {
   ): Promise<void> {
     const state = this.getGroup(groupJid);
     state.active = true;
+    state.activeSinceMs = Date.now();
     state.idleWaiting = false;
     state.isTaskContainer = false;
     state.pendingMessages = false;
@@ -280,6 +300,7 @@ export class GroupQueue {
         );
       }
       state.active = false;
+      state.activeSinceMs = null;
       state.process = null;
       state.containerName = null;
       state.groupFolder = null;
@@ -291,6 +312,7 @@ export class GroupQueue {
   private async runTask(groupJid: string, task: QueuedTask): Promise<void> {
     const state = this.getGroup(groupJid);
     state.active = true;
+    state.activeSinceMs = Date.now();
     state.idleWaiting = false;
     state.isTaskContainer = true;
     this.activeCount++;
@@ -306,6 +328,7 @@ export class GroupQueue {
       logger.error({ groupJid, taskId: task.id, err }, 'Error running task');
     } finally {
       state.active = false;
+      state.activeSinceMs = null;
       state.isTaskContainer = false;
       state.process = null;
       state.containerName = null;

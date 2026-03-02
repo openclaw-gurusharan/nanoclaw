@@ -26,9 +26,7 @@ import { WorkerRunSupervisor } from './worker-run-supervisor.js';
 
 const supervisor = new WorkerRunSupervisor({
   hardTimeoutMs: 60 * 60 * 1000,
-  noContainerGraceMs: 5 * 60 * 1000,
   queuedCursorGraceMs: 0,
-  repairHandoffGraceMs: 2 * 60 * 1000,
   leaseTtlMs: 60 * 1000,
   processStartAtMs: Date.now() - 5 * 60 * 1000,
   restartSuppressionWindowMs: 60 * 1000,
@@ -41,7 +39,7 @@ beforeEach(() => {
 });
 
 describe('WorkerRunSupervisor.reconcile', () => {
-  it('fails active run only when no-container grace and lease/heartbeat thresholds are exceeded', () => {
+  it('does not auto-fail running run that loses its container', () => {
     insertWorkerRun('run-super-1', 'jarvis-worker-1');
     updateWorkerRunStatus('run-super-1', 'running');
     updateWorkerRunLifecycle('run-super-1', {
@@ -58,20 +56,18 @@ describe('WorkerRunSupervisor.reconcile', () => {
     });
 
     const row = getWorkerRun('run-super-1');
-    expect(changed).toBe(true);
-    expect(row?.status).toBe('failed');
-    expect(row?.phase).toBe('terminal');
-    expect(row?.error_details).toContain('"reason":"running_without_container"');
+    expect(changed).toBe(false);
+    expect(row?.status).toBe('running');
   });
 
-  it('does not fail active run while lease is fresh', () => {
+  it('does not auto-fail running repair_pending run with no container', () => {
     insertWorkerRun('run-super-2', 'jarvis-worker-2');
     updateWorkerRunStatus('run-super-2', 'running');
     updateWorkerRunLifecycle('run-super-2', {
-      phase: 'active',
-      no_container_since: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-      last_heartbeat_at: new Date(Date.now() - 10 * 1000).toISOString(),
-      lease_expires_at: new Date(Date.now() + 30 * 1000).toISOString(),
+      phase: 'completion_repair_pending',
+      no_container_since: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      last_heartbeat_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      lease_expires_at: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
     });
     mockHasRunningContainerWithPrefix.mockReturnValue(false);
 
@@ -83,7 +79,6 @@ describe('WorkerRunSupervisor.reconcile', () => {
     const row = getWorkerRun('run-super-2');
     expect(changed).toBe(false);
     expect(row?.status).toBe('running');
-    expect(row?.phase).toBe('active');
   });
 
   it('promotes repair_pending to repair_active when container is detected', () => {
@@ -148,9 +143,7 @@ describe('WorkerRunSupervisor.reconcile', () => {
   it('suppresses queued cursor stale failure during startup grace window', () => {
     const startupSupervisor = new WorkerRunSupervisor({
       hardTimeoutMs: 60 * 60 * 1000,
-      noContainerGraceMs: 5 * 60 * 1000,
       queuedCursorGraceMs: 0,
-      repairHandoffGraceMs: 2 * 60 * 1000,
       leaseTtlMs: 60 * 1000,
       processStartAtMs: Date.now(),
       restartSuppressionWindowMs: 60 * 1000,
@@ -174,9 +167,7 @@ describe('WorkerRunSupervisor.reconcile', () => {
   it('does not fail queued run from cursor mismatch before queued cursor grace expires', () => {
     const graceSupervisor = new WorkerRunSupervisor({
       hardTimeoutMs: 60 * 60 * 1000,
-      noContainerGraceMs: 5 * 60 * 1000,
       queuedCursorGraceMs: 5 * 60 * 1000,
-      repairHandoffGraceMs: 2 * 60 * 1000,
       leaseTtlMs: 60 * 1000,
       processStartAtMs: Date.now() - 10 * 60 * 1000,
       restartSuppressionWindowMs: 60 * 1000,

@@ -28,6 +28,10 @@ interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  opsExtended?: boolean;
+  schedulerEnabled?: boolean;
+  workerSteeringEnabled?: boolean;
+  dynamicGroupRegistrationEnabled?: boolean;
   secrets?: Record<string, string>;
 }
 
@@ -549,6 +553,7 @@ async function runQuery(
   // Progress emission state (throttled per runId)
   let progressSeq = 0;
   let lastProgressAt = 0;
+  const workerSteeringEnabled = containerInput.workerSteeringEnabled === true;
 
   // Poll IPC for follow-up messages, _close sentinel, and steering during the query
   let ipcPolling = true;
@@ -568,7 +573,7 @@ async function runQuery(
       stream.push(text);
     }
     // Check for steering message and inject as follow-up
-    if (runId) {
+    if (workerSteeringEnabled && runId) {
       const steerMsg = checkForSteering(runId);
       if (steerMsg) {
         log(`Injecting steering into active query (${steerMsg.length} chars)`);
@@ -651,6 +656,10 @@ async function runQuery(
             NANOCLAW_CHAT_JID: containerInput.chatJid,
             NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
+            NANOCLAW_OPS_EXTENDED: containerInput.opsExtended ? '1' : '0',
+            NANOCLAW_SCHEDULER_ENABLED: containerInput.schedulerEnabled ? '1' : '0',
+            NANOCLAW_WORKER_STEERING_ENABLED: containerInput.workerSteeringEnabled ? '1' : '0',
+            NANOCLAW_DYNAMIC_GROUP_REG_ENABLED: containerInput.dynamicGroupRegistrationEnabled ? '1' : '0',
           },
         },
       },
@@ -666,7 +675,7 @@ async function runQuery(
     log(`[msg #${messageCount}] type=${msgType}`);
 
     // Emit progress event for assistant messages (throttled to PROGRESS_THROTTLE_MS)
-    if (runId && message.type === 'assistant') {
+    if (workerSteeringEnabled && runId && message.type === 'assistant') {
       const now = Date.now();
       if (now - lastProgressAt >= PROGRESS_THROTTLE_MS) {
         lastProgressAt = now;

@@ -29,6 +29,7 @@ BEFORE changing worker contract code/docs → read .claude/rules/jarvis-dispatch
 BEFORE changing worker dispatch validation/contracts → read docs/workflow/nanoclaw-jarvis-dispatch-contract.md
 BEFORE changing worker container runtime/mounts/model config → read docs/workflow/nanoclaw-jarvis-worker-runtime.md
 BEFORE changing GitHub Actions/review governance for Andy/Jarvis lanes → read docs/workflow/nanoclaw-github-control-plane.md
+BEFORE finalizing Andy user-facing reliability fixes → read docs/workflow/nanoclaw-andy-user-happiness-gate.md
 BEFORE deciding workflow setup, responsibility ownership, or where updates belong → read docs/operations/workflow-setup-responsibility-map.md
 BEFORE deciding whether to run a skill workflow or docs-first workflow → read docs/operations/skills-vs-docs-map.md
 BEFORE pulling/fetching upstream main or resolving upstream sync conflicts → read docs/operations/upstream-sync-policy.md
@@ -96,6 +97,7 @@ Jarvis ops entrypoint:
 bash scripts/jarvis-ops.sh reliability
 bash scripts/jarvis-ops.sh trace --lane andy-developer --until <iso-timestamp>
 bash scripts/jarvis-ops.sh verify-worker-connectivity
+bash scripts/jarvis-ops.sh happiness-gate
 ```
 
 Runtime tuning env vars (see `.env.example` for defaults):

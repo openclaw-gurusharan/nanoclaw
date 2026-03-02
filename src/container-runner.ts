@@ -38,6 +38,7 @@ const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
 // Must match AGENT_RUNNER_LOG_PREFIX in container/agent-runner/src/index.ts
 const AGENT_RUNNER_LOG_PREFIX = '[agent-runner]';
 
+
 export interface ContainerInput {
   prompt: string;
   sessionId?: string;
@@ -47,6 +48,10 @@ export interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  opsExtended?: boolean;
+  schedulerEnabled?: boolean;
+  workerSteeringEnabled?: boolean;
+  dynamicGroupRegistrationEnabled?: boolean;
   secrets?: Record<string, string>;
 }
 
@@ -624,7 +629,10 @@ export async function runContainerAgent(
       );
       exec(stopContainer(containerName), { timeout: 15000 }, (err) => {
         if (err) {
-          logger.warn({ group: group.name, containerName, err }, 'Graceful stop failed, force killing');
+          logger.warn(
+            { group: group.name, containerName, err },
+            'Graceful stop failed, force killing',
+          );
           container.kill('SIGKILL');
         }
       });
@@ -705,7 +713,8 @@ export async function runContainerAgent(
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const logFile = path.join(logsDir, `container-${timestamp}.log`);
-      const isVerbose = process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
+      const isVerbose =
+        process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
 
       const logLines = [
         `=== Container Run Log ===`,
