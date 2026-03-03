@@ -8,6 +8,9 @@ DB_PATH="${DB_PATH:-$ROOT_DIR/store/messages.db}"
 WINDOW_MINUTES="${WINDOW_MINUTES:-60}"
 STALE_QUEUED_MINUTES="${STALE_QUEUED_MINUTES:-20}"
 STALE_RUNNING_MINUTES="${STALE_RUNNING_MINUTES:-60}"
+PROBE_TIMEOUT_SEC="${PROBE_TIMEOUT_SEC:-120}"
+PROBE_POLL_SEC="${PROBE_POLL_SEC:-2}"
+PROBE_INFLIGHT_WINDOW_MINUTES="${PROBE_INFLIGHT_WINDOW_MINUTES:-180}"
 SKIP_PRECHECKS=0
 SKIP_PROBE=0
 
@@ -20,6 +23,10 @@ Options:
   --window-minutes <n>           Probe-result freshness window (default: 60)
   --stale-queued-minutes <n>     Stale queued threshold (default: 20)
   --stale-running-minutes <n>    Stale running threshold (default: 60)
+  --probe-timeout-sec <n>        Probe timeout per worker lane (default: 120)
+  --probe-poll-sec <n>           Probe poll interval (default: 2)
+  --probe-inflight-window-minutes <n>
+                                 Block duplicate probes when a probe run is already queued/running in this window (default: 180)
   --skip-prechecks               Skip preflight command
   --skip-probe                   Skip worker probe command
   -h, --help                     Show help
@@ -36,6 +43,9 @@ while [ "$#" -gt 0 ]; do
     --window-minutes) WINDOW_MINUTES="$2"; shift 2 ;;
     --stale-queued-minutes) STALE_QUEUED_MINUTES="$2"; shift 2 ;;
     --stale-running-minutes) STALE_RUNNING_MINUTES="$2"; shift 2 ;;
+    --probe-timeout-sec) PROBE_TIMEOUT_SEC="$2"; shift 2 ;;
+    --probe-poll-sec) PROBE_POLL_SEC="$2"; shift 2 ;;
+    --probe-inflight-window-minutes) PROBE_INFLIGHT_WINDOW_MINUTES="$2"; shift 2 ;;
     --skip-prechecks) SKIP_PRECHECKS=1; shift ;;
     --skip-probe) SKIP_PROBE=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -43,7 +53,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for n in "$WINDOW_MINUTES" "$STALE_QUEUED_MINUTES" "$STALE_RUNNING_MINUTES"; do
+for n in "$WINDOW_MINUTES" "$STALE_QUEUED_MINUTES" "$STALE_RUNNING_MINUTES" "$PROBE_TIMEOUT_SEC" "$PROBE_POLL_SEC" "$PROBE_INFLIGHT_WINDOW_MINUTES"; do
   if ! is_pos_int "$n"; then
     echo "Expected positive integer, got: $n"
     exit 1
@@ -62,6 +72,9 @@ fi
 echo "== Jarvis Verify Worker Connectivity =="
 echo "db: $DB_PATH"
 echo "window: ${WINDOW_MINUTES}m"
+echo "probe timeout: ${PROBE_TIMEOUT_SEC}s per lane"
+echo "probe poll: ${PROBE_POLL_SEC}s"
+echo "probe inflight window: ${PROBE_INFLIGHT_WINDOW_MINUTES}m"
 
 overall_fail=0
 preflight_fail=0
@@ -88,6 +101,9 @@ if [ "$SKIP_PRECHECKS" -eq 0 ]; then
     preflight_fail=1
     echo "[FAIL] preflight"
     echo "  detail: $(tr '\n' ' ' </tmp/jarvis-verify-preflight.out | sed 's/[[:space:]]\+/ /g')"
+    if grep -q "Operation not permitted" /tmp/jarvis-verify-preflight.out; then
+      echo "  hint: container runtime checks are permission-blocked in this execution context; run outside restricted sandbox."
+    fi
   fi
 fi
 
@@ -99,15 +115,13 @@ fi
 
 if [ "$SKIP_PROBE" -eq 0 ]; then
   probe_ok=0
-  for attempt in 1 2; do
-    if bash scripts/jarvis-ops.sh probe >/tmp/jarvis-verify-probe.out 2>&1; then
-      probe_ok=1
-      break
-    fi
-    if [ "$attempt" -lt 2 ]; then
-      sleep 2
-    fi
-  done
+  if bash scripts/jarvis-ops.sh probe \
+    --timeout "$PROBE_TIMEOUT_SEC" \
+    --poll "$PROBE_POLL_SEC" \
+    --inflight-window-minutes "$PROBE_INFLIGHT_WINDOW_MINUTES" \
+    >/tmp/jarvis-verify-probe.out 2>&1; then
+    probe_ok=1
+  fi
 
   if [ "$probe_ok" -eq 1 ]; then
     echo "[PASS] probe dispatch"
@@ -154,8 +168,8 @@ LIMIT 1;
   fi
 done
 
-stale_queued="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='queued' AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');")"
-stale_running="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='running' AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');")"
+stale_queued="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('queued','provisioning') AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');")"
+stale_running="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('running','stopping') AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');")"
 
 echo
 echo "Stale-state gate:"

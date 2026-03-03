@@ -32,6 +32,7 @@ Folder-level docs index: [`docs/README.md`](docs/README.md)
 
 ```text
 AT SESSION START or resuming interrupted work → read docs/workflow/session-recall.md
+BEFORE ending a session with in-progress work/blockers → read docs/workflow/session-recall.md
 BEFORE editing root CLAUDE.md → read .claude/rules/nanoclaw-root-claude-compression.md
 BEFORE adding/removing/renaming docs → read .claude/rules/docs-pruning-loop.md
 BEFORE starting implementation/debug/setup/update work → read .claude/rules/skill-routing-preflight.md

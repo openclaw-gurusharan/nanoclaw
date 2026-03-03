@@ -1,6 +1,7 @@
 import {
-  completeWorkerRun,
   getWorkerRuns,
+  markRunStopping,
+  markRunTerminal,
   updateWorkerRunLifecycle,
   WorkerRunPhase,
   WorkerRunRecord,
@@ -10,6 +11,8 @@ import { logger } from './logger.js';
 
 export interface WorkerRunSupervisorConfig {
   hardTimeoutMs: number;
+  probeQueuedTimeoutMs: number;
+  probeRunningTimeoutMs: number;
   queuedCursorGraceMs: number;
   leaseTtlMs: number;
   processStartAtMs: number;
@@ -20,6 +23,15 @@ export interface WorkerRunSupervisorConfig {
 export interface ReconcileInput {
   lastAgentTimestamp: Record<string, string>;
   resolveChatJid: (groupFolder: string) => string | undefined;
+  onRunTimeout?: (
+    run: WorkerRunRecord,
+    reason: string,
+  ) => {
+    aborted: boolean;
+    stopVerified: boolean;
+    stopAttempts: string[];
+    detail: string;
+  };
 }
 
 function toMs(value: string | null | undefined): number | null {
@@ -41,6 +53,10 @@ function phaseForRun(run: WorkerRunRecord): WorkerRunPhase {
 
 export class WorkerRunSupervisor {
   constructor(private readonly config: WorkerRunSupervisorConfig) {}
+
+  private isProbeRun(run: WorkerRunRecord): boolean {
+    return run.run_id.startsWith('probe-');
+  }
 
   private leaseExpiryIso(nowMs: number): string {
     return new Date(nowMs + this.config.leaseTtlMs).toISOString();
@@ -141,7 +157,7 @@ export class WorkerRunSupervisor {
     let changed = false;
     const activeRuns = getWorkerRuns({
       groupFolderLike: 'jarvis-worker-%',
-      statuses: ['running', 'queued'],
+      statuses: ['queued', 'provisioning', 'running', 'stopping'],
       limit: 200,
     });
 
@@ -151,9 +167,7 @@ export class WorkerRunSupervisor {
       const ageMs = nowMs - startedMs;
 
       if (run.completed_at) {
-        completeWorkerRun(
-          run.run_id,
-          'failed',
+        markRunTerminal(run.run_id, run.run_generation, 'failed_runtime',
           'Auto-reconciled inconsistent worker run state',
           JSON.stringify({
             reason: 'active_status_with_completed_at',
@@ -161,13 +175,28 @@ export class WorkerRunSupervisor {
             phase: run.phase,
             started_at: run.started_at,
             completed_at: run.completed_at,
-          }),
-        );
+          }));
         changed = true;
         continue;
       }
 
-      if (run.status === 'queued') {
+      if (run.status === 'queued' || run.status === 'provisioning') {
+        const probeQueuedTimeoutMs = this.config.probeQueuedTimeoutMs;
+        if (this.isProbeRun(run) && ageMs > probeQueuedTimeoutMs) {
+          markRunTerminal(run.run_id, run.run_generation, 'failed_timeout',
+            'Auto-failed stale queued/provisioning probe run watchdog timeout',
+            JSON.stringify({
+              reason: 'stale_probe_queued_watchdog',
+              status: run.status,
+              phase: run.phase,
+              started_at: run.started_at,
+              stale_ms: ageMs,
+              timeout_ms: probeQueuedTimeoutMs,
+            }));
+          changed = true;
+          continue;
+        }
+
         const chatJid = input.resolveChatJid(run.group_folder);
         const cursor = chatJid ? input.lastAgentTimestamp[chatJid] : undefined;
         const startupSuppression = this.shouldSuppressQueuedCursorFailure(startedMs, nowMs);
@@ -179,10 +208,8 @@ export class WorkerRunSupervisor {
           && !startupSuppression
           && !spawnAcknowledged
         ) {
-          completeWorkerRun(
-            run.run_id,
-            'failed',
-            'Auto-failed queued worker run before spawn (cursor past dispatch)',
+          markRunTerminal(run.run_id, run.run_generation, 'failed_timeout',
+            'Auto-failed queued/provisioning worker run before spawn (cursor past dispatch)',
             JSON.stringify({
               reason: 'queued_stale_before_spawn',
               status: run.status,
@@ -191,25 +218,21 @@ export class WorkerRunSupervisor {
               cursor,
               stale_ms: ageMs,
               queued_cursor_grace_ms: this.config.queuedCursorGraceMs,
-            }),
-          );
+            }));
           changed = true;
           continue;
         }
 
         if (ageMs > this.config.hardTimeoutMs) {
-          completeWorkerRun(
-            run.run_id,
-            'failed',
-            'Auto-failed stale queued worker run watchdog timeout',
+          markRunTerminal(run.run_id, run.run_generation, 'failed_timeout',
+            'Auto-failed stale queued/provisioning worker run watchdog timeout',
             JSON.stringify({
               reason: 'stale_worker_run_watchdog',
               status: run.status,
               phase: run.phase,
               started_at: run.started_at,
               stale_ms: ageMs,
-            }),
-          );
+            }));
           changed = true;
         }
         continue;
@@ -217,7 +240,19 @@ export class WorkerRunSupervisor {
 
       const phase = phaseForRun(run);
       const prefix = `nanoclaw-${run.group_folder}-`;
-      const hasRunningContainer = hasRunningContainerWithPrefix(prefix);
+      let hasRunningContainer = false;
+      try {
+        hasRunningContainer = hasRunningContainerWithPrefix(prefix);
+      } catch (err) {
+        logger.warn(
+          { runId: run.run_id, group: run.group_folder, err },
+          'Container liveness check failed during worker run reconcile; treating as not running',
+        );
+      }
+
+      const runningTimeoutMs = this.isProbeRun(run)
+        ? this.config.probeRunningTimeoutMs
+        : this.config.hardTimeoutMs;
 
       if (hasRunningContainer) {
         if (run.no_container_since || !run.active_container_name) {
@@ -231,21 +266,45 @@ export class WorkerRunSupervisor {
         }
       }
 
-      if (ageMs > this.config.hardTimeoutMs) {
-        completeWorkerRun(
+      if (ageMs > runningTimeoutMs) {
+        const timeoutReason = this.isProbeRun(run)
+          ? 'stale_probe_run_watchdog'
+          : 'stale_worker_run_watchdog';
+        markRunStopping(run.run_id, run.run_generation, timeoutReason);
+        const abortResult = input.onRunTimeout
+          ? input.onRunTimeout(run, timeoutReason)
+          : {
+            aborted: false,
+            stopVerified: false,
+            stopAttempts: [],
+            detail: 'no_abort_handler',
+          };
+        markRunTerminal(
           run.run_id,
-          'failed',
-          'Auto-failed stale worker run watchdog timeout',
+          run.run_generation,
+          'failed_timeout',
+          this.isProbeRun(run)
+            ? 'Auto-failed stale running probe run watchdog timeout'
+            : 'Auto-failed stale worker run watchdog timeout',
           JSON.stringify({
-            reason: 'stale_worker_run_watchdog',
+            reason: timeoutReason,
             status: run.status,
             phase,
             started_at: run.started_at,
             stale_ms: ageMs,
+            timeout_ms: runningTimeoutMs,
+            abort: abortResult,
           }),
         );
         logger.warn(
-          { runId: run.run_id, status: run.status, phase, startedAt: run.started_at },
+          {
+            runId: run.run_id,
+            status: run.status,
+            phase,
+            startedAt: run.started_at,
+            timeoutReason,
+            abort: abortResult,
+          },
           'Auto-failed stale worker run',
         );
         changed = true;

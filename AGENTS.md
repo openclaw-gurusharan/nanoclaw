@@ -5,6 +5,7 @@
 - Read and follow `CLAUDE.md` as the single source of truth for repository instructions, including upstream sync policy.
 - At the start of every task, load `CLAUDE.md` first, then follow its `Docs Index` trigger lines for progressive disclosure.
 - At session start or when resuming interrupted work, follow `docs/workflow/session-recall.md` to reconstruct personal session context before loading project docs.
+- Before ending a session with in-progress work or blockers, follow `docs/workflow/session-recall.md` handoff flow (`qctx --close`).
 - Run the task-start skill/MCP routing preflight defined by `CLAUDE.md` before ad-hoc implementation/debugging.
 - If `AGENTS.md` and `CLAUDE.md` ever conflict, `CLAUDE.md` wins.
 

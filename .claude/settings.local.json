@@ -53,7 +53,9 @@
       "Bash(pip3 install:*)",
       "Bash(qmd status:*)",
       "Bash(node-gyp rebuild:*)",
-      "Bash(chmod +x:*)"
+      "Bash(chmod +x:*)",
+      "Bash(find:*)",
+      "Bash(~/.zshrc:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

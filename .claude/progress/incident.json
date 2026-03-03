@@ -1,14 +1,58 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-03T07:51:45.895806+00:00",
+  "updated_at": "2026-03-03T10:12:56.729575+00:00",
   "incidents": [
+    {
+      "id": "incident-worker-connectivity-block-20260227",
+      "title": "Workers not connected; Andy developer cannot restart workers; push task blocked",
+      "status": "open",
+      "severity": "high",
+      "created_at": "2026-02-27T13:02:09.098285+00:00",
+      "updated_at": "2026-03-03T10:12:56.729511+00:00",
+      "summary": {
+        "symptom": "Workers are not connected and I don't have access to restart them. To restart the push task: start worker containers manually via deployment system, then I will dispatch push task. Alternative: push branches manually from local environment.",
+        "suspected_cause": "unknown",
+        "impact": "Valid worker output can be produced after auto-fail, but DB status remains failed because failed->review_requested transition is blocked; Andy reports workers disconnected and re-dispatch loops",
+        "next_action": "Implement watchdog guard for in-flight worker processing/repair handoff and optionally track no-container elapsed separately; then re-run probe + real multi-step dispatch and confirm no invalid transition logs"
+      },
+      "evidence": {
+        "bundle_count": 5,
+        "last_bundle_dir": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260303T070438Z",
+        "last_manifest_path": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260303T070438Z/manifest.json",
+        "last_root_cause": "unknown",
+        "last_status": "warn",
+        "last_checked_at": "2026-03-03T07:04:47.530612+00:00",
+        "non_zero_command_count": 2,
+        "debug_summary": "root_cause=unknown; messages=58; worker_runs=0; dispatch_blocks=0; non_zero_commands=2"
+      },
+      "context": {
+        "lane": "andy-developer"
+      },
+      "notes": [
+        {
+          "ts": "2026-03-03T08:33:28.963133+00:00",
+          "author": "operator",
+          "text": "2026-03-03 current state: verify-worker-connectivity fails deterministically due existing in-flight probe backlog (jarvis-worker-1 running probe + jarvis-worker-2 queued probe) and stale queued probe count >0. No new duplicate probes are dispatched after guard; next step is drain/cleanup backlog then rerun connectivity gate."
+        },
+        {
+          "ts": "2026-03-03T09:39:02.004233+00:00",
+          "author": "operator",
+          "text": "2026-03-03 continued RCA/fix: (1) worker-lane trigger gate bypassed for synthetic worker groups in src/index.ts so IPC worker dispatch messages do not require @Andy trigger, (2) stale probe watchdogs added in supervisor (queued/running=5m) and reconcile now tolerates container liveness check errors instead of aborting, (3) startup replay now auto-fails stale probe runs instead of resurrecting old probe backlog. Current remaining failure: fresh probes still queue and do not reach review_requested within 120s; they transition to running and later fail by stale_probe_run_watchdog."
+        },
+        {
+          "ts": "2026-03-03T10:12:56.729505+00:00",
+          "author": "operator",
+          "text": "2026-03-03 architecture flaw identified: watchdog and runtime/queue control planes are decoupled. worker-run-supervisor marks probe runs failed after 5m (stale_probe_run_watchdog), but GroupQueue lane remains active until runContainerAgent exits; worker no-output timeout floor is 900000ms (15m), so stale containers keep running and hold per-lane lock. Fresh probe dispatches are queued (spawn_acknowledged_at null) and often timeout before execution, causing repeated verify-worker-connectivity FAIL despite valid dispatch."
+        }
+      ]
+    },
     {
       "id": "incident-20260303T073709Z",
       "title": "verify-worker-connectivity preflight false-negative during transient launchd/container status window",
       "status": "open",
       "severity": "unknown",
       "created_at": "2026-03-03T07:37:09.694540+00:00",
-      "updated_at": "2026-03-03T07:51:45.895748+00:00",
+      "updated_at": "2026-03-03T08:33:25.193175+00:00",
       "summary": {
         "symptom": "verify-worker-connectivity preflight false-negative during transient launchd/container status window",
         "suspected_cause": "preflight check in verify-worker-connectivity intermittently observes launchd/container status as down while standalone preflight passes...",
@@ -23,14 +67,19 @@
       },
       "notes": [
         {
-          "ts": "2026-03-03T07:37:09.694540+00:00",
-          "author": "user",
-          "text": "reported: verify-worker-connectivity preflight false-negative during transient launchd/container status window"
-        },
-        {
           "ts": "2026-03-03T07:51:45.895745+00:00",
           "author": "operator",
           "text": "2026-03-03 mitigation applied: verify-worker-connectivity preflight changed to advisory; functional gates (probe dispatch + lane evidence + stale-state) remain hard-fail. Command now returns PASS with WARN preflight in transient windows."
+        },
+        {
+          "ts": "2026-03-03T08:31:32.532338+00:00",
+          "author": "operator",
+          "text": "2026-03-03 deterministic gate update: preflight now uses launchctl print state checks, prints concrete failure detail, and verify-worker-connectivity hard-fails preflight before probe to avoid mixed signals. Added permission-block hint when container checks fail with Operation not permitted in restricted contexts."
+        },
+        {
+          "ts": "2026-03-03T08:33:25.193172+00:00",
+          "author": "operator",
+          "text": "2026-03-03 follow-up: preflight stale-queue check now distinguishes non-probe vs probe runs. Non-probe stale queue remains hard-fail; stale probe backlog is warning, preventing diagnostics deadlock while preserving signal."
         }
       ]
     },
@@ -68,50 +117,6 @@
           "ts": "2026-03-03T07:47:27.462052+00:00",
           "author": "operator",
           "text": "2026-03-03 post-fix validation: verify-worker-connectivity --skip-prechecks PASS with jarvis-worker-1 review_requested (probe-jarvis-worker-1-1772523843-18433) and jarvis-worker-2 review_requested (probe-jarvis-worker-2-1772523906-6470)."
-        }
-      ]
-    },
-    {
-      "id": "incident-worker-connectivity-block-20260227",
-      "title": "Workers not connected; Andy developer cannot restart workers; push task blocked",
-      "status": "open",
-      "severity": "high",
-      "created_at": "2026-02-27T13:02:09.098285+00:00",
-      "updated_at": "2026-03-03T07:39:08.675228+00:00",
-      "summary": {
-        "symptom": "Workers are not connected and I don't have access to restart them. To restart the push task: start worker containers manually via deployment system, then I will dispatch push task. Alternative: push branches manually from local environment.",
-        "suspected_cause": "unknown",
-        "impact": "Valid worker output can be produced after auto-fail, but DB status remains failed because failed->review_requested transition is blocked; Andy reports workers disconnected and re-dispatch loops",
-        "next_action": "Implement watchdog guard for in-flight worker processing/repair handoff and optionally track no-container elapsed separately; then re-run probe + real multi-step dispatch and confirm no invalid transition logs"
-      },
-      "evidence": {
-        "bundle_count": 5,
-        "last_bundle_dir": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260303T070438Z",
-        "last_manifest_path": "/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/data/diagnostics/incidents/incident-20260303T070438Z/manifest.json",
-        "last_root_cause": "unknown",
-        "last_status": "warn",
-        "last_checked_at": "2026-03-03T07:04:47.530612+00:00",
-        "non_zero_command_count": 2,
-        "debug_summary": "root_cause=unknown; messages=58; worker_runs=0; dispatch_blocks=0; non_zero_commands=2"
-      },
-      "context": {
-        "lane": "andy-developer"
-      },
-      "notes": [
-        {
-          "ts": "2026-03-03T07:04:37.876258+00:00",
-          "author": "operator",
-          "text": "2026-03-03 verification: verify-worker-connectivity failed (jarvis-worker-2 probe timeout) and dispatch-block artifact reason=request_id required; happiness-gate failed (Simple Greeting latency 16s > 8s)."
-        },
-        {
-          "ts": "2026-03-03T07:24:13.949692+00:00",
-          "author": "operator",
-          "text": "2026-03-03: verify-worker-connectivity now dispatches worker-2 successfully after request_id fix; new failure mode observed on worker-1 probe run probe-jarvis-worker-1-1772522445-24721 (failed_contract, branch mismatch from stale first completion block)."
-        },
-        {
-          "ts": "2026-03-03T07:39:08.675225+00:00",
-          "author": "operator",
-          "text": "2026-03-03: worker probe payload now includes request_id; new probes for jarvis-worker-2 reach review_requested. Legacy dispatch-block artifact still present in window from earlier run."
         }
       ]
     },

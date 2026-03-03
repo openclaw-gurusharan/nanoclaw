@@ -26,6 +26,7 @@ interface GroupState {
   process: ChildProcess | null;
   containerName: string | null;
   groupFolder: string | null;
+  activeRunId: string | null;
   retryCount: number;
 }
 
@@ -92,6 +93,7 @@ export class GroupQueue {
         process: null,
         containerName: null,
         groupFolder: null,
+        activeRunId: null,
         retryCount: 0,
       };
       this.groups.set(groupJid, state);
@@ -202,11 +204,90 @@ export class GroupQueue {
     proc: ChildProcess,
     containerName: string,
     groupFolder?: string,
+    runId?: string,
   ): void {
     const state = this.getGroup(groupJid);
     state.process = proc;
     state.containerName = containerName;
     if (groupFolder) state.groupFolder = groupFolder;
+    if (runId !== undefined) state.activeRunId = runId;
+  }
+
+  abortActiveRun(
+    groupJid: string,
+    runId: string,
+    reason: string,
+  ): {
+    aborted: boolean;
+    stopVerified: boolean;
+    stopAttempts: string[];
+    detail: string;
+  } {
+    const state = this.getGroup(groupJid);
+    if (!state.active) {
+      return {
+        aborted: false,
+        stopVerified: false,
+        stopAttempts: [],
+        detail: 'lane_not_active',
+      };
+    }
+    if (state.activeRunId && state.activeRunId !== runId) {
+      return {
+        aborted: false,
+        stopVerified: false,
+        stopAttempts: [],
+        detail: `active_run_mismatch:${state.activeRunId}`,
+      };
+    }
+
+    if (!state.containerName || !state.process) {
+      return {
+        aborted: false,
+        stopVerified: false,
+        stopAttempts: [],
+        detail: 'missing_container_or_process',
+      };
+    }
+
+    if (state.groupFolder) {
+      this.closeStdin(groupJid);
+    }
+
+    const stopResult = stopContainerWithVerification(state.containerName);
+    try {
+      if (!state.process.killed) {
+        state.process.kill('SIGTERM');
+      }
+    } catch {
+      // best effort
+    }
+    try {
+      if (!state.process.killed) {
+        state.process.kill('SIGKILL');
+      }
+    } catch {
+      // best effort
+    }
+
+    logger.warn(
+      {
+        groupJid,
+        runId,
+        reason,
+        containerName: state.containerName,
+        stopVerified: stopResult.stopped,
+        stopAttempts: stopResult.attempts,
+      },
+      'Abort requested for active worker run',
+    );
+
+    return {
+      aborted: true,
+      stopVerified: stopResult.stopped,
+      stopAttempts: stopResult.attempts,
+      detail: stopResult.stopped ? 'stopped' : 'stop_verification_failed',
+    };
   }
 
   /**
@@ -304,6 +385,7 @@ export class GroupQueue {
       state.process = null;
       state.containerName = null;
       state.groupFolder = null;
+      state.activeRunId = null;
       this.activeCount--;
       this.drainGroup(groupJid);
     }
@@ -333,6 +415,7 @@ export class GroupQueue {
       state.process = null;
       state.containerName = null;
       state.groupFolder = null;
+      state.activeRunId = null;
       this.activeCount--;
       this.drainGroup(groupJid);
     }

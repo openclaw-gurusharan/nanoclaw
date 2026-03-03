@@ -81,7 +81,7 @@ WITH window_runs AS (
   WHERE julianday(started_at) >= julianday('now', '-${WINDOW_HOURS} hours')
 ),
 failed_runs AS (
-  SELECT * FROM window_runs WHERE status IN ('failed','failed_contract')
+  SELECT * FROM window_runs WHERE status IN ('failed_runtime','failed_timeout','failed_contract')
 )
 SELECT
   COALESCE(
@@ -106,7 +106,7 @@ WITH window_runs AS (
 )
 SELECT
   group_folder,
-  SUM(CASE WHEN status IN ('failed','failed_contract') THEN 1 ELSE 0 END) AS fail_count,
+  SUM(CASE WHEN status IN ('failed_runtime','failed_timeout','failed_contract') THEN 1 ELSE 0 END) AS fail_count,
   SUM(CASE WHEN status IN ('review_requested','done') THEN 1 ELSE 0 END) AS pass_count,
   COUNT(*) AS total
 FROM window_runs
@@ -119,7 +119,7 @@ LIMIT ${TOP_N};
 daily_trend="$(sqlite3 -separator '|' "$DB_PATH" "
 SELECT
   substr(started_at, 1, 10) AS day,
-  SUM(CASE WHEN status IN ('failed','failed_contract') THEN 1 ELSE 0 END) AS failed,
+  SUM(CASE WHEN status IN ('failed_runtime','failed_timeout','failed_contract') THEN 1 ELSE 0 END) AS failed,
   SUM(CASE WHEN status IN ('review_requested','done') THEN 1 ELSE 0 END) AS passed,
   COUNT(*) AS total
 FROM worker_runs

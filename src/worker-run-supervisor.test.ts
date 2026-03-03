@@ -26,6 +26,8 @@ import { WorkerRunSupervisor } from './worker-run-supervisor.js';
 
 const supervisor = new WorkerRunSupervisor({
   hardTimeoutMs: 60 * 60 * 1000,
+  probeQueuedTimeoutMs: 5 * 60 * 1000,
+  probeRunningTimeoutMs: 10 * 60 * 1000,
   queuedCursorGraceMs: 0,
   leaseTtlMs: 60 * 1000,
   processStartAtMs: Date.now() - 5 * 60 * 1000,
@@ -34,6 +36,7 @@ const supervisor = new WorkerRunSupervisor({
 });
 
 beforeEach(() => {
+  vi.useRealTimers();
   _initTestDatabase();
   vi.clearAllMocks();
 });
@@ -116,7 +119,7 @@ describe('WorkerRunSupervisor.reconcile', () => {
 
     const row = getWorkerRun('run-super-4');
     expect(changed).toBe(true);
-    expect(row?.status).toBe('failed');
+    expect(row?.status).toBe('failed_timeout');
     expect(row?.phase).toBe('terminal');
     expect(row?.error_details).toContain('"reason":"queued_stale_before_spawn"');
   });
@@ -143,6 +146,8 @@ describe('WorkerRunSupervisor.reconcile', () => {
   it('suppresses queued cursor stale failure during startup grace window', () => {
     const startupSupervisor = new WorkerRunSupervisor({
       hardTimeoutMs: 60 * 60 * 1000,
+      probeQueuedTimeoutMs: 5 * 60 * 1000,
+      probeRunningTimeoutMs: 10 * 60 * 1000,
       queuedCursorGraceMs: 0,
       leaseTtlMs: 60 * 1000,
       processStartAtMs: Date.now(),
@@ -167,6 +172,8 @@ describe('WorkerRunSupervisor.reconcile', () => {
   it('does not fail queued run from cursor mismatch before queued cursor grace expires', () => {
     const graceSupervisor = new WorkerRunSupervisor({
       hardTimeoutMs: 60 * 60 * 1000,
+      probeQueuedTimeoutMs: 5 * 60 * 1000,
+      probeRunningTimeoutMs: 10 * 60 * 1000,
       queuedCursorGraceMs: 5 * 60 * 1000,
       leaseTtlMs: 60 * 1000,
       processStartAtMs: Date.now() - 10 * 60 * 1000,
@@ -186,5 +193,101 @@ describe('WorkerRunSupervisor.reconcile', () => {
     expect(changed).toBe(false);
     expect(row?.status).toBe('queued');
     expect(row?.error_details).toBeNull();
+  });
+
+  it('auto-fails stale queued probe runs using probe timeout', () => {
+    const probeSupervisor = new WorkerRunSupervisor({
+      hardTimeoutMs: 60 * 60 * 1000,
+      probeQueuedTimeoutMs: 1,
+      probeRunningTimeoutMs: 10 * 60 * 1000,
+      queuedCursorGraceMs: 5 * 60 * 1000,
+      leaseTtlMs: 60 * 1000,
+      processStartAtMs: Date.now() - 10 * 60 * 1000,
+      restartSuppressionWindowMs: 60 * 1000,
+      ownerId: 'probe-queue-supervisor',
+    });
+    vi.useFakeTimers();
+    const start = new Date('2026-03-03T00:00:00.000Z');
+    vi.setSystemTime(start);
+    insertWorkerRun('probe-jarvis-worker-1-queue-stale', 'jarvis-worker-1');
+    vi.setSystemTime(new Date(start.getTime() + 2_000));
+    mockHasRunningContainerWithPrefix.mockReturnValue(false);
+
+    const changed = probeSupervisor.reconcile({
+      lastAgentTimestamp: {},
+      resolveChatJid: () => undefined,
+    });
+
+    const row = getWorkerRun('probe-jarvis-worker-1-queue-stale');
+    expect(changed).toBe(true);
+    expect(row?.status).toBe('failed_timeout');
+    expect(row?.error_details).toContain('"reason":"stale_probe_queued_watchdog"');
+  });
+
+  it('auto-fails stale running probe runs using probe timeout', () => {
+    const probeSupervisor = new WorkerRunSupervisor({
+      hardTimeoutMs: 60 * 60 * 1000,
+      probeQueuedTimeoutMs: 5 * 60 * 1000,
+      probeRunningTimeoutMs: 1,
+      queuedCursorGraceMs: 5 * 60 * 1000,
+      leaseTtlMs: 60 * 1000,
+      processStartAtMs: Date.now() - 10 * 60 * 1000,
+      restartSuppressionWindowMs: 60 * 1000,
+      ownerId: 'probe-running-supervisor',
+    });
+    vi.useFakeTimers();
+    const start = new Date('2026-03-03T00:10:00.000Z');
+    vi.setSystemTime(start);
+    insertWorkerRun('probe-jarvis-worker-2-running-stale', 'jarvis-worker-2');
+    updateWorkerRunStatus('probe-jarvis-worker-2-running-stale', 'running');
+    updateWorkerRunLifecycle('probe-jarvis-worker-2-running-stale', {
+      phase: 'active',
+    });
+    vi.setSystemTime(new Date(start.getTime() + 2_000));
+    mockHasRunningContainerWithPrefix.mockReturnValue(false);
+
+    const changed = probeSupervisor.reconcile({
+      lastAgentTimestamp: {},
+      resolveChatJid: () => undefined,
+    });
+
+    const row = getWorkerRun('probe-jarvis-worker-2-running-stale');
+    expect(changed).toBe(true);
+    expect(row?.status).toBe('failed_timeout');
+    expect(row?.error_details).toContain('"reason":"stale_probe_run_watchdog"');
+  });
+
+  it('keeps reconciling queued runs when container liveness check throws', () => {
+    const resilientSupervisor = new WorkerRunSupervisor({
+      hardTimeoutMs: 60 * 60 * 1000,
+      probeQueuedTimeoutMs: 1,
+      probeRunningTimeoutMs: 10 * 60 * 1000,
+      queuedCursorGraceMs: 5 * 60 * 1000,
+      leaseTtlMs: 60 * 1000,
+      processStartAtMs: Date.now() - 10 * 60 * 1000,
+      restartSuppressionWindowMs: 60 * 1000,
+      ownerId: 'resilient-supervisor',
+    });
+
+    vi.useFakeTimers();
+    const start = new Date('2026-03-03T00:20:00.000Z');
+    vi.setSystemTime(start);
+    insertWorkerRun('probe-jarvis-worker-1-queue-resilience', 'jarvis-worker-1');
+    insertWorkerRun('probe-jarvis-worker-1-running-resilience', 'jarvis-worker-1');
+    updateWorkerRunStatus('probe-jarvis-worker-1-running-resilience', 'running');
+    vi.setSystemTime(new Date(start.getTime() + 2_000));
+    mockHasRunningContainerWithPrefix.mockImplementation(() => {
+      throw new Error('container liveness unavailable');
+    });
+
+    const changed = resilientSupervisor.reconcile({
+      lastAgentTimestamp: {},
+      resolveChatJid: () => undefined,
+    });
+
+    const queuedRow = getWorkerRun('probe-jarvis-worker-1-queue-resilience');
+    expect(changed).toBe(true);
+    expect(queuedRow?.status).toBe('failed_timeout');
+    expect(queuedRow?.error_details).toContain('"reason":"stale_probe_queued_watchdog"');
   });
 });
