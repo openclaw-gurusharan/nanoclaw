@@ -117,7 +117,7 @@ const WORKER_SUPERVISOR_OWNER = `nanoclaw-${process.pid}`;
 const PROCESS_START_AT_MS = Date.now();
 const PROCESS_START_AT_ISO = new Date(PROCESS_START_AT_MS).toISOString();
 const SIMPLE_ANDY_GREETING_PATTERN = /^(hi|hello|hey|yo|hiya|sup|ping|what'?s up|good (morning|afternoon|evening))[\s!.,?]*$/i;
-const ANDY_PROGRESS_QUERY_PATTERN = /\b(progress|status|update|what(?:'|’)s happening|what is happening|where are we|how far|eta|current progress|current status)\b/i;
+const ANDY_PROGRESS_QUERY_PATTERN = /\b(progress|status|update|what(?:'|’)s happening|what is happening|where are we|how far|eta|current progress|current status|what are you working on(?: right now)?|what are you doing(?: right now)?|what is the current progress|what is current progress)\b/i;
 const ANDY_STATUS_BY_ID_PATTERN = /\bstatus\s+(req-[a-z0-9-]+)\b/i;
 const ANDY_REQUEST_ID_PATTERN = /\b(req-[a-z0-9-]+)\b/i;
 const andyBusyAckLastSentMs: Record<string, number> = {};
@@ -244,6 +244,17 @@ function isSimpleAndyGreeting(group: RegisteredGroup, messages: NewMessage[]): b
   return SIMPLE_ANDY_GREETING_PATTERN.test(body);
 }
 
+function isAndyFrontdeskMessage(group: RegisteredGroup, message: NewMessage): boolean {
+  if (group.folder !== ANDY_DEVELOPER_FOLDER) return false;
+  if (parseDispatchPayload(message.content)) return false;
+
+  const body = stripAssistantTrigger(message.content).trim();
+  if (!body) return true;
+  return SIMPLE_ANDY_GREETING_PATTERN.test(body)
+    || ANDY_STATUS_BY_ID_PATTERN.test(body)
+    || ANDY_PROGRESS_QUERY_PATTERN.test(body);
+}
+
 function getAndyProgressQueryContext(
   group: RegisteredGroup,
   messages: NewMessage[],
@@ -350,7 +361,7 @@ async function trackAndAckAndyIntakeMessages(
     });
     if (!created.created) continue;
 
-    const ackText = `${ASSISTANT_NAME}: Got it. Tracking this as \`${created.request_id}\`. Ask \`status ${created.request_id}\` anytime.`;
+    const ackText = `${ASSISTANT_NAME}: Got it. I'm coordinating this with Jarvis now. Ask "what are you working on right now?" anytime for live progress.`;
     try {
       await channel.sendMessage(chatJid, ackText);
     } catch (err) {
@@ -371,6 +382,17 @@ function formatElapsedSince(startedAt: string): string {
   return minutes === 0
     ? `elapsed ${hours}h`
     : `elapsed ${hours}h ${minutes}m`;
+}
+
+function summarizeAndyPrompt(prompt: string, maxLength = 80): string {
+  const compact = prompt.replace(/\s+/g, ' ').trim();
+  if (!compact) return 'Task';
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength - 1)}...`;
+}
+
+function humanizeAndyState(state: string): string {
+  return state.replace(/_/g, ' ');
 }
 
 function buildAndyProgressStatusReply(chatJid: string, requestId?: string): string {
@@ -400,18 +422,19 @@ function buildAndyProgressStatusReply(chatJid: string, requestId?: string): stri
   const activeRequests = listActiveAndyRequests(chatJid, 3);
   if (activeRequests.length > 0) {
     const lines = activeRequests.map((request) => {
+      const prompt = summarizeAndyPrompt(request.user_prompt);
       if (request.worker_run_id) {
         const run = getWorkerRun(request.worker_run_id);
         if (run) {
           const progress = getWorkerRunProgress(run.run_id);
           const progressSummary = progress?.last_progress_summary?.trim();
           const suffix = progressSummary ? ` - ${progressSummary}` : '';
-          return `- \`${request.request_id}\`: ${request.state}; run \`${run.run_id}\` is \`${run.status}\` (${formatElapsedSince(run.started_at)})${suffix}`;
+          return `- ${prompt}: ${humanizeAndyState(request.state)}; ${run.group_folder} is ${run.status} (${formatElapsedSince(run.started_at)})${suffix}`;
         }
       }
-      return `- \`${request.request_id}\`: ${request.state}`;
+      return `- ${prompt}: ${humanizeAndyState(request.state)}`;
     });
-    return `${ASSISTANT_NAME}: Current tracked requests:\n${lines.join('\n')}`;
+    return `${ASSISTANT_NAME}: Right now I'm coordinating:\n${lines.join('\n')}`;
   }
 
   const activeRuns = getWorkerRuns({
@@ -430,7 +453,7 @@ function buildAndyProgressStatusReply(chatJid: string, requestId?: string): stri
     }
 
     const latestAt = latestRun.completed_at ?? latestRun.started_at;
-    return `${ASSISTANT_NAME}: No worker run is active right now. Latest run \`${latestRun.run_id}\` on \`${latestRun.group_folder}\` is \`${latestRun.status}\` (${latestAt}).`;
+    return `${ASSISTANT_NAME}: No worker run is active right now. Latest task on ${latestRun.group_folder} is ${latestRun.status} (${latestAt}).`;
   }
 
   const queuedCount = activeRuns.filter((run) => run.status === 'queued').length;
@@ -443,7 +466,7 @@ function buildAndyProgressStatusReply(chatJid: string, requestId?: string): stri
     const progress = getWorkerRunProgress(run.run_id);
     const progressSummary = progress?.last_progress_summary?.trim();
     const suffix = progressSummary ? ` - ${progressSummary}` : '';
-    return `- \`${run.run_id}\` (${run.group_folder}) ${detail}, ${formatElapsedSince(run.started_at)}${suffix}`;
+    return `- ${run.group_folder}: ${detail}, ${formatElapsedSince(run.started_at)}${suffix}`;
   });
   if (activeRuns.length > visibleRuns.length) {
     lines.push(`- ...and ${activeRuns.length - visibleRuns.length} more active run(s).`);
@@ -896,6 +919,15 @@ function selectMessagesForExecution(
   group: RegisteredGroup,
   messages: NewMessage[],
 ): NewMessage[] {
+  if (group.folder === ANDY_DEVELOPER_FOLDER && messages.length > 1) {
+    const latest = messages[messages.length - 1];
+    if (isAndyFrontdeskMessage(group, latest)) {
+      // Keep frontdesk interactions low-latency by answering the newest
+      // conversational/status ask instead of replaying stale backlog.
+      return [latest];
+    }
+  }
+
   if (!isJarvisWorkerFolder(group.folder) || messages.length <= 1) {
     return messages;
   }
@@ -1916,8 +1948,8 @@ async function startMessageLoop(): Promise<void> {
             getEffectiveAgentCursor(chatJid),
             ASSISTANT_NAME,
           );
-          const messagesToSend =
-            allPending.length > 0 ? allPending : groupMessages;
+          const pendingBatch = allPending.length > 0 ? allPending : groupMessages;
+          const messagesToSend = selectMessagesForExecution(group, pendingBatch);
           const andyRequestsToSend = group.folder === ANDY_DEVELOPER_FOLDER
             ? getAndyRequestsForMessages(messagesToSend)
             : [];

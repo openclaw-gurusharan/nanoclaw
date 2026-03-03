@@ -41,7 +41,9 @@
       "Bash(launchctl list:*)",
       "Bash(launchctl:*)",
       "Bash(lsof:*)",
-      "Bash(kill 54775:*)"
+      "Bash(kill 54775:*)",
+      "mcp__exa__web_search_exa",
+      "WebFetch(domain:x.com)"
     ]
   },
   "enableAllProjectMcpServers": true,

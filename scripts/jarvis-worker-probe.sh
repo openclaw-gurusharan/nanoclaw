@@ -125,20 +125,23 @@ for row in "${lane_rows[@]}"; do
 
   ts="$(date +%s)"
   run_id="probe-${folder}-${ts}-$RANDOM"
+  request_id="req-${ts}-${folder}"
   branch="jarvis-probe-${folder}-${ts}"
   probe_file="work/${folder}-probe-${ts}.txt"
   msg_file="data/ipc/andy-developer/messages/${ts}-${folder}-probe.json"
   payload_file="$(mktemp /tmp/jarvis-probe-dispatch.XXXXXX)"
 
   if [ -n "$DISPATCH_FILE" ]; then
-    python3 - "$DISPATCH_FILE" "$run_id" "$branch" <<'PY' >"$payload_file"
+    python3 - "$DISPATCH_FILE" "$run_id" "$branch" "$request_id" <<'PY' >"$payload_file"
 import json
 import sys
-path, run_id, branch = sys.argv[1:4]
+path, run_id, branch, request_id = sys.argv[1:5]
 with open(path, 'r', encoding='utf-8') as f:
     d = json.load(f)
 d['run_id'] = run_id
 d['branch'] = branch
+if not d.get('request_id'):
+    d['request_id'] = request_id
 if 'context_intent' not in d:
     d['context_intent'] = 'fresh'
 if 'base_branch' not in d:
@@ -146,14 +149,16 @@ if 'base_branch' not in d:
 print(json.dumps(d, ensure_ascii=True))
 PY
   else
-    RUN_ID="$run_id" BRANCH="$branch" PROBE_FILE="$probe_file" python3 <<'PY' >"$payload_file"
+    RUN_ID="$run_id" REQUEST_ID="$request_id" BRANCH="$branch" PROBE_FILE="$probe_file" python3 <<'PY' >"$payload_file"
 import json
 import os
 run_id = os.environ['RUN_ID']
+request_id = os.environ['REQUEST_ID']
 branch = os.environ['BRANCH']
 probe_file = os.environ['PROBE_FILE']
 dispatch = {
     "run_id": run_id,
+    "request_id": request_id,
     "task_type": "test",
     "context_intent": "fresh",
     "input": f"Create file {probe_file} with content 'probe-ok'. Run acceptance tests. Return exactly one <completion> JSON block.",

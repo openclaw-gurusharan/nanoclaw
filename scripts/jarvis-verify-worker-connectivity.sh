@@ -64,22 +64,50 @@ echo "db: $DB_PATH"
 echo "window: ${WINDOW_MINUTES}m"
 
 overall_fail=0
+preflight_fail=0
+probe_fail=0
+lane_fail=0
+stale_fail=0
 
 if [ "$SKIP_PRECHECKS" -eq 0 ]; then
-  if bash scripts/jarvis-ops.sh preflight >/tmp/jarvis-verify-preflight.out 2>&1; then
+  preflight_ok=0
+  for attempt in 1 2; do
+    if bash scripts/jarvis-ops.sh preflight >/tmp/jarvis-verify-preflight.out 2>&1; then
+      preflight_ok=1
+      break
+    fi
+    if [ "$attempt" -lt 2 ]; then
+      sleep 2
+    fi
+  done
+
+  if [ "$preflight_ok" -eq 1 ]; then
     echo "[PASS] preflight"
   else
     overall_fail=1
+    preflight_fail=1
     echo "[FAIL] preflight"
     echo "  detail: $(tr '\n' ' ' </tmp/jarvis-verify-preflight.out | sed 's/[[:space:]]\+/ /g')"
   fi
 fi
 
 if [ "$SKIP_PROBE" -eq 0 ]; then
-  if bash scripts/jarvis-ops.sh probe >/tmp/jarvis-verify-probe.out 2>&1; then
+  probe_ok=0
+  for attempt in 1 2; do
+    if bash scripts/jarvis-ops.sh probe >/tmp/jarvis-verify-probe.out 2>&1; then
+      probe_ok=1
+      break
+    fi
+    if [ "$attempt" -lt 2 ]; then
+      sleep 2
+    fi
+  done
+
+  if [ "$probe_ok" -eq 1 ]; then
     echo "[PASS] probe dispatch"
   else
     overall_fail=1
+    probe_fail=1
     echo "[FAIL] probe dispatch"
     echo "  detail: $(tr '\n' ' ' </tmp/jarvis-verify-probe.out | sed 's/[[:space:]]\+/ /g')"
   fi
@@ -105,6 +133,7 @@ LIMIT 1;
 ")"
   if [ -z "$row" ]; then
     overall_fail=1
+    lane_fail=1
     echo "[FAIL] $lane has no recent probe run in last ${WINDOW_MINUTES}m"
     continue
   fi
@@ -114,6 +143,7 @@ LIMIT 1;
     echo "[PASS] $lane -> $status ($run_id @ $started_at)"
   else
     overall_fail=1
+    lane_fail=1
     echo "[FAIL] $lane -> $status ($run_id @ $started_at)"
   fi
 done
@@ -127,6 +157,7 @@ if [ "$stale_queued" -eq 0 ]; then
   echo "[PASS] stale queued ($STALE_QUEUED_MINUTES m): 0"
 else
   overall_fail=1
+  stale_fail=1
   echo "[FAIL] stale queued ($STALE_QUEUED_MINUTES m): $stale_queued"
 fi
 
@@ -134,7 +165,22 @@ if [ "$stale_running" -eq 0 ]; then
   echo "[PASS] stale running ($STALE_RUNNING_MINUTES m): 0"
 else
   overall_fail=1
+  stale_fail=1
   echo "[FAIL] stale running ($STALE_RUNNING_MINUTES m): $stale_running"
+fi
+
+# If only preflight failed, re-check once at the end to absorb transient
+# restart windows while still failing on true probe/lane/stale regressions.
+if [ "$overall_fail" -ne 0 ] \
+  && [ "$preflight_fail" -eq 1 ] \
+  && [ "$probe_fail" -eq 0 ] \
+  && [ "$lane_fail" -eq 0 ] \
+  && [ "$stale_fail" -eq 0 ]; then
+  if bash scripts/jarvis-ops.sh preflight >/tmp/jarvis-verify-preflight-post.out 2>&1; then
+    overall_fail=0
+    preflight_fail=0
+    echo "[WARN] preflight recovered on post-check (transient restart window)"
+  fi
 fi
 
 if [ "$overall_fail" -ne 0 ]; then

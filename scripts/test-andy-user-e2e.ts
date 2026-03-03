@@ -26,6 +26,7 @@ type Scenario = {
 const DEFAULT_DB_PATH = 'store/messages.db';
 const POLL_INTERVAL_MS = 250;
 const DEFAULT_TIMEOUT_MS = 20_000;
+const TIMESTAMP_FLOOR_TOLERANCE_MS = 1_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -120,7 +121,7 @@ async function waitForNextBotMessage(
     for (const row of rows) {
       if (baselineIds.has(row.id)) continue;
       const rowMs = Date.parse(row.timestamp);
-      if (!Number.isFinite(rowMs) || rowMs < minTimestampMs) continue;
+      if (!Number.isFinite(rowMs) || rowMs + TIMESTAMP_FLOOR_TOLERANCE_MS < minTimestampMs) continue;
       if (!baselineIds.has(row.id)) {
         return row;
       }
@@ -154,10 +155,11 @@ async function runScenario(
   baselineIds.add(bot.id);
 
   const repliedMs = Date.parse(bot.timestamp);
-  const latencyMs = repliedMs - sentMs;
-  if (!Number.isFinite(latencyMs) || latencyMs < 0) {
+  const latencyMsRaw = repliedMs - sentMs;
+  if (!Number.isFinite(latencyMsRaw) || latencyMsRaw < -TIMESTAMP_FLOOR_TOLERANCE_MS) {
     throw new Error(`${scenario.name}: invalid latency computed`);
   }
+  const latencyMs = Math.max(0, latencyMsRaw);
   if (latencyMs > scenario.maxLatencyMs) {
     throw new Error(
       `${scenario.name}: latency ${latencyMs}ms exceeded limit ${scenario.maxLatencyMs}ms`,

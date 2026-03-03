@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "updated_at": "2026-03-03T06:08:45.474Z",
+  "schema_version": 2,
+  "updated_at": "2026-03-03T07:38:30.948Z",
   "items": [
     {
       "id": "work-jarvis-worker-lifecycle-1772518124323",
@@ -14,7 +14,49 @@
         "2026-03-03T06:08:45.473Z: typecheck + mapped tests passed"
       ],
       "created_at": "2026-03-03T06:08:44.323Z",
-      "updated_at": "2026-03-03T06:08:45.473Z"
+      "updated_at": "2026-03-03T06:08:45.473Z",
+      "evidence": []
+    },
+    {
+      "id": "work-core-message-loop-1772521879181",
+      "title": "Andy frontdesk conversational split and low-latency status",
+      "feature_id": "core-message-loop",
+      "status": "testing",
+      "request": "Front-facing Andy should respond conversationally with natural status and intake; separate coordinator behavior; avoid old-message backlog and ticket-heavy replies.",
+      "notes": [
+        "2026-03-03T07:11:23.364Z: Linked incidents: incident-worker-connectivity-block-20260227, incident-20260301T164404Z",
+        "2026-03-03T07:38:21.792Z: Validated: npm run typecheck; happiness-gate PASS on conversational frontdesk/status flow after restart."
+      ],
+      "evidence": [],
+      "created_at": "2026-03-03T07:11:19.181Z",
+      "updated_at": "2026-03-03T07:38:21.792Z"
+    },
+    {
+      "id": "work-ops-reliability-tooling-1772521955485",
+      "title": "Worker probe request_id contract fix",
+      "feature_id": "ops-reliability-tooling",
+      "status": "testing",
+      "request": "Fix probe dispatch payload to satisfy andy-developer -> jarvis-worker request_id contract and remove false incident noise.",
+      "notes": [
+        "2026-03-03T07:12:39.677Z: Incident linkage: dispatch validator blocks from worker probe payload missing request_id.",
+        "2026-03-03T07:38:21.795Z: Probe payload now includes request_id; worker-2 probe now reaches review_requested. Remaining preflight flake tracked as incident-20260303T073709Z."
+      ],
+      "evidence": [],
+      "created_at": "2026-03-03T07:12:35.485Z",
+      "updated_at": "2026-03-03T07:38:21.795Z"
+    },
+    {
+      "id": "work-project-skill-delivery-pipeline-1772522222711",
+      "title": "Stabilize Andy E2E gate timestamp ordering",
+      "feature_id": "project-skill-delivery-pipeline",
+      "status": "testing",
+      "request": "Avoid false timeout when bot reply timestamp truncates to second and appears slightly before probe timestamp.",
+      "notes": [
+        "2026-03-03T07:38:30.947Z: Adjusted E2E timestamp tolerance; eliminated false timeout when reply timestamp truncates to whole second."
+      ],
+      "evidence": [],
+      "created_at": "2026-03-03T07:17:02.711Z",
+      "updated_at": "2026-03-03T07:38:30.947Z"
     }
   ]
 }
