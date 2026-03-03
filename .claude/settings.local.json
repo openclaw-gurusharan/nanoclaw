@@ -43,7 +43,19 @@
       "Bash(lsof:*)",
       "Bash(kill 54775:*)",
       "mcp__exa__web_search_exa",
-      "WebFetch(domain:x.com)"
+      "WebFetch(domain:x.com)",
+      "Bash(npx obsidian-cli:*)",
+      "Bash(pip3 show:*)",
+      "Bash(pip3 list:*)",
+      "Bash(/Applications/Obsidian.app/Contents/MacOS/Obsidian:*)",
+      "Bash(qmd:*)",
+      "Bash(mkdir:*)",
+      "Bash(pip3 install:*)",
+      "Bash(qmd status:*)",
+      "Bash(node-gyp rebuild:*)",
+      "Bash(chmod +x:*)",
+      "Bash(find:*)",
+      "Bash(~/.zshrc:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

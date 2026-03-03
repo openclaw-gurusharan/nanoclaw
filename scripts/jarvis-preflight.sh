@@ -88,6 +88,9 @@ fail() {
   local msg="$2"
   local evidence="${3:-}"
   echo "[FAIL] $msg"
+  if [ -n "$evidence" ]; then
+    echo "  detail: $evidence"
+  fi
   fail_count=$((fail_count + 1))
   record_check "fail" "critical" "$id" "$msg" "$evidence"
 }
@@ -256,25 +259,32 @@ else
 fi
 
 if have_cmd launchctl; then
-  service_line="$( (launchctl list || true) | awk '$3=="com.nanoclaw"{print $1" "$2" "$3}' )"
-  if [ -z "$service_line" ]; then
+  uid_val="$(id -u)"
+  launch_dump="$(launchctl print "gui/$uid_val/com.nanoclaw" 2>/dev/null || true)"
+  if [ -z "$launch_dump" ]; then
     fail "service.launchd.registered" "launchd service com.nanoclaw not registered"
-  else
-    service_pid="$(awk '{print $1}' <<<"$service_line")"
-    service_status="$(awk '{print $2}' <<<"$service_line")"
+  elif echo "$launch_dump" | grep -q "state = running"; then
+    service_pid="$(echo "$launch_dump" | awk -F'= ' '/^[[:space:]]*pid =/{print $2; exit}' | tr -d ' ')"
     if [[ "$service_pid" =~ ^[0-9]+$ ]] && [ "$service_pid" -gt 0 ]; then
       pass "service.launchd.running" "launchd service com.nanoclaw running (pid=$service_pid)"
     else
-      fail "service.launchd.running" "launchd service com.nanoclaw not running (pid=$service_pid status=$service_status)"
+      pass "service.launchd.running" "launchd service com.nanoclaw running"
     fi
+  else
+    service_state="$(echo "$launch_dump" | awk -F'= ' '/^[[:space:]]*state =/{print $2; exit}' | tr -d ' ')"
+    fail "service.launchd.running" "launchd service com.nanoclaw not running (state=${service_state:-unknown})"
   fi
 else
   warn "service.launchd.available" "launchctl not available; skipping service check"
 fi
 
 if have_cmd container; then
-  run_check "runtime.system" "container system status" 3 1 container system status
-  run_check "runtime.builder" "container builder status" 3 1 container builder status
+  if ! run_check "runtime.system" "container system status" 5 2 container system status; then
+    :
+  fi
+  if ! run_check "runtime.builder" "container builder status" 5 2 container builder status; then
+    :
+  fi
 else
   fail "runtime.cli" "container CLI not found"
 fi
@@ -311,6 +321,8 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
     selected_session_id
     effective_session_id
     session_resume_status
+    run_generation
+    stop_reason
   )
   missing_cols=()
   for col in "${required_cols[@]}"; do
@@ -334,13 +346,18 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
     warn "db.worker_runs.rows" "worker_runs table has no rows"
   fi
 
-  stale_queued="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='queued' AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');" 2>/dev/null || echo 0)"
-  stale_running="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='running' AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');" 2>/dev/null || echo 0)"
+  stale_queued_non_probe="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('queued','provisioning') AND run_id NOT LIKE 'probe-%' AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');" 2>/dev/null || echo 0)"
+  stale_queued_probe="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('queued','provisioning') AND run_id LIKE 'probe-%' AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');" 2>/dev/null || echo 0)"
+  stale_running="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('running','stopping') AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');" 2>/dev/null || echo 0)"
 
-  if [[ "$stale_queued" =~ ^[0-9]+$ ]] && [ "$stale_queued" -eq 0 ]; then
-    pass "db.worker_runs.stale_queued" "no stale queued worker runs older than ${STALE_QUEUED_MINUTES}m"
+  if [[ "$stale_queued_non_probe" =~ ^[0-9]+$ ]] && [ "$stale_queued_non_probe" -eq 0 ]; then
+    pass "db.worker_runs.stale_queued" "no stale queued non-probe worker runs older than ${STALE_QUEUED_MINUTES}m"
   else
-    fail "db.worker_runs.stale_queued" "stale queued worker runs detected: $stale_queued"
+    fail "db.worker_runs.stale_queued" "stale queued non-probe worker runs detected: $stale_queued_non_probe"
+  fi
+
+  if [[ "$stale_queued_probe" =~ ^[0-9]+$ ]] && [ "$stale_queued_probe" -gt 0 ]; then
+    warn "db.worker_runs.stale_queued_probe" "stale queued probe runs detected: $stale_queued_probe"
   fi
 
   if [[ "$stale_running" =~ ^[0-9]+$ ]] && [ "$stale_running" -eq 0 ]; then

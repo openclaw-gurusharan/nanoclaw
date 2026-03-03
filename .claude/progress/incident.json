@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-03T07:39:08.675283+00:00",
+  "updated_at": "2026-03-03T11:27:36.231242+00:00",
   "incidents": [
     {
       "id": "incident-worker-connectivity-block-20260227",
@@ -8,7 +8,7 @@
       "status": "open",
       "severity": "high",
       "created_at": "2026-02-27T13:02:09.098285+00:00",
-      "updated_at": "2026-03-03T07:39:08.675228+00:00",
+      "updated_at": "2026-03-03T11:27:36.231173+00:00",
       "summary": {
         "symptom": "Workers are not connected and I don't have access to restart them. To restart the push task: start worker containers manually via deployment system, then I will dispatch push task. Alternative: push branches manually from local environment.",
         "suspected_cause": "unknown",
@@ -30,19 +30,19 @@
       },
       "notes": [
         {
-          "ts": "2026-03-03T07:04:37.876258+00:00",
+          "ts": "2026-03-03T11:03:38.587917+00:00",
           "author": "operator",
-          "text": "2026-03-03 verification: verify-worker-connectivity failed (jarvis-worker-2 probe timeout) and dispatch-block artifact reason=request_id required; happiness-gate failed (Simple Greeting latency 16s > 8s)."
+          "text": "2026-03-03 16:32 IST: Replay-loop fix active (log shows 'Agent error after worker run terminalized...'). However worker execution path still unstable: probe containers emit no completion/stdout and hit stale_probe_run_watchdog/exit 137; verify-worker-connectivity remains FAIL (jarvis-worker-2 probe run probe-jarvis-worker-2-1772535666-8018 timed out in 120s while still running)."
         },
         {
-          "ts": "2026-03-03T07:24:13.949692+00:00",
+          "ts": "2026-03-03T11:04:43.115313+00:00",
           "author": "operator",
-          "text": "2026-03-03: verify-worker-connectivity now dispatches worker-2 successfully after request_id fix; new failure mode observed on worker-1 probe run probe-jarvis-worker-1-1772522445-24721 (failed_contract, branch mismatch from stale first completion block)."
+          "text": "2026-03-03 health check: preflight PASS(12/12, main lane inactivity warning); reliability WARN on recent container errors (18) and one running worker probe; status shows top failure reasons stale_probe_queued_watchdog=9, stale_probe_run_watchdog=4, worker execution failed=4; running_without_container historical count=14."
         },
         {
-          "ts": "2026-03-03T07:39:08.675225+00:00",
+          "ts": "2026-03-03T11:27:36.231168+00:00",
           "author": "operator",
-          "text": "2026-03-03: worker probe payload now includes request_id; new probes for jarvis-worker-2 reach review_requested. Legacy dispatch-block artifact still present in window from earlier run."
+          "text": "2026-03-03 patch applied: coupled watchdog timeout path with runtime fallback stops (GroupQueue abort now supports activeContainerName/groupFolder fallback and supervisor passes run lifecycle metadata). Probe watchdog/no-output budgets tightened (110s/115s) to keep verify-worker-connectivity deterministic. Evidence after restart (pid 67118): probe runs now terminalize failed_timeout with timeout_ms=110000 and abort.detail=runtime_container_stop_fallback; stale queued/running counts remain 0; no in-flight probe backlog persists after probe/verify runs."
         }
       ]
     },
@@ -52,7 +52,7 @@
       "status": "open",
       "severity": "unknown",
       "created_at": "2026-03-01T16:44:04.869450+00:00",
-      "updated_at": "2026-03-03T07:39:08.576267+00:00",
+      "updated_at": "2026-03-03T11:05:06.737324+00:00",
       "summary": {
         "symptom": "Andy greeting delayed after hi due to no-output run",
         "suspected_cause": "andy_no_output_timeout",
@@ -74,11 +74,6 @@
       },
       "notes": [
         {
-          "ts": "2026-03-01T16:44:04.869450+00:00",
-          "author": "user",
-          "text": "reported: Andy greeting delayed after hi due to no-output run"
-        },
-        {
           "ts": "2026-03-03T07:04:37.924178+00:00",
           "author": "operator",
           "text": "2026-03-03 verification: happiness-gate still failing; script/test-andy-user-e2e.ts reports Simple Greeting latency 15963ms (limit 8000ms). Natural status text path also still emits req-tracking responses in chat history."
@@ -87,33 +82,11 @@
           "ts": "2026-03-03T07:39:08.576263+00:00",
           "author": "operator",
           "text": "2026-03-03: post-fix happiness-gate PASS (greeting/status/progress latency <1s) with conversational frontdesk replies; keep open until manual User POV runbook + explicit user confirmation."
-        }
-      ]
-    },
-    {
-      "id": "incident-20260303T073709Z",
-      "title": "verify-worker-connectivity preflight false-negative during transient launchd/container status window",
-      "status": "open",
-      "severity": "unknown",
-      "created_at": "2026-03-03T07:37:09.694540+00:00",
-      "updated_at": "2026-03-03T07:37:18.190092+00:00",
-      "summary": {
-        "symptom": "verify-worker-connectivity preflight false-negative during transient launchd/container status window",
-        "suspected_cause": "preflight check in verify-worker-connectivity intermittently observes launchd/container status as down while standalone preflight passes...",
-        "impact": "verify-worker-connectivity returns FAIL despite successful worker probe and stale-state gates, creating noisy reliability signal",
-        "next_action": "stabilize service/runtime health sampling in verify prechecks or split hard-gate and advisory precheck modes"
-      },
-      "evidence": {
-        "bundle_count": 0
-      },
-      "context": {
-        "lane": "andy-developer"
-      },
-      "notes": [
+        },
         {
-          "ts": "2026-03-03T07:37:09.694540+00:00",
-          "author": "user",
-          "text": "reported: verify-worker-connectivity preflight false-negative during transient launchd/container status window"
+          "ts": "2026-03-03T11:05:06.737321+00:00",
+          "author": "operator",
+          "text": "2026-03-03 watch/log check still shows no-output and stale probe watchdog patterns; andy responsiveness risk remains open pending fast-path greeting and watchdog behavior hardening."
         }
       ]
     },
@@ -123,7 +96,7 @@
       "status": "open",
       "severity": "unknown",
       "created_at": "2026-03-03T07:23:58.677764+00:00",
-      "updated_at": "2026-03-03T07:24:09.003724+00:00",
+      "updated_at": "2026-03-03T11:04:43.148427+00:00",
       "summary": {
         "symptom": "jarvis-worker-1 probe failed_contract due completion branch mismatch",
         "suspected_cause": "worker completion contract drift: first completion block used stale branch, causing branch mismatch validation",
@@ -138,27 +111,56 @@
       },
       "notes": [
         {
-          "ts": "2026-03-03T07:23:58.677764+00:00",
-          "author": "user",
-          "text": "reported: jarvis-worker-1 probe failed_contract due completion branch mismatch"
+          "ts": "2026-03-03T07:43:32.945831+00:00",
+          "author": "operator",
+          "text": "2026-03-03: fixed completion parser to prefer latest valid <completion> block (src/dispatch-validator.ts). Added regression test in src/jarvis-worker-dispatch.test.ts. Focused probe run probe-jarvis-worker-1-1772523711-18103 PASS review_requested."
+        },
+        {
+          "ts": "2026-03-03T07:47:27.462052+00:00",
+          "author": "operator",
+          "text": "2026-03-03 post-fix validation: verify-worker-connectivity --skip-prechecks PASS with jarvis-worker-1 review_requested (probe-jarvis-worker-1-1772523843-18433) and jarvis-worker-2 review_requested (probe-jarvis-worker-2-1772523906-6470)."
+        },
+        {
+          "ts": "2026-03-03T11:04:43.148423+00:00",
+          "author": "operator",
+          "text": "2026-03-03 status confirms one dispatch-block artifact exists (request_id validation mismatch on probe run); branch/contract validation noise still impacts connectivity signal."
         }
       ]
-    }
-  ]
-}
-probe completion validation/retry path so stale first completion blocks do not leave failed_contract terminal state"
+    },
+    {
+      "id": "incident-20260303T073709Z",
+      "title": "verify-worker-connectivity preflight false-negative during transient launchd/container status window",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-03T07:37:09.694540+00:00",
+      "updated_at": "2026-03-03T08:33:25.193175+00:00",
+      "summary": {
+        "symptom": "verify-worker-connectivity preflight false-negative during transient launchd/container status window",
+        "suspected_cause": "preflight check in verify-worker-connectivity intermittently observes launchd/container status as down while standalone preflight passes...",
+        "impact": "verify-worker-connectivity returns FAIL despite successful worker probe and stale-state gates, creating noisy reliability signal",
+        "next_action": "stabilize service/runtime health sampling in verify prechecks or split hard-gate and advisory precheck modes"
       },
       "evidence": {
         "bundle_count": 0
       },
       "context": {
-        "lane": "jarvis-worker-1"
+        "lane": "andy-developer"
       },
       "notes": [
         {
-          "ts": "2026-03-03T07:23:58.677764+00:00",
-          "author": "user",
-          "text": "reported: jarvis-worker-1 probe failed_contract due completion branch mismatch"
+          "ts": "2026-03-03T07:51:45.895745+00:00",
+          "author": "operator",
+          "text": "2026-03-03 mitigation applied: verify-worker-connectivity preflight changed to advisory; functional gates (probe dispatch + lane evidence + stale-state) remain hard-fail. Command now returns PASS with WARN preflight in transient windows."
+        },
+        {
+          "ts": "2026-03-03T08:31:32.532338+00:00",
+          "author": "operator",
+          "text": "2026-03-03 deterministic gate update: preflight now uses launchctl print state checks, prints concrete failure detail, and verify-worker-connectivity hard-fails preflight before probe to avoid mixed signals. Added permission-block hint when container checks fail with Operation not permitted in restricted contexts."
+        },
+        {
+          "ts": "2026-03-03T08:33:25.193172+00:00",
+          "author": "operator",
+          "text": "2026-03-03 follow-up: preflight stale-queue check now distinguishes non-probe vs probe runs. Non-probe stale queue remains hard-fail; stale probe backlog is warning, preventing diagnostics deadlock while preserving signal."
         }
       ]
     }

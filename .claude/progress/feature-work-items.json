@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-03T07:38:30.948Z",
+  "updated_at": "2026-03-03T07:47:23.375Z",
   "items": [
     {
       "id": "work-jarvis-worker-lifecycle-1772518124323",
@@ -57,6 +57,20 @@
       "evidence": [],
       "created_at": "2026-03-03T07:17:02.711Z",
       "updated_at": "2026-03-03T07:38:30.947Z"
+    },
+    {
+      "id": "work-jarvis-worker-lifecycle-1772523630069",
+      "title": "Parse latest valid completion block",
+      "feature_id": "jarvis-worker-lifecycle",
+      "status": "testing",
+      "request": "When worker emits multiple completion blocks, choose latest valid block to avoid stale-branch failed_contract.",
+      "notes": [
+        "2026-03-03T07:40:33.520Z: Incident linkage: incident-20260303T072358Z",
+        "2026-03-03T07:47:23.374Z: Validated parser fix: vitest src/jarvis-worker-dispatch.test.ts pass (84 tests), focused worker-1 probe PASS review_requested (probe-jarvis-worker-1-1772523711-18103)."
+      ],
+      "evidence": [],
+      "created_at": "2026-03-03T07:40:30.069Z",
+      "updated_at": "2026-03-03T07:47:23.374Z"
     }
   ]
 }

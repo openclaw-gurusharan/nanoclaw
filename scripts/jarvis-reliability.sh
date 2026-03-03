@@ -202,6 +202,8 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
     last_progress_summary
     last_progress_at
     steer_count
+    run_generation
+    stop_reason
   )
   missing_cols=()
   for col in "${required_cols[@]}"; do
@@ -221,8 +223,8 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
     fail "worker_steering_events table missing"
   fi
 
-  queued_stale="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='queued' AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');" 2>/dev/null || echo 0)"
-  running_stale="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='running' AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');" 2>/dev/null || echo 0)"
+  queued_stale="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('queued','provisioning') AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');" 2>/dev/null || echo 0)"
+  running_stale="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('running','stopping') AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');" 2>/dev/null || echo 0)"
   if [ "$queued_stale" -eq 0 ]; then
     pass "no queued worker runs older than ${STALE_QUEUED_MINUTES}m"
   else

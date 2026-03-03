@@ -317,12 +317,20 @@ export function parseCompletionContract(output: string): CompletionContract | nu
     return null;
   };
 
+  const parseLatestCompletionTag = (raw: string): CompletionContract | null => {
+    const completionRegex = /<completion>([\s\S]*?)<\/completion>/gi;
+    let latest: CompletionContract | null = null;
+    let match: RegExpExecArray | null;
+    while ((match = completionRegex.exec(raw)) !== null) {
+      const parsed = parseObjectFlexible(match[1]);
+      if (parsed) latest = parsed;
+    }
+    return latest;
+  };
+
   // 1. Primary: <completion>...</completion> tag
-  const match = output.match(/<completion>([\s\S]*?)<\/completion>/i);
-  if (match) {
-    const parsed = parseObjectFlexible(match[1]);
-    if (parsed) return parsed;
-  }
+  const parsedTagged = parseLatestCompletionTag(output);
+  if (parsedTagged) return parsedTagged;
 
   const trimmed = output.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -331,11 +339,8 @@ export function parseCompletionContract(output: string): CompletionContract | nu
   // 2. Whole output as a quoted JSON string wrapping a completion tag
   const decodedDirect = decodeEscapedText(directCandidate);
   if (decodedDirect) {
-    const completionInDecoded = decodedDirect.match(/<completion>([\s\S]*?)<\/completion>/i);
-    if (completionInDecoded) {
-      const parsed = parseObjectFlexible(completionInDecoded[1]);
-      if (parsed) return parsed;
-    }
+    const parsedDecodedTagged = parseLatestCompletionTag(decodedDirect);
+    if (parsedDecodedTagged) return parsedDecodedTagged;
   }
 
   // 3. Fenced JSON or direct bare JSON (analyze/research tasks)

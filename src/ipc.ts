@@ -725,7 +725,7 @@ export function startIpcWatcher(deps: IpcDeps): void {
               if (queuedDispatch) {
                 completeWorkerRun(
                   queuedDispatch,
-                  'failed',
+                  'failed_runtime',
                   `dispatch delivery failed: ${err instanceof Error ? err.message : String(err)}`,
                   JSON.stringify({
                     reason: 'dispatch delivery failed',

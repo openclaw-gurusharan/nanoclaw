@@ -35,6 +35,7 @@ import {
 import {
   createAndyRequestIfAbsent,
   acceptWorkerRunCompletion,
+  claimRunForProvisioning,
   completeWorkerRun,
   getAllChats,
   getAllRegisteredGroups,
@@ -55,6 +56,8 @@ import {
   getProcessedMessageIds,
   isNonRetryableWorkerStatus,
   markMessagesProcessed,
+  markRunRunning,
+  markRunTerminal,
   linkAndyRequestToWorkerRun,
   requeueWorkerRunForReplay,
   setRegisteredGroup,
@@ -64,7 +67,6 @@ import {
   storeMessage,
   updateWorkerRunDispatchMetadata,
   updateWorkerRunSessionMetadata,
-  updateWorkerRunStatus,
   updateAndyRequestState,
   updateAndyRequestByWorkerRun,
   setAndyRequestCoordinatorSession,
@@ -107,8 +109,12 @@ const MISSION_CORE_FOLDERS = new Set([
   'jarvis-worker-1',
   'jarvis-worker-2',
 ]);
-const ACTIVE_WORKER_RUN_STATUSES = ['queued', 'running', 'review_requested'] as const;
+const ACTIVE_WORKER_RUN_STATUSES = ['queued', 'provisioning', 'running', 'stopping'] as const;
 const WORKER_RUN_STALE_MS = 2 * 60 * 60 * 1000;
+// Keep probe watchdog strictly below verify-worker-connectivity (120s) so
+// failed probes terminalize before gate timeout and do not leave in-flight locks.
+const WORKER_PROBE_QUEUED_STALE_MS = 110 * 1000;
+const WORKER_PROBE_RUNNING_STALE_MS = 110 * 1000;
 const WORKER_QUEUED_CURSOR_GRACE_MS = 10 * 60 * 1000; // Avoid false pre-spawn stale failures during normal queueing
 const WORKER_LEASE_TTL_MS = 90 * 1000;
 const WORKER_RESTART_SUPPRESSION_WINDOW_MS = 60 * 1000;
@@ -124,6 +130,8 @@ const andyBusyAckLastSentMs: Record<string, number> = {};
 const andyRetryNoticeState: Record<string, { sentAtMs: number; signature: string }> = {};
 const workerRunSupervisor = new WorkerRunSupervisor({
   hardTimeoutMs: WORKER_RUN_STALE_MS,
+  probeQueuedTimeoutMs: WORKER_PROBE_QUEUED_STALE_MS,
+  probeRunningTimeoutMs: WORKER_PROBE_RUNNING_STALE_MS,
   queuedCursorGraceMs: WORKER_QUEUED_CURSOR_GRACE_MS,
   leaseTtlMs: WORKER_LEASE_TTL_MS,
   processStartAtMs: PROCESS_START_AT_MS,
@@ -439,7 +447,7 @@ function buildAndyProgressStatusReply(chatJid: string, requestId?: string): stri
 
   const activeRuns = getWorkerRuns({
     groupFolderLike: 'jarvis-worker-%',
-    statuses: ['queued', 'running'],
+    statuses: ['queued', 'provisioning', 'running', 'stopping'],
     limit: 5,
   });
 
@@ -456,8 +464,12 @@ function buildAndyProgressStatusReply(chatJid: string, requestId?: string): stri
     return `${ASSISTANT_NAME}: No worker run is active right now. Latest task on ${latestRun.group_folder} is ${latestRun.status} (${latestAt}).`;
   }
 
-  const queuedCount = activeRuns.filter((run) => run.status === 'queued').length;
-  const runningCount = activeRuns.filter((run) => run.status === 'running').length;
+  const queuedCount = activeRuns.filter(
+    (run) => run.status === 'queued' || run.status === 'provisioning',
+  ).length;
+  const runningCount = activeRuns.filter(
+    (run) => run.status === 'running' || run.status === 'stopping',
+  ).length;
   const visibleRuns = activeRuns.slice(0, 3);
   const lines = visibleRuns.map((run) => {
     const detail = run.phase && run.phase !== run.status
@@ -652,7 +664,11 @@ function buildAndyPromptWorkerContext(snapshot: WorkerRunsSnapshot): string {
     return Number.isFinite(startedMs) && (nowMs - startedMs) <= currentWindowMs;
   });
   const currentFailures = snapshot.recent.filter((r) => {
-    if (r.status !== 'failed' && r.status !== 'failed_contract') return false;
+    if (
+      r.status !== 'failed_runtime'
+      && r.status !== 'failed_timeout'
+      && r.status !== 'failed_contract'
+    ) return false;
     const startedMs = Date.parse(r.started_at);
     return Number.isFinite(startedMs) && (nowMs - startedMs) <= currentWindowMs;
   }).length;
@@ -676,8 +692,12 @@ function buildAndyPromptWorkerContext(snapshot: WorkerRunsSnapshot): string {
     ? workerLaneNames.map((lane) => {
       const laneRuns = currentWindowRuns.filter((r) => r.group_folder === lane);
       const pass = laneRuns.filter((r) => r.status === 'review_requested' || r.status === 'done').length;
-      const fail = laneRuns.filter((r) => r.status === 'failed' || r.status === 'failed_contract').length;
-      const active = laneRuns.filter((r) => r.status === 'queued' || r.status === 'running').length;
+      const fail = laneRuns.filter(
+        (r) => r.status === 'failed_runtime' || r.status === 'failed_timeout' || r.status === 'failed_contract',
+      ).length;
+      const active = laneRuns.filter(
+        (r) => r.status === 'queued' || r.status === 'provisioning' || r.status === 'running' || r.status === 'stopping',
+      ).length;
       return `- ${lane}: pass=${pass}, fail=${fail}, active=${active}, runs=${laneRuns.length}`;
     }).join('\n')
     : '- none';
@@ -932,12 +952,14 @@ function selectMessagesForExecution(
     return messages;
   }
 
-  for (const msg of messages) {
+  for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+    const msg = messages[idx];
     const payload = parseDispatchPayload(msg.content);
     if (!payload) continue;
     const validity = validateDispatchPayload(payload);
     if (validity.valid) {
-      // Worker lanes must process one canonical dispatch at a time.
+      // Worker lanes process one canonical dispatch at a time. Prefer newest
+      // valid dispatch to avoid stale backlog starving current work.
       return [msg];
     }
   }
@@ -968,6 +990,28 @@ function reconcileStaleWorkerRuns(): void {
   const changed = workerRunSupervisor.reconcile({
     lastAgentTimestamp,
     resolveChatJid: findChatJidByGroupFolder,
+    onRunTimeout: (run, reason) => {
+      const chatJid = findChatJidByGroupFolder(run.group_folder);
+      if (!chatJid) {
+        return {
+          aborted: false,
+          stopVerified: false,
+          stopAttempts: [],
+          detail: 'missing_chat_jid',
+        };
+      }
+
+      const abort = queue.abortActiveRun(
+        chatJid,
+        run.run_id,
+        reason,
+        {
+          groupFolder: run.group_folder,
+          activeContainerName: run.active_container_name,
+        },
+      );
+      return abort;
+    },
   });
   if (changed && ENABLE_CONTROL_PLANE_SNAPSHOTS) {
     refreshWorkerRunSnapshotsForGroups();
@@ -1116,7 +1160,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   const batchLastTimestamp = messagesToProcess[messagesToProcess.length - 1].timestamp;
 
   // For non-main groups, check if trigger is required and present
-  if (!isMainGroup && group.requiresTrigger !== false) {
+  if (!isMainGroup && !syntheticWorker && group.requiresTrigger !== false) {
     const hasTrigger = messagesToProcess.some((m) =>
       TRIGGER_PATTERN.test(m.content.trim()),
     );
@@ -1173,6 +1217,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let runtimeSessionResumeError: string | undefined;
   let workerRunMarkedRunning = false;
   let workerSpawnContainerName: string | undefined;
+  let workerRunGeneration: number | undefined;
 
   if (workerRun) {
     const existingRun = getWorkerRun(workerRun.runId);
@@ -1249,7 +1294,12 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       session_selection_source: workerSessionSelection.source,
     } as const;
 
-    if (!existingRun || existingRun.status === 'failed' || existingRun.status === 'failed_contract') {
+    if (
+      !existingRun
+      || existingRun.status === 'failed_runtime'
+      || existingRun.status === 'failed_timeout'
+      || existingRun.status === 'failed_contract'
+    ) {
       const insertState = insertWorkerRun(workerRun.runId, group.folder, dispatchMetadata);
       if (insertState === 'duplicate') {
         markCursorInFlight(chatJid, batchLastTimestamp);
@@ -1293,6 +1343,19 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       );
     }
 
+    const claim = claimRunForProvisioning(workerRun.runId, WORKER_SUPERVISOR_OWNER);
+    if (!claim.ok) {
+      markCursorInFlight(chatJid, batchLastTimestamp);
+      commitInFlightCursor(chatJid);
+      refreshWorkerRunSnapshotsForGroups();
+      logger.warn(
+        { runId: workerRun.runId, group: group.name },
+        'Worker run provisioning claim rejected; run no longer queued',
+      );
+      return true;
+    }
+    workerRunGeneration = claim.generation;
+
   }
 
   // Track messages currently being handled by this run without committing the
@@ -1323,6 +1386,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
   let outputAckCursor: string | undefined;
+  let workerRunTerminalized = false;
 
   const sessionOverride = workerSessionSelection
     ? (workerSessionSelection.selectedSessionId ?? null)
@@ -1330,10 +1394,24 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   const onSpawn = workerRun
     ? (containerName: string) => {
         if (workerRunMarkedRunning) return;
+        if (workerRunGeneration === undefined) {
+          logger.warn(
+            { runId: workerRun.runId, group: group.name, containerName },
+            'Worker spawned without provisioning generation; ignoring running transition',
+          );
+          return;
+        }
+        const markedRunning = markRunRunning(workerRun.runId, workerRunGeneration, containerName);
+        if (!markedRunning) {
+          logger.warn(
+            { runId: workerRun.runId, group: group.name, containerName, generation: workerRunGeneration },
+            'Worker running transition rejected (generation or status mismatch)',
+          );
+          return;
+        }
         workerRunMarkedRunning = true;
         workerSpawnContainerName = containerName;
         workerRunSupervisor.markSpawnStarted(workerRun.runId, containerName, 'active');
-        updateWorkerRunStatus(workerRun.runId, 'running');
         updateAndyRequestByWorkerRun(
           workerRun.runId,
           'worker_running',
@@ -1407,6 +1485,24 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   if (workerRun && workerRunMarkedRunning) {
     workerRunSupervisor.markContainerExited(workerRun.runId, 'completion_validating');
   }
+
+  const finalizeWorkerRun = (
+    status: 'failed_runtime' | 'failed_timeout' | 'failed_contract',
+    summary: string,
+    details?: string,
+  ): void => {
+    if (!workerRun) return;
+    workerRunTerminalized = true;
+    if (workerRunGeneration !== undefined) {
+      const ok = markRunTerminal(workerRun.runId, workerRunGeneration, status, summary, details);
+      if (ok) return;
+      logger.warn(
+        { runId: workerRun.runId, status, generation: workerRunGeneration },
+        'Generation-guarded terminal update rejected; falling back to ungated completion',
+      );
+    }
+    completeWorkerRun(workerRun.runId, status, summary, details);
+  };
 
   if (workerRun) {
     let completion = parseCompletionContract(workerOutputBuffer);
@@ -1543,6 +1639,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           summary: `[${group.folder}] ✓ review: ${completion.branch}`,
           metadata: { agent: group.folder, tier: 'worker', run_id: workerRun.runId, group_folder: group.folder },
         });
+        workerRunTerminalized = true;
         workerRunSupervisor.markTerminal(workerRun.runId);
         refreshWorkerRunSnapshotsForGroups();
         logger.info(
@@ -1559,8 +1656,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           'failed',
           `Completion accept rejected for run ${workerRun.runId}`,
         );
-        completeWorkerRun(
-          workerRun.runId,
+        finalizeWorkerRun(
           'failed_contract',
           'Completion accept rejected',
           JSON.stringify({ reason: 'completion_accept_rejected' }),
@@ -1580,9 +1676,8 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           'failed',
           `Worker failed before running state for ${workerRun.runId}`,
         );
-        completeWorkerRun(
-          workerRun.runId,
-          'failed',
+        finalizeWorkerRun(
+          'failed_runtime',
           'Worker container failed before running state could be established',
           JSON.stringify({
             reason: 'container_spawn_failed_before_running',
@@ -1616,14 +1711,16 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
             ? `Worker execution failed; missing ${missingSummary}`
             : `Worker execution failed for ${workerRun.runId}`,
         );
-        completeWorkerRun(
-          workerRun.runId,
-          'failed',
+        const timeoutFailure = /no_output_timeout|hard_timeout|timed out|timeout/i.test(
+          `${runOutcome.error ?? ''}`,
+        );
+        finalizeWorkerRun(
+          timeoutFailure ? 'failed_timeout' : 'failed_runtime',
           missingSummary
             ? `Worker execution failed; missing: ${missingSummary}`
             : 'worker execution failed',
           JSON.stringify({
-            reason: 'worker execution failed',
+            reason: timeoutFailure ? 'worker_execution_timeout' : 'worker execution failed',
             missing: completionCheck.missing,
             output_status: runOutcome.status,
             output_error: runOutcome.error,
@@ -1656,8 +1753,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           ? `Completion contract missing fields: ${missingSummary}`
           : `Invalid completion contract for ${workerRun.runId}`,
       );
-      completeWorkerRun(
-        workerRun.runId,
+      finalizeWorkerRun(
         'failed_contract',
         missingSummary
           ? `Completion contract missing: ${missingSummary}`
@@ -1718,6 +1814,15 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       commitCursor(chatJid, outputAckCursor || batchLastTimestamp);
       clearInFlightCursor(chatJid);
       logger.warn({ group: group.name }, 'Agent error after output was sent, skipping cursor rollback to prevent duplicates');
+      return true;
+    }
+    if (workerRun && workerRunTerminalized) {
+      markBatchProcessed(chatJid, messagesToProcess, workerRun.runId);
+      commitInFlightCursor(chatJid);
+      logger.warn(
+        { group: group.name, runId: workerRun.runId },
+        'Agent error after worker run terminalized, skipping cursor rollback to prevent duplicate replay',
+      );
       return true;
     }
     // Keep durable cursor unchanged so retries can re-process these messages.
@@ -1826,7 +1931,7 @@ async function runAgent(
         dynamicGroupRegistrationEnabled: ENABLE_DYNAMIC_GROUP_REGISTRATION,
       },
       (proc, containerName) => {
-        queue.registerProcess(chatJid, proc, containerName, group.folder);
+        queue.registerProcess(chatJid, proc, containerName, group.folder, workerRunId);
         if (typeof proc.pid === 'number' && proc.pid > 0) {
           onSpawn?.(containerName);
         } else {
@@ -1925,7 +2030,7 @@ async function startMessageLoop(): Promise<void> {
           }
 
           const isMainGroup = group.folder === MAIN_GROUP_FOLDER;
-          const needsTrigger = !isMainGroup && group.requiresTrigger !== false;
+          const needsTrigger = !isMainGroup && !syntheticWorker && group.requiresTrigger !== false;
 
           // For non-main groups, only act on trigger messages.
           // Non-trigger messages accumulate in DB and get pulled as
@@ -2038,7 +2143,7 @@ function recoverPendingMessages(): void {
 function recoverInterruptedWorkerDispatches(): void {
   const activeRuns = getWorkerRuns({
     groupFolderLike: 'jarvis-worker-%',
-    statuses: ['queued', 'running'],
+    statuses: ['queued', 'provisioning', 'running', 'stopping'],
     limit: 200,
   });
 
@@ -2047,6 +2152,33 @@ function recoverInterruptedWorkerDispatches(): void {
   let replayed = 0;
   let skipped = 0;
   for (const run of activeRuns) {
+    const runIsProbe = run.run_id.startsWith('probe-');
+    const startedMs = Date.parse(run.started_at);
+    const runAgeMs = Number.isFinite(startedMs) ? Date.now() - startedMs : null;
+    const probeTimeoutMs = (run.status === 'running' || run.status === 'stopping')
+      ? WORKER_PROBE_RUNNING_STALE_MS
+      : WORKER_PROBE_QUEUED_STALE_MS;
+    if (runIsProbe && runAgeMs !== null && runAgeMs > probeTimeoutMs) {
+      completeWorkerRun(
+        run.run_id,
+        'failed_timeout',
+        'Startup replay skipped stale probe run',
+        JSON.stringify({
+          reason: 'startup_replay_skipped_stale_probe',
+          status: run.status,
+          started_at: run.started_at,
+          stale_ms: runAgeMs,
+          timeout_ms: probeTimeoutMs,
+        }),
+      );
+      skipped += 1;
+      logger.warn(
+        { runId: run.run_id, groupFolder: run.group_folder, status: run.status, runAgeMs, probeTimeoutMs },
+        'Startup replay auto-failed stale probe run',
+      );
+      continue;
+    }
+
     const chatJid = findChatJidByGroupFolder(run.group_folder);
     if (!chatJid) {
       skipped += 1;
@@ -2068,7 +2200,7 @@ function recoverInterruptedWorkerDispatches(): void {
       continue;
     }
 
-    if (run.status === 'running') {
+    if (run.status !== 'queued') {
       requeueWorkerRunForReplay(run.run_id, 'startup_replay_after_restart');
     }
 

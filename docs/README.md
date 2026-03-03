@@ -23,6 +23,7 @@ docs/
 - Optional ops profile: `docs/architecture/mission-optional-features.md`
 - Architecture optimization plan: `docs/architecture/nanoclaw-architecture-optimization-plan.md`
 - Workflow contract: `docs/workflow/nanoclaw-jarvis-dispatch-contract.md`
+- Session recall workflow: `docs/workflow/session-recall.md`
 - Runtime behavior: `docs/workflow/nanoclaw-jarvis-worker-runtime.md`
 - Acceptance gates: `docs/workflow/nanoclaw-jarvis-acceptance-checklist.md`
 - GitHub control-plane: `docs/workflow/nanoclaw-github-control-plane.md`

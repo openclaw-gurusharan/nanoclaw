@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 DB_PATH="${DB_PATH:-$ROOT_DIR/store/messages.db}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-180}"
 POLL_SEC="${POLL_SEC:-2}"
+INFLIGHT_WINDOW_MINUTES="${INFLIGHT_WINDOW_MINUTES:-180}"
 WORKERS_FILTER="${WORKERS_FILTER:-}"
 DISPATCH_FILE=""
 SKIP_LINT=0
@@ -26,6 +27,8 @@ Options:
   --skip-lint             Skip dispatch lint precheck
   --timeout <sec>         Timeout per worker lane (default: 180)
   --poll <sec>            Poll interval in seconds (default: 2)
+  --inflight-window-minutes <n>
+                           Block duplicate probes when a probe run is already active (queued/provisioning/running/stopping) within this window (default: 180)
   --db <path>             SQLite DB path (default: store/messages.db)
   --json                  Emit JSON summary to stdout
   --json-out <path>       Write JSON summary to file
@@ -44,6 +47,7 @@ while [ "$#" -gt 0 ]; do
     --skip-lint) SKIP_LINT=1; shift ;;
     --timeout) TIMEOUT_SEC="$2"; shift 2 ;;
     --poll) POLL_SEC="$2"; shift 2 ;;
+    --inflight-window-minutes) INFLIGHT_WINDOW_MINUTES="$2"; shift 2 ;;
     --db) DB_PATH="$2"; shift 2 ;;
     --json) JSON_MODE=1; shift ;;
     --json-out) JSON_OUT="$2"; shift 2 ;;
@@ -52,7 +56,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for value in "$TIMEOUT_SEC" "$POLL_SEC"; do
+for value in "$TIMEOUT_SEC" "$POLL_SEC" "$INFLIGHT_WINDOW_MINUTES"; do
   if ! is_pos_int "$value"; then
     echo "Expected positive integer, got: $value"
     exit 1
@@ -112,6 +116,7 @@ echo "== Jarvis Worker Probe =="
 echo "db: $DB_PATH"
 echo "timeout: ${TIMEOUT_SEC}s per lane"
 echo "poll: ${POLL_SEC}s"
+echo "inflight window: ${INFLIGHT_WINDOW_MINUTES}m"
 [ -n "$DISPATCH_FILE" ] && echo "dispatch template: $DISPATCH_FILE"
 
 overall_fail=0
@@ -122,6 +127,27 @@ for row in "${lane_rows[@]}"; do
   folder="${row%%|*}"
   jid="${row#*|}"
   total=$((total + 1))
+
+  existing_probe="$(sqlite3 -separator '|' "$DB_PATH" "
+SELECT run_id, status, started_at
+FROM worker_runs
+WHERE group_folder='${folder}'
+  AND run_id LIKE 'probe-${folder}-%'
+  AND status IN ('queued', 'provisioning', 'running', 'stopping')
+  AND julianday(started_at) >= julianday('now', '-${INFLIGHT_WINDOW_MINUTES} minutes')
+ORDER BY started_at DESC
+LIMIT 1;
+")"
+  if [ -n "$existing_probe" ]; then
+    IFS='|' read -r existing_run_id existing_status existing_started_at <<<"$existing_probe"
+    echo
+    echo "[PROBE] $folder ($jid)"
+    echo "  result: FAIL (existing probe in-flight)"
+    echo "  in_flight_run: $existing_run_id ($existing_status @ $existing_started_at)"
+    overall_fail=1
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$folder" "$jid" "$existing_run_id" "blocked_inflight_probe" "existing_inflight_probe" "" >>"$RESULTS_FILE"
+    continue
+  fi
 
   ts="$(date +%s)"
   run_id="probe-${folder}-${ts}-$RANDOM"
@@ -241,7 +267,7 @@ NODE
     if [ -n "$result_line" ]; then
       IFS='|' read -r status summary reason branch_name commit_sha <<<"$result_line"
       case "$status" in
-        review_requested|done|failed|failed_contract)
+        review_requested|done|failed_runtime|failed_timeout|failed_contract)
           terminal="$status"
           break
           ;;

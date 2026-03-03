@@ -3,7 +3,10 @@ import fs from 'fs';
 import path from 'path';
 
 import { DATA_DIR, MAX_CONCURRENT_CONTAINERS } from './config.js';
-import { stopContainerWithVerification } from './container-runtime.js';
+import {
+  stopContainerWithVerification,
+  stopRunningContainersByPrefix,
+} from './container-runtime.js';
 import { logger } from './logger.js';
 
 interface QueuedTask {
@@ -26,7 +29,13 @@ interface GroupState {
   process: ChildProcess | null;
   containerName: string | null;
   groupFolder: string | null;
+  activeRunId: string | null;
   retryCount: number;
+}
+
+interface AbortRunOptions {
+  groupFolder?: string;
+  activeContainerName?: string | null;
 }
 
 export class GroupQueue {
@@ -92,6 +101,7 @@ export class GroupQueue {
         process: null,
         containerName: null,
         groupFolder: null,
+        activeRunId: null,
         retryCount: 0,
       };
       this.groups.set(groupJid, state);
@@ -202,11 +212,177 @@ export class GroupQueue {
     proc: ChildProcess,
     containerName: string,
     groupFolder?: string,
+    runId?: string,
   ): void {
     const state = this.getGroup(groupJid);
     state.process = proc;
     state.containerName = containerName;
     if (groupFolder) state.groupFolder = groupFolder;
+    if (runId !== undefined) state.activeRunId = runId;
+  }
+
+  abortActiveRun(
+    groupJid: string,
+    runId: string,
+    reason: string,
+    options?: AbortRunOptions,
+  ): {
+    aborted: boolean;
+    stopVerified: boolean;
+    stopAttempts: string[];
+    detail: string;
+  } {
+    const state = this.getGroup(groupJid);
+    const runtimeStopByContainer = (
+      containerName: string,
+      detailPrefix: string,
+    ): {
+      aborted: boolean;
+      stopVerified: boolean;
+      stopAttempts: string[];
+      detail: string;
+    } => {
+      const stopResult = stopContainerWithVerification(containerName);
+      logger.warn(
+        {
+          groupJid,
+          runId,
+          reason,
+          containerName,
+          stopVerified: stopResult.stopped,
+          stopAttempts: stopResult.attempts,
+        },
+        'Abort requested for worker run via runtime container stop fallback',
+      );
+      return {
+        aborted: stopResult.stopped,
+        stopVerified: stopResult.stopped,
+        stopAttempts: stopResult.attempts,
+        detail: stopResult.stopped ? detailPrefix : `${detailPrefix}_stop_failed`,
+      };
+    };
+
+    const runtimeStopByPrefix = (
+      groupFolder: string,
+      detailPrefix: string,
+    ): {
+      aborted: boolean;
+      stopVerified: boolean;
+      stopAttempts: string[];
+      detail: string;
+    } => {
+      const prefix = `nanoclaw-${groupFolder}-`;
+      const stopResult = stopRunningContainersByPrefix(prefix);
+      const attempts = [
+        `matched:${stopResult.matched.join(',') || '(none)'}`,
+        `stopped:${stopResult.stopped.join(',') || '(none)'}`,
+        ...stopResult.failures.map(
+          (failure) => `${failure.name}:${failure.attempts.join(' || ')}`,
+        ),
+      ];
+      const stopped = stopResult.stopped.length > 0;
+      logger.warn(
+        {
+          groupJid,
+          runId,
+          reason,
+          groupFolder,
+          prefix,
+          matched: stopResult.matched,
+          stopped: stopResult.stopped,
+          failures: stopResult.failures,
+        },
+        'Abort requested for worker run via runtime prefix stop fallback',
+      );
+      return {
+        aborted: stopped,
+        stopVerified: stopped,
+        stopAttempts: attempts,
+        detail: stopped ? detailPrefix : `${detailPrefix}_no_running_container`,
+      };
+    };
+
+    const fallbackContainerName = `${options?.activeContainerName ?? ''}`.trim();
+    if (fallbackContainerName && !fallbackContainerName.startsWith('prefix:')) {
+      const fallback = runtimeStopByContainer(
+        fallbackContainerName,
+        'runtime_container_stop_fallback',
+      );
+      if (fallback.stopVerified) return fallback;
+    }
+    const fallbackFolder = options?.groupFolder || state.groupFolder;
+    if (fallbackFolder) {
+      const fallback = runtimeStopByPrefix(
+        fallbackFolder,
+        'runtime_prefix_stop_fallback',
+      );
+      if (fallback.stopVerified) return fallback;
+    }
+
+    if (!state.active) {
+      return {
+        aborted: false,
+        stopVerified: false,
+        stopAttempts: [],
+        detail: 'lane_not_active',
+      };
+    }
+    if (state.activeRunId && state.activeRunId !== runId) {
+      return {
+        aborted: false,
+        stopVerified: false,
+        stopAttempts: [],
+        detail: `active_run_mismatch:${state.activeRunId}`,
+      };
+    }
+
+    if (!state.containerName || !state.process) {
+      return {
+        aborted: false,
+        stopVerified: false,
+        stopAttempts: [],
+        detail: 'missing_container_or_process',
+      };
+    }
+
+    if (state.groupFolder) {
+      this.closeStdin(groupJid);
+    }
+
+    const stopResult = stopContainerWithVerification(state.containerName);
+    try {
+      if (!state.process.killed) {
+        state.process.kill('SIGTERM');
+      }
+    } catch {
+      // best effort
+    }
+    try {
+      if (!state.process.killed) {
+        state.process.kill('SIGKILL');
+      }
+    } catch {
+      // best effort
+    }
+
+    logger.warn(
+      {
+        groupJid,
+        runId,
+        reason,
+        containerName: state.containerName,
+        stopVerified: stopResult.stopped,
+        stopAttempts: stopResult.attempts,
+      },
+      'Abort requested for active worker run',
+    );
+
+    return {
+      aborted: true,
+      stopVerified: stopResult.stopped,
+      stopAttempts: stopResult.attempts,
+      detail: stopResult.stopped ? 'stopped' : 'stop_verification_failed',
+    };
   }
 
   /**
@@ -304,6 +480,7 @@ export class GroupQueue {
       state.process = null;
       state.containerName = null;
       state.groupFolder = null;
+      state.activeRunId = null;
       this.activeCount--;
       this.drainGroup(groupJid);
     }
@@ -333,6 +510,7 @@ export class GroupQueue {
       state.process = null;
       state.containerName = null;
       state.groupFolder = null;
+      state.activeRunId = null;
       this.activeCount--;
       this.drainGroup(groupJid);
     }

@@ -37,6 +37,9 @@ const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
 
 // Must match AGENT_RUNNER_LOG_PREFIX in container/agent-runner/src/index.ts
 const AGENT_RUNNER_LOG_PREFIX = '[agent-runner]';
+// Probe runs are liveness checks; they must fail fast so verify-worker-connectivity
+// can complete deterministically without leaving long-lived in-flight probes.
+const PROBE_NO_OUTPUT_TIMEOUT_MS = 115_000;
 
 
 export interface ContainerInput {
@@ -599,8 +602,11 @@ export async function runContainerAgent(
     let timeoutReason: 'no_output_timeout' | 'hard_timeout' | null = null;
     const configuredIdleTimeout = group.containerConfig?.idleTimeout || IDLE_TIMEOUT;
     const requestedNoOutputTimeout = group.containerConfig?.noOutputTimeout || CONTAINER_NO_OUTPUT_TIMEOUT;
+    const isProbeRun = Boolean(input.runId && input.runId.startsWith('probe-'));
     const configuredNoOutputTimeout = isJarvisWorkerFolder(group.folder)
-      ? Math.max(requestedNoOutputTimeout, WORKER_MIN_NO_OUTPUT_TIMEOUT_MS)
+      ? (isProbeRun
+        ? PROBE_NO_OUTPUT_TIMEOUT_MS
+        : Math.max(requestedNoOutputTimeout, WORKER_MIN_NO_OUTPUT_TIMEOUT_MS))
       : requestedNoOutputTimeout;
     const configuredHardTimeout = group.containerConfig?.timeout || CONTAINER_TIMEOUT;
     if (configuredNoOutputTimeout !== requestedNoOutputTimeout) {
@@ -608,11 +614,15 @@ export async function runContainerAgent(
         {
           group: group.name,
           folder: group.folder,
+          runId: input.runId,
+          isProbeRun,
           requestedNoOutputTimeout,
           effectiveNoOutputTimeout: configuredNoOutputTimeout,
           minWorkerNoOutputTimeout: WORKER_MIN_NO_OUTPUT_TIMEOUT_MS,
         },
-        'Raised worker no-output timeout to minimum safety floor',
+        isProbeRun
+          ? 'Applied fixed probe no-output timeout ceiling'
+          : 'Raised worker no-output timeout to minimum safety floor',
       );
     }
     // Grace period: hard timeout must be at least idle timeout + 30s so the

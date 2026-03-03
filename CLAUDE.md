@@ -20,6 +20,7 @@ Folder-level docs index: [`docs/README.md`](docs/README.md)
 - Ground every task in [`docs/MISSION.md`](docs/MISSION.md) and make alignment explicit in reasoning and decisions.
 - Think from first principles: define requirements, constraints, invariants, and tradeoffs before selecting an implementation.
 - Operate as an expert with a clear technical opinion on the correct path; explain why it is the best mission-aligned approach.
+- Never side step any issue or put a patch fix.
 - Prioritize reliability, optimization, and efficiency as core defaults for design, implementation, and validation.
 - Use the most relevant internal skills/tools first, and verify outcomes with concrete evidence.
 - If a better mission-aligned approach exists, surface it proactively and reason with the user before execution.
@@ -30,6 +31,9 @@ Folder-level docs index: [`docs/README.md`](docs/README.md)
 ## Docs Index
 
 ```text
+AT SESSION START or resuming interrupted work → read docs/workflow/session-recall.md
+BEFORE ending a session with in-progress work/blockers → read docs/workflow/session-recall.md
+BEFORE changing session recall/sync/export behavior → read docs/workflow/session-recall.md
 BEFORE editing root CLAUDE.md → read .claude/rules/nanoclaw-root-claude-compression.md
 BEFORE adding/removing/renaming docs → read .claude/rules/docs-pruning-loop.md
 BEFORE starting implementation/debug/setup/update work → read .claude/rules/skill-routing-preflight.md
@@ -102,6 +106,13 @@ Run commands directly—don't tell the user to run them.
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
 ./container/build.sh # Rebuild agent container
+```
+
+Session recall/sync helpers:
+
+```bash
+bash scripts/qmd-context-recall.sh --bootstrap # Recall-only workflow (no sync/git)
+bash scripts/qmd-session-sync.sh               # Session export sync + qmd update + git add/commit
 ```
 
 Jarvis ops entrypoint:

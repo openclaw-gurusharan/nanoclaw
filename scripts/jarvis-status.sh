@@ -157,8 +157,8 @@ WITH window_runs AS (
 SELECT
   group_folder,
   SUM(CASE WHEN status IN ('review_requested', 'done') THEN 1 ELSE 0 END) AS pass_count,
-  SUM(CASE WHEN status IN ('failed', 'failed_contract') THEN 1 ELSE 0 END) AS fail_count,
-  SUM(CASE WHEN status IN ('queued', 'running') THEN 1 ELSE 0 END) AS active_count,
+  SUM(CASE WHEN status IN ('failed_runtime', 'failed_timeout', 'failed_contract') THEN 1 ELSE 0 END) AS fail_count,
+  SUM(CASE WHEN status IN ('queued', 'provisioning', 'running', 'stopping') THEN 1 ELSE 0 END) AS active_count,
   COUNT(*) AS total_count
 FROM window_runs
 WHERE group_folder LIKE 'jarvis-worker-%'
@@ -187,7 +187,7 @@ WITH window_runs AS (
 failed_runs AS (
   SELECT *
   FROM window_runs
-  WHERE status IN ('failed', 'failed_contract')
+  WHERE status IN ('failed_runtime', 'failed_timeout', 'failed_contract')
 )
 SELECT
   COALESCE(
@@ -219,9 +219,9 @@ else
   done <<<"$reason_rows"
 fi
 
-stale_queued="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='queued' AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');")"
-stale_running="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='running' AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');")"
-running_without_container="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='failed' AND json_valid(error_details)=1 AND json_extract(error_details, '$.reason')='running_without_container';")"
+stale_queued="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('queued','provisioning') AND julianday(started_at) < julianday('now', '-${STALE_QUEUED_MINUTES} minutes');")"
+stale_running="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status IN ('running','stopping') AND julianday(started_at) < julianday('now', '-${STALE_RUNNING_MINUTES} minutes');")"
+running_without_container="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM worker_runs WHERE status='failed_runtime' AND json_valid(error_details)=1 AND json_extract(error_details, '$.reason')='running_without_container';")"
 
 echo
 echo "Stale state summary:"

@@ -50,9 +50,9 @@ describe('insertWorkerRun returns new/retry/duplicate', () => {
     expect(insertWorkerRun('run-004', 'jarvis-worker-1')).toBe('duplicate');
   });
 
-  it("returns 'retry' for run_id with status 'failed'", () => {
+  it("returns 'retry' for run_id with status 'failed_runtime'", () => {
     insertWorkerRun('run-005', 'jarvis-worker-1');
-    updateWorkerRunStatus('run-005', 'failed');
+    updateWorkerRunStatus('run-005', 'failed_runtime');
     expect(insertWorkerRun('run-005', 'jarvis-worker-1')).toBe('retry');
   });
 
@@ -64,7 +64,7 @@ describe('insertWorkerRun returns new/retry/duplicate', () => {
 
   it('increments retry_count on retry', () => {
     insertWorkerRun('run-007', 'jarvis-worker-1');
-    updateWorkerRunStatus('run-007', 'failed');
+    updateWorkerRunStatus('run-007', 'failed_runtime');
     insertWorkerRun('run-007', 'jarvis-worker-1');
     const row = getWorkerRun('run-007');
     expect(row?.retry_count).toBe(1);
@@ -72,7 +72,7 @@ describe('insertWorkerRun returns new/retry/duplicate', () => {
 
   it('increments retry_count on second retry', () => {
     insertWorkerRun('run-008', 'jarvis-worker-1');
-    updateWorkerRunStatus('run-008', 'failed');
+    updateWorkerRunStatus('run-008', 'failed_runtime');
     insertWorkerRun('run-008', 'jarvis-worker-1');
     updateWorkerRunStatus('run-008', 'failed_contract');
     insertWorkerRun('run-008', 'jarvis-worker-1');
@@ -92,7 +92,7 @@ describe('insertWorkerRun returns new/retry/duplicate', () => {
 
   it("retry resets status to 'queued'", () => {
     insertWorkerRun('run-011', 'jarvis-worker-1');
-    updateWorkerRunStatus('run-011', 'failed');
+    updateWorkerRunStatus('run-011', 'failed_runtime');
     insertWorkerRun('run-011', 'jarvis-worker-1');
     expect(getWorkerRun('run-011')?.status).toBe('queued');
   });
@@ -143,8 +143,8 @@ describe('completeWorkerRun (legacy helper)', () => {
 
   it('sets status to failed', () => {
     insertWorkerRun('run-leg2', 'jarvis-worker-1');
-    completeWorkerRun('run-leg2', 'failed');
-    expect(getWorkerRun('run-leg2')?.status).toBe('failed');
+    completeWorkerRun('run-leg2', 'failed_runtime');
+    expect(getWorkerRun('run-leg2')?.status).toBe('failed_runtime');
   });
 
   it('stores error_details when provided', () => {
@@ -163,16 +163,16 @@ describe('worker run status transition guards', () => {
 
   it('does not allow reopening a terminal run via updateWorkerRunStatus', () => {
     insertWorkerRun('run-guard-1', 'jarvis-worker-1');
-    updateWorkerRunStatus('run-guard-1', 'failed');
+    updateWorkerRunStatus('run-guard-1', 'failed_runtime');
     updateWorkerRunStatus('run-guard-1', 'running');
     const row = getWorkerRun('run-guard-1');
-    expect(row?.status).toBe('failed');
+    expect(row?.status).toBe('failed_runtime');
   });
 
   it('does not allow completeWorkerRun to overwrite done with failed', () => {
     insertWorkerRun('run-guard-2', 'jarvis-worker-1');
     completeWorkerRun('run-guard-2', 'done', 'done once');
-    completeWorkerRun('run-guard-2', 'failed', 'should be ignored');
+    completeWorkerRun('run-guard-2', 'failed_runtime', 'should be ignored');
     const row = getWorkerRun('run-guard-2');
     expect(row?.status).toBe('done');
     expect(row?.result_summary).toBe('done once');
@@ -225,7 +225,7 @@ describe('worker run status transition guards', () => {
       supervisor_owner: 'test-owner',
       lease_expires_at: '2026-03-01T00:02:00.000Z',
     });
-    completeWorkerRun('run-guard-4', 'failed', 'failed');
+    completeWorkerRun('run-guard-4', 'failed_runtime', 'failed_runtime');
     const retryState = insertWorkerRun('run-guard-4', 'jarvis-worker-1');
     row = getWorkerRun('run-guard-4');
 
@@ -262,11 +262,11 @@ describe('worker run status transition guards', () => {
     expect(row?.lease_expires_at).toBeNull();
   });
 
-  it('can recover from running_without_container terminal failure before completion accept', () => {
+  it('does not recover from running_without_container terminal failure before completion accept', () => {
     insertWorkerRun('run-guard-6', 'jarvis-worker-1');
     completeWorkerRun(
       'run-guard-6',
-      'failed',
+      'failed_runtime',
       'Auto-failed worker run with no active container',
       JSON.stringify({ reason: 'running_without_container' }),
     );
@@ -274,20 +274,16 @@ describe('worker run status transition guards', () => {
     const recovered = recoverWorkerRunFromNoContainerFailure('run-guard-6');
     const row = getWorkerRun('run-guard-6');
 
-    expect(recovered).toBe(true);
-    expect(row?.status).toBe('running');
-    expect(row?.phase).toBe('finalizing');
-    expect(row?.completed_at).toBeNull();
-    expect(row?.error_details).toBeNull();
-    expect(row?.recovered_from_reason).toBe('running_without_container');
-    expect(row?.expects_followup_container).toBe(0);
+    expect(recovered).toBe(false);
+    expect(row?.status).toBe('failed_runtime');
+    expect(row?.phase).toBe('terminal');
   });
 
-  it('can recover from queued_stale_before_spawn failure before completion accept', () => {
+  it('does not recover from queued_stale_before_spawn failure before completion accept', () => {
     insertWorkerRun('run-guard-7', 'jarvis-worker-1');
     completeWorkerRun(
       'run-guard-7',
-      'failed',
+      'failed_runtime',
       'Auto-failed queued worker run before spawn (cursor past dispatch)',
       JSON.stringify({ reason: 'queued_stale_before_spawn' }),
     );
@@ -295,20 +291,17 @@ describe('worker run status transition guards', () => {
     const recovered = recoverWorkerRunForCompletionAccept('run-guard-7');
     const row = getWorkerRun('run-guard-7');
 
-    expect(recovered.recovered).toBe(true);
-    expect(recovered.reason).toBe('queued_stale_before_spawn');
-    expect(row?.status).toBe('running');
-    expect(row?.phase).toBe('finalizing');
-    expect(row?.completed_at).toBeNull();
-    expect(row?.error_details).toBeNull();
-    expect(row?.recovered_from_reason).toBe('queued_stale_before_spawn');
+    expect(recovered.recovered).toBe(false);
+    expect(recovered.reason).toBeNull();
+    expect(row?.status).toBe('failed_runtime');
+    expect(row?.phase).toBe('terminal');
   });
 
   it('does not recover non-whitelisted failure reasons for completion accept', () => {
     insertWorkerRun('run-guard-8', 'jarvis-worker-1');
     completeWorkerRun(
       'run-guard-8',
-      'failed',
+      'failed_runtime',
       'Worker execution failed',
       JSON.stringify({ reason: 'worker execution failed' }),
     );
@@ -317,8 +310,8 @@ describe('worker run status transition guards', () => {
     const row = getWorkerRun('run-guard-8');
 
     expect(recovered.recovered).toBe(false);
-    expect(recovered.reason).toBe('worker execution failed');
-    expect(row?.status).toBe('failed');
+    expect(recovered.reason).toBeNull();
+    expect(row?.status).toBe('failed_runtime');
     expect(row?.phase).toBe('terminal');
   });
 });
@@ -698,6 +691,16 @@ Done!
     const contract = parseCompletionContract(output);
     expect(contract?.run_id).toBe('task-4');
     expect(contract?.branch).toBe('jarvis-e');
+  });
+
+  it('prefers the latest valid completion block when multiple blocks are present', () => {
+    const output = [
+      '<completion>{"run_id":"task-5","branch":"jarvis-old","commit_sha":"deadbeef","files_changed":["a.ts"],"test_result":"pass","risk":"low","pr_skipped_reason":"n/a"}</completion>',
+      '<completion>{"run_id":"task-5","branch":"jarvis-new","commit_sha":"deadbeef","files_changed":["a.ts"],"test_result":"pass","risk":"low","pr_skipped_reason":"n/a"}</completion>',
+    ].join('\n');
+    const contract = parseCompletionContract(output);
+    expect(contract?.run_id).toBe('task-5');
+    expect(contract?.branch).toBe('jarvis-new');
   });
 });
 
