@@ -67,6 +67,20 @@
       .delete-btn:hover {
         background: #c82333;
       }
+      .filters {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 20px;
+        justify-content: center;
+      }
+      .filters button {
+        padding: 5px 10px;
+        font-size: 14px;
+        background: #6c757d;
+      }
+      .filters button.active {
+        background: #007bff;
+      }
     </style>
   </head>
   <body>
@@ -75,18 +89,32 @@
       <input type="text" id="todoInput" placeholder="Enter a task..." />
       <button id="addBtn">Add</button>
     </div>
+    <div class="filters">
+      <button id="filterAll" class="active">All</button>
+      <button id="filterActive">Active</button>
+      <button id="filterCompleted">Completed</button>
+    </div>
     <ul id="todoList"></ul>
 
     <script>
       const input = document.getElementById('todoInput');
       const addBtn = document.getElementById('addBtn');
       const todoList = document.getElementById('todoList');
+      const filterAll = document.getElementById('filterAll');
+      const filterActive = document.getElementById('filterActive');
+      const filterCompleted = document.getElementById('filterCompleted');
 
       let todos = [];
+      let currentFilter = 'all';
 
       function render() {
         todoList.innerHTML = '';
-        todos.forEach((todo, index) => {
+        const filtered = todos.filter((todo) => {
+          if (currentFilter === 'active') return !todo.completed;
+          if (currentFilter === 'completed') return todo.completed;
+          return true;
+        });
+        filtered.forEach((todo, index) => {
           const li = document.createElement('li');
           if (todo.completed) li.className = 'completed';
           li.innerHTML = `
@@ -104,6 +132,18 @@
           todoList.appendChild(li);
         });
       }
+
+      function setFilter(filter) {
+        currentFilter = filter;
+        filterAll.className = filter === 'all' ? 'active' : '';
+        filterActive.className = filter === 'active' ? 'active' : '';
+        filterCompleted.className = filter === 'completed' ? 'active' : '';
+        render();
+      }
+
+      filterAll.addEventListener('click', () => setFilter('all'));
+      filterActive.addEventListener('click', () => setFilter('active'));
+      filterCompleted.addEventListener('click', () => setFilter('completed'));
 
       function addTodo() {
         const text = input.value.trim();
