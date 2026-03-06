@@ -52,6 +52,25 @@
         cursor: pointer;
         border-radius: 3px;
       }
+      .filter-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        justify-content: center;
+      }
+      .filter-btn {
+        padding: 6px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background: white;
+        border-radius: 3px;
+      }
+      .filter-btn.active {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+      }
     </style>
   </head>
   <body>
@@ -59,6 +78,11 @@
     <div class="input-group">
       <input type="text" id="todo-input" placeholder="Enter todo..." />
       <button id="add-btn">Add</button>
+    </div>
+    <div class="filter-group">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="active">Active</button>
+      <button class="filter-btn" data-filter="completed">Completed</button>
     </div>
     <ul id="todo-list"></ul>
 
@@ -87,6 +111,32 @@
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') addTodo();
       });
+
+      const filterBtns = document.querySelectorAll('.filter-btn');
+      let currentFilter = 'all';
+
+      filterBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          filterBtns.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          filterTodos();
+        });
+      });
+
+      function filterTodos() {
+        const todos = todoList.querySelectorAll('li');
+        todos.forEach((todo) => {
+          const isCompleted = todo.classList.contains('completed');
+          if (currentFilter === 'all') {
+            todo.style.display = '';
+          } else if (currentFilter === 'active') {
+            todo.style.display = isCompleted ? 'none' : '';
+          } else if (currentFilter === 'completed') {
+            todo.style.display = isCompleted ? '' : 'none';
+          }
+        });
+      }
     </script>
   </body>
 </html>
