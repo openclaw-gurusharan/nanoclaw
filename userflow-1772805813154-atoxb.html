@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo App</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        max-width: 500px;
+        margin: 40px auto;
+        padding: 20px;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .input-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      input {
+        flex: 1;
+        padding: 10px;
+        font-size: 16px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      ul {
+        list-style: none;
+      }
+      li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+      }
+      li.completed span {
+        text-decoration: line-through;
+        color: #888;
+      }
+      .delete-btn {
+        background: #dc3545;
+        padding: 5px 10px;
+        font-size: 14px;
+      }
+      .delete-btn:hover {
+        background: #c82333;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Todo App</h1>
+    <div class="input-group">
+      <input type="text" id="todoInput" placeholder="Enter todo..." />
+      <button id="addBtn">Add</button>
+    </div>
+    <ul id="todoList"></ul>
+
+    <script>
+      const input = document.getElementById('todoInput');
+      const addBtn = document.getElementById('addBtn');
+      const todoList = document.getElementById('todoList');
+
+      function loadTodos() {
+        const todos = JSON.parse(localStorage.getItem('todos') || '[]');
+        renderTodos(todos);
+      }
+
+      function renderTodos(todos) {
+        todoList.innerHTML = '';
+        todos.forEach((todo, index) => {
+          const li = document.createElement('li');
+          if (todo.completed) li.className = 'completed';
+          li.innerHTML = `
+          <span>${todo.text}</span>
+          <button class="delete-btn" data-index="${index}">Delete</button>
+        `;
+          li.querySelector('span').addEventListener('click', () =>
+            toggleTodo(index),
+          );
+          li.querySelector('.delete-btn').addEventListener('click', () =>
+            deleteTodo(index),
+          );
+          todoList.appendChild(li);
+        });
+      }
+
+      function addTodo() {
+        const text = input.value.trim();
+        if (!text) return;
+        const todos = JSON.parse(localStorage.getItem('todos') || '[]');
+        todos.push({ text, completed: false });
+        localStorage.setItem('todos', JSON.stringify(todos));
+        input.value = '';
+        renderTodos(todos);
+      }
+
+      function toggleTodo(index) {
+        const todos = JSON.parse(localStorage.getItem('todos') || '[]');
+        todos[index].completed = !todos[index].completed;
+        localStorage.setItem('todos', JSON.stringify(todos));
+        renderTodos(todos);
+      }
+
+      function deleteTodo(index) {
+        const todos = JSON.parse(localStorage.getItem('todos') || '[]');
+        todos.splice(index, 1);
+        localStorage.setItem('todos', JSON.stringify(todos));
+        renderTodos(todos);
+      }
+
+      addBtn.addEventListener('click', addTodo);
+      input.addEventListener('keypress', (e) => e.key === 'Enter' && addTodo());
+      loadTodos();
+    </script>
+  </body>
+</html>
