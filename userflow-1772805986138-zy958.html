@@ -67,6 +67,22 @@
       .delete-btn:hover {
         background: #c82333;
       }
+      .filters {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .filter-btn {
+        padding: 5px 10px;
+        font-size: 14px;
+        background: #f0f0f0;
+        color: #333;
+      }
+      .filter-btn.active {
+        background: #007bff;
+        color: white;
+      }
     </style>
   </head>
   <body>
@@ -75,23 +91,42 @@
       <input type="text" id="todoInput" placeholder="Enter todo..." />
       <button id="addBtn">Add</button>
     </div>
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="active">Active</button>
+      <button class="filter-btn" data-filter="completed">Completed</button>
+    </div>
     <ul id="todoList"></ul>
     <script>
       const input = document.getElementById('todoInput');
       const addBtn = document.getElementById('addBtn');
       const todoList = document.getElementById('todoList');
       let todos = [];
+      let currentFilter = 'all';
+
+      document.querySelectorAll('.filter-btn').forEach((btn) => {
+        btn.onclick = () => {
+          document
+            .querySelectorAll('.filter-btn')
+            .forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          render();
+        };
+      });
 
       function render() {
         todoList.innerHTML = '';
-        todos.forEach((todo, index) => {
+        todos.forEach((todo, origIndex) => {
+          if (currentFilter === 'active' && todo.completed) return;
+          if (currentFilter === 'completed' && !todo.completed) return;
           const li = document.createElement('li');
           if (todo.completed) li.className = 'completed';
           li.innerHTML = `
           <span>${todo.text}</span>
-          <button class="delete-btn" onclick="deleteTodo(${index})">Delete</button>
+          <button class="delete-btn" onclick="deleteTodo(${origIndex})">Delete</button>
         `;
-          li.firstChild.onclick = () => toggleTodo(index);
+          li.firstChild.onclick = () => toggleTodo(origIndex);
           todoList.appendChild(li);
         });
       }
