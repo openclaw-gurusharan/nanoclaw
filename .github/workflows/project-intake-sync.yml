@@ -1,0 +1,22 @@
+name: Project Intake Sync
+
+on:
+  issues:
+    types: [opened, reopened]
+  pull_request:
+    types: [opened, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  add-to-project:
+    if: secrets.ADD_TO_PROJECT_PAT != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add item to project
+        uses: actions/add-to-project@v1.0.2
+        with:
+          project-url: https://github.com/users/ingpoc/projects/1
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}

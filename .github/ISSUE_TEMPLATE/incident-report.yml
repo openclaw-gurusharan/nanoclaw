@@ -1,0 +1,50 @@
+name: Incident Report
+description: Runtime or reliability incident requiring triage and RCA.
+title: "[Incident] "
+labels:
+  - status:triage
+  - lane:runtime
+  - priority:p1
+  - risk:high
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Incident Summary
+      description: What failed, where, and user impact?
+      placeholder: Brief incident description.
+    validations:
+      required: true
+  - type: input
+    id: observed_at
+    attributes:
+      label: Observed Time (UTC)
+      placeholder: "2026-03-06T12:00:00Z"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, run IDs, traces, or diagnostics bundle locations.
+      placeholder: run_id=..., incident bundle path=...
+    validations:
+      required: true
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Immediate Mitigation
+      description: What was done to stabilize?
+      placeholder: Recovery steps performed.
+    validations:
+      required: false
+  - type: textarea
+    id: followup
+    attributes:
+      label: Follow-up Actions
+      description: Deterministic prevention items and owners.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true

@@ -1,0 +1,77 @@
+[
+  {
+    "name": "lane:core",
+    "color": "1D76DB",
+    "description": "Core product implementation lane."
+  },
+  {
+    "name": "lane:runtime",
+    "color": "BFD4F2",
+    "description": "Runtime, reliability, and infrastructure lane."
+  },
+  {
+    "name": "lane:control-plane",
+    "color": "5319E7",
+    "description": "GitHub workflow, policy, and governance lane."
+  },
+  {
+    "name": "lane:docs",
+    "color": "0E8A16",
+    "description": "Documentation and operating agreement lane."
+  },
+  {
+    "name": "priority:p0",
+    "color": "B60205",
+    "description": "Urgent work requiring immediate attention."
+  },
+  {
+    "name": "priority:p1",
+    "color": "D93F0B",
+    "description": "High-priority work for the current cycle."
+  },
+  {
+    "name": "priority:p2",
+    "color": "FBCA04",
+    "description": "Normal-priority backlog item."
+  },
+  {
+    "name": "risk:high",
+    "color": "B60205",
+    "description": "High risk of regression, security, or runtime impact."
+  },
+  {
+    "name": "risk:medium",
+    "color": "D93F0B",
+    "description": "Moderate risk requiring explicit verification."
+  },
+  {
+    "name": "risk:low",
+    "color": "0E8A16",
+    "description": "Low-risk and routine changes."
+  },
+  {
+    "name": "agent:claude",
+    "color": "C2E0C6",
+    "description": "Owned by Claude lane."
+  },
+  {
+    "name": "agent:codex",
+    "color": "BFDADC",
+    "description": "Owned by Codex lane."
+  },
+  {
+    "name": "agent:human",
+    "color": "F9D0C4",
+    "description": "Owned by a human operator."
+  },
+  {
+    "name": "status:blocked",
+    "color": "E4E669",
+    "description": "Blocked by dependency or external input."
+  },
+  {
+    "name": "status:triage",
+    "color": "C5DEF5",
+    "description": "Needs initial triage and assignment."
+  }
+]

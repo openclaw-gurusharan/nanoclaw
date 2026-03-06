@@ -1,0 +1,63 @@
+name: Agent Work Item
+description: Standard task template for multi-agent execution.
+title: "[Work] "
+labels:
+  - status:triage
+  - lane:core
+  - priority:p2
+  - risk:low
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem or opportunity are we addressing?
+      placeholder: Describe the context and desired outcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: work_type
+    attributes:
+      label: Work Type
+      options:
+        - Feature
+        - Bug Fix
+        - Reliability
+        - Governance/Workflow
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is explicitly in scope and out of scope?
+      placeholder: In scope..., Out of scope...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: List deterministic checks that define done.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks and Dependencies
+      description: Note regressions, blockers, or linked dependencies.
+      placeholder: blocked-by #123, risk areas...
+    validations:
+      required: false
+  - type: input
+    id: owner
+    attributes:
+      label: Suggested Owner
+      description: Agent or human expected to execute this item.
+      placeholder: agent:codex
+    validations:
+      required: false
