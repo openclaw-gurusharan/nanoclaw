@@ -37,11 +37,11 @@ BEFORE changing session recall/sync/export behavior → read docs/workflow/sessi
 BEFORE editing root CLAUDE.md → read docs/workflow/nanoclaw-root-claude-compression.md
 BEFORE adding/removing/renaming docs → read docs/workflow/docs-pruning-loop.md
 BEFORE starting implementation/debug/setup/update work → read docs/workflow/skill-routing-preflight.md
-BEFORE starting feature, bug-fix, or reliability implementation → read docs/workflow/nanoclaw-development-loop.md
+BEFORE starting feature, bug-fix, or reliability implementation (default single-lane) → read docs/workflow/nanoclaw-development-loop.md
 BEFORE optimizing development workflow strategy/cadence based on external research → read docs/workflow/workflow-optimization-loop.md
 BEFORE running weekly docs/scripts/config/code slop cleanup during optimization cycles → read docs/workflow/weekly-slop-optimization-loop.md
 BEFORE reviewing hooks/subagents or built-in tool routing governance → read docs/workflow/weekly-slop-optimization-loop.md and docs/operations/tooling-governance-budget.json
-BEFORE running parallel Claude/Codex worktrees or assigning implementation/review across tools → read docs/workflow/unified-codex-claude-loop.md
+BEFORE running parallel Claude/Codex worktrees or assigning implementation/review across tools (supersedes single-lane loop) → read docs/workflow/unified-codex-claude-loop.md
 BEFORE defining subagent fanout for plan/review/verification → read docs/operations/subagent-catalog.md and docs/operations/subagent-routing.md
 BEFORE deciding Claude-vs-Codex execution adapter behavior → read docs/operations/claude-codex-adapter-matrix.md
 BEFORE changing core orchestrator/channel/IPC/scheduler behavior → read docs/reference/REQUIREMENTS.md, docs/reference/SPEC.md, docs/reference/SECURITY.md

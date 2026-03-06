@@ -10,11 +10,11 @@ errors=()
 collect_files=()
 collect_files+=("CLAUDE.md" "AGENTS.md" "DOCS.md" "docs/README.md")
 collect_files+=(
-  ".claude/rules/skill-routing-preflight.md"
-  ".claude/rules/jarvis-dispatch-contract-discipline.md"
-  ".claude/rules/nanoclaw-jarvis-debug-loop.md"
-  ".claude/rules/nanoclaw-root-claude-compression.md"
-  ".claude/rules/docs-pruning-loop.md"
+  "docs/workflow/skill-routing-preflight.md"
+  "docs/workflow/jarvis-dispatch-contract-discipline.md"
+  "docs/workflow/nanoclaw-jarvis-debug-loop.md"
+  "docs/workflow/nanoclaw-root-claude-compression.md"
+  "docs/workflow/docs-pruning-loop.md"
 )
 
 while IFS= read -r f; do collect_files+=("$f"); done < <(find docs/workflow docs/operations -type f -name '*.md' | sort)
@@ -22,9 +22,33 @@ while IFS= read -r f; do collect_files+=("$f"); done < <(find docs/workflow docs
 refs_tmp="$(mktemp /tmp/workflow-doc-refs.XXXXXX)"
 trap 'rm -f "$refs_tmp"' EXIT
 
+has_rg=0
+if command -v rg >/dev/null 2>&1; then
+  has_rg=1
+fi
+
+extract_doc_refs() {
+  local file="$1"
+  if [ "$has_rg" -eq 1 ]; then
+    rg -o --no-filename 'docs/[A-Za-z0-9._/-]+\.md' "$file" || true
+    return
+  fi
+  grep -Eo 'docs/[A-Za-z0-9._/-]+\.md' "$file" || true
+}
+
+has_text() {
+  local pattern="$1"
+  local file="$2"
+  if [ "$has_rg" -eq 1 ]; then
+    rg -q "$pattern" "$file"
+    return
+  fi
+  grep -Eq "$pattern" "$file"
+}
+
 for f in "${collect_files[@]}"; do
   [ -f "$f" ] || continue
-  rg -o --no-filename 'docs/[A-Za-z0-9._/-]+\.md' "$f" >>"$refs_tmp" || true
+  extract_doc_refs "$f" >>"$refs_tmp"
 done
 
 sort -u "$refs_tmp" -o "$refs_tmp"
@@ -83,35 +107,35 @@ if [ ! -x "scripts/workflow/slop-inventory.sh" ]; then
   errors+=("Missing executable slop inventory helper: scripts/workflow/slop-inventory.sh")
 fi
 
-if ! rg -q 'docs/workflow/nanoclaw-development-loop.md' CLAUDE.md; then
+if ! has_text 'docs/workflow/nanoclaw-development-loop.md' CLAUDE.md; then
   errors+=("CLAUDE.md is missing development-loop trigger reference")
 fi
 
-if ! rg -q 'docs/workflow/workflow-optimization-loop.md' CLAUDE.md; then
+if ! has_text 'docs/workflow/workflow-optimization-loop.md' CLAUDE.md; then
   errors+=("CLAUDE.md is missing workflow-optimization-loop trigger reference")
 fi
 
-if ! rg -q 'docs/workflow/weekly-slop-optimization-loop.md' CLAUDE.md; then
+if ! has_text 'docs/workflow/weekly-slop-optimization-loop.md' CLAUDE.md; then
   errors+=("CLAUDE.md is missing weekly-slop-optimization-loop trigger reference")
 fi
 
-if ! rg -q 'docs/operations/tooling-governance-budget.json' CLAUDE.md; then
+if ! has_text 'docs/operations/tooling-governance-budget.json' CLAUDE.md; then
   errors+=("CLAUDE.md is missing tooling-governance-budget trigger reference")
 fi
 
-if ! rg -q 'docs/workflow/unified-codex-claude-loop.md' CLAUDE.md; then
+if ! has_text 'docs/workflow/unified-codex-claude-loop.md' CLAUDE.md; then
   errors+=("CLAUDE.md is missing unified-codex-claude-loop trigger reference")
 fi
 
-if ! rg -q 'docs/operations/claude-codex-adapter-matrix.md' CLAUDE.md; then
+if ! has_text 'docs/operations/claude-codex-adapter-matrix.md' CLAUDE.md; then
   errors+=("CLAUDE.md is missing claude-codex-adapter-matrix trigger reference")
 fi
 
-if ! rg -q 'docs/operations/subagent-catalog.md' CLAUDE.md; then
+if ! has_text 'docs/operations/subagent-catalog.md' CLAUDE.md; then
   errors+=("CLAUDE.md is missing subagent-catalog trigger reference")
 fi
 
-if rg -q 'docs/nanoclaw-jarvis-dispatch-contract.md' .claude/rules/jarvis-dispatch-contract-discipline.md; then
+if has_text 'docs/nanoclaw-jarvis-dispatch-contract.md' docs/workflow/jarvis-dispatch-contract-discipline.md; then
   errors+=("jarvis-dispatch-contract-discipline.md still references deprecated path docs/nanoclaw-jarvis-dispatch-contract.md")
 fi
 

@@ -264,15 +264,13 @@ describe('container-runner timeout behavior', () => {
       );
     });
 
-    vi.mocked(fs.readdirSync).mockImplementation(
-      ((target: fs.PathLike) => {
-        const targetPath = String(target);
-        if (targetPath.endsWith('/container/skills')) {
-          return ['.docs', 'agent-browser'];
-        }
-        return [];
-      }) as unknown as typeof fs.readdirSync,
-    );
+    vi.mocked(fs.readdirSync).mockImplementation(((target: fs.PathLike) => {
+      const targetPath = String(target);
+      if (targetPath.endsWith('/container/skills')) {
+        return ['.docs', 'agent-browser'];
+      }
+      return [];
+    }) as unknown as typeof fs.readdirSync);
 
     vi.mocked(fs.statSync).mockImplementation((target: fs.PathLike) => {
       const targetPath = String(target);
@@ -326,7 +324,9 @@ describe('container-runner timeout behavior', () => {
 
     const result = await resultPromise;
     expect(result.status).toBe('success');
-    const spawnArgs = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined;
+    const spawnArgs = vi.mocked(spawn).mock.calls[0]?.[1] as
+      | string[]
+      | undefined;
     expect(spawnArgs).toBeDefined();
     expect(spawnArgs).not.toContain('--user');
   });

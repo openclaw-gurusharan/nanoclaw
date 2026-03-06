@@ -329,7 +329,7 @@ Before writing a single line of code:
 For Jarvis/dispatch changes, use determinism checklist:
 
 ```bash
-# From docs/principles/determinism.md
+# Deterministic verification checklist
 
 ✓ Unit tests pass with exit code 0
 ✓ Dispatch contract validated with sample payloads

@@ -2,6 +2,10 @@
 
 Applies at the start of every task before implementation, debugging, setup, or update actions.
 
+Policy source of truth: `docs/operations/skills-vs-docs-map.md`.
+This document is the executable checklist for applying that policy at task start.
+If there is any conflict, `docs/operations/skills-vs-docs-map.md` wins.
+
 ## Rule
 
 Load required docs/rules first to lock invariants, then invoke the most specific matching skill workflow.
@@ -19,6 +23,8 @@ Do not start ad-hoc edits/debug loops before this check.
 7. If no skill/MCP applies, proceed docs-first with normal engineering flow.
 
 ## Mandatory Routing
+
+Use this as an abbreviated start-of-task router. For full matrix and rationale, defer to `docs/operations/skills-vs-docs-map.md`.
 
 - New feature or behavior change -> `/customize` (unless a more specific `/add-*` or domain skill exists)
 - Container/auth/runtime/linking failures -> `/debug`

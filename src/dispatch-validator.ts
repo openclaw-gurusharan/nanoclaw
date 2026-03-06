@@ -72,8 +72,7 @@ const ALLOWED_TASK_TYPES = new Set<DispatchTaskType>([
   'code',
 ]);
 
-const LOCAL_BASE_URL_PATTERN =
-  /^https?:\/\/127\.0\.0\.1(?::\d+)?(?:\/|$)/i;
+const LOCAL_BASE_URL_PATTERN = /^https?:\/\/127\.0\.0\.1(?::\d+)?(?:\/|$)/i;
 
 const SCREENSHOT_PATTERN =
   /\b(screenshot|screen[\s-]?shot|take_screenshot|browser_take_screenshot|comet_screenshot|image analysis|analyze screenshot)\b/i;
@@ -225,7 +224,9 @@ export function validateDispatchPayload(payload: DispatchPayload): {
   }
 
   if (payload.context_intent === 'fresh' && payload.session_id) {
-    errors.push('session_id must not be provided when context_intent is "fresh"');
+    errors.push(
+      'session_id must not be provided when context_intent is "fresh"',
+    );
   }
 
   if (
@@ -234,7 +235,9 @@ export function validateDispatchPayload(payload: DispatchPayload): {
   ) {
     errors.push('acceptance_tests must be a non-empty array');
   } else if (
-    payload.acceptance_tests.some((test) => typeof test !== 'string' || !test.trim())
+    payload.acceptance_tests.some(
+      (test) => typeof test !== 'string' || !test.trim(),
+    )
   ) {
     errors.push('acceptance_tests entries must be non-empty strings');
   } else if (
@@ -303,7 +306,9 @@ export function requiresBrowserEvidence(payload: DispatchPayload): boolean {
  * 2. Whole output as a quoted JSON string wrapping a completion tag (OpenCode encoding edge case)
  * 3. Fenced JSON block or direct bare JSON (for analyze/research tasks without code changes)
  */
-export function parseCompletionContract(output: string): CompletionContract | null {
+export function parseCompletionContract(
+  output: string,
+): CompletionContract | null {
   const parseObject = (raw: string): CompletionContract | null => {
     try {
       const obj = JSON.parse(raw.trim());
@@ -418,7 +423,10 @@ export function validateCompletionContract(
     contract.run_id.length > RUN_ID_MAX_LENGTH
   ) {
     missing.push('run_id format');
-  } else if (options?.expectedRunId && contract.run_id !== options.expectedRunId) {
+  } else if (
+    options?.expectedRunId &&
+    contract.run_id !== options.expectedRunId
+  ) {
     missing.push('run_id mismatch');
   }
 
@@ -428,7 +436,10 @@ export function validateCompletionContract(
   const requireFilesChanged = requiredFields.includes('files_changed');
   const requireSessionId = requiredFields.includes('session_id');
 
-  if (requireBranch && (!contract.branch || !BRANCH_PATTERN.test(contract.branch))) {
+  if (
+    requireBranch &&
+    (!contract.branch || !BRANCH_PATTERN.test(contract.branch))
+  ) {
     missing.push('branch');
   } else if (
     requireBranch &&
@@ -511,24 +522,33 @@ export function validateCompletionContract(
     if (!evidence || typeof evidence !== 'object') {
       missing.push('browser_evidence');
     } else {
-      if (!evidence.base_url || !LOCAL_BASE_URL_PATTERN.test(evidence.base_url)) {
+      if (
+        !evidence.base_url ||
+        !LOCAL_BASE_URL_PATTERN.test(evidence.base_url)
+      ) {
         missing.push('browser_evidence.base_url');
       }
       if (
         !Array.isArray(evidence.tools_listed) ||
         evidence.tools_listed.length === 0 ||
-        evidence.tools_listed.some((item) => typeof item !== 'string' || !item.trim())
+        evidence.tools_listed.some(
+          (item) => typeof item !== 'string' || !item.trim(),
+        )
       ) {
         missing.push('browser_evidence.tools_listed');
       }
       if (
         !Array.isArray(evidence.execute_tool_evidence) ||
         evidence.execute_tool_evidence.length === 0 ||
-        evidence.execute_tool_evidence.some((item) => typeof item !== 'string' || !item.trim())
+        evidence.execute_tool_evidence.some(
+          (item) => typeof item !== 'string' || !item.trim(),
+        )
       ) {
         missing.push('browser_evidence.execute_tool_evidence');
       } else if (
-        evidence.execute_tool_evidence.some((item) => hasScreenshotDirective(item))
+        evidence.execute_tool_evidence.some((item) =>
+          hasScreenshotDirective(item),
+        )
       ) {
         missing.push('browser_evidence.no_screenshots');
       }

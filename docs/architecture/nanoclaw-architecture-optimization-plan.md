@@ -1,4 +1,4 @@
- # V3 Plan: Root-Cause-First Reliability Remediation for Andy/Jarvis
+# V3 Plan: Root-Cause-First Reliability Remediation for Andy/Jarvis
 
   ## Summary
 

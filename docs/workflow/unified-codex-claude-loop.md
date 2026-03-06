@@ -4,6 +4,12 @@ Canonical anti-slop workflow for feature implementation and review, regardless o
 
 This loop is mandatory for non-trivial feature, bug-fix, or reliability work.
 
+## Precedence
+
+1. Use this loop when work is intentionally split across Claude/Codex lanes, parallel worktrees, or review fanout.
+2. For single-lane delivery without cross-tool topology, use `docs/workflow/nanoclaw-development-loop.md`.
+3. Once selected for a task, this loop supersedes the default development loop phases.
+
 ## Objective
 
 Deliver optimized, reliable code with deterministic verification and minimal rework.

@@ -86,7 +86,7 @@ ln -s AGENTS.md .cursorrules
 ### Sources
 
 - [OpenAI Codex AGENTS.md Guide](https://developers.openai.com/codex/guides/agents-md/)
-- [AGENTS.md on GitHub](https://github.com/openai/codex/blob/main/docs/agents_md.md)
+- [Codex docs on GitHub](https://github.com/openai/codex/tree/main/docs)
 - [agents.md open standard](https://agents.md/)
 - [AGENTS.md Best Practices Gist](https://gist.github.com/0xfauzi/7c8f65572930a21efa62623557d83f6e)
 

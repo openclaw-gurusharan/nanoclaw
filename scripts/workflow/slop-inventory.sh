@@ -54,11 +54,38 @@ scripts_refs="$(mktemp /tmp/slop-scripts-refs.XXXXXX)"
 scripts_unreferenced="$(mktemp /tmp/slop-scripts-unref.XXXXXX)"
 trap 'rm -f "$docs_all" "$docs_refs" "$docs_unreferenced" "$scripts_all" "$scripts_refs" "$scripts_unreferenced"' EXIT
 
+has_rg=0
+if command -v rg >/dev/null 2>&1; then
+  has_rg=1
+fi
+
+extract_matches() {
+  local pattern="$1"
+  local file="$2"
+  if [ "$has_rg" -eq 1 ]; then
+    rg -o --no-filename "$pattern" "$file" || true
+    return
+  fi
+  grep -Eo "$pattern" "$file" || true
+}
+
+extract_matches_from_glob() {
+  local pattern="$1"
+  shift
+  if [ "$has_rg" -eq 1 ]; then
+    rg -o --no-filename "$pattern" "$@" || true
+    return
+  fi
+  find "$@" -type f -name '*.sh' -print0 | while IFS= read -r -d '' file; do
+    grep -Eo "$pattern" "$file" || true
+  done
+}
+
 collect_unreferenced_docs() {
   find docs -type f -name '*.md' | sort >"$docs_all"
   : >"$docs_refs"
   for f in CLAUDE.md AGENTS.md DOCS.md docs/README.md $(find docs .claude/rules -type f -name '*.md' | sort); do
-    rg -o --no-filename 'docs/[A-Za-z0-9._/-]+\.md' "$f" >>"$docs_refs" || true
+    extract_matches 'docs/[A-Za-z0-9._/-]+\.md' "$f" >>"$docs_refs"
   done
   sort -u "$docs_refs" -o "$docs_refs"
   comm -23 "$docs_all" "$docs_refs" >"$docs_unreferenced"
@@ -69,12 +96,12 @@ collect_unreferenced_scripts() {
   : >"$scripts_refs"
 
   for f in CLAUDE.md AGENTS.md DOCS.md package.json $(find docs .claude/rules .github/workflows scripts -type f \( -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.sh' -o -name '*.ts' \) | sort); do
-    rg -o --no-filename 'scripts/[A-Za-z0-9._/-]+\.(sh|ts)' "$f" >>"$scripts_refs" || true
-    rg -o --no-filename '\./scripts/[A-Za-z0-9._/-]+\.(sh|ts)' "$f" | sed 's#^\./##' >>"$scripts_refs" || true
+    extract_matches 'scripts/[A-Za-z0-9._/-]+\.(sh|ts)' "$f" >>"$scripts_refs"
+    extract_matches '\./scripts/[A-Za-z0-9._/-]+\.(sh|ts)' "$f" | sed 's#^\./##' >>"$scripts_refs" || true
   done
 
   # Include scripts routed via local SCRIPT_DIR dispatch (e.g. jarvis-ops command fanout).
-  rg -o --no-filename '\$SCRIPT_DIR/[A-Za-z0-9._/-]+\.(sh|ts)' scripts -g '*.sh' \
+  extract_matches_from_glob '\$SCRIPT_DIR/[A-Za-z0-9._/-]+\.(sh|ts)' scripts \
     | sed 's#^\$SCRIPT_DIR/#scripts/#' >>"$scripts_refs" || true
 
   sort -u "$scripts_refs" -o "$scripts_refs"

@@ -175,7 +175,8 @@ Write a weekly artifact in `docs/research/`:
 
 Naming pattern:
 
-- `docs/research/WEEKLY-SLOP-OPTIMIZATION-YYYY-MM-DD.md`
+- `docs/research/WEEKLY-SLOP-OPTIMIZATION-<YYYY-MM-DD>.md`
+- `docs/research/WEEKLY-SLOP-OPTIMIZATION-<YYYY-MM-DD>.md`
 
 Ratchet rule:
 

@@ -6,6 +6,12 @@ This loop is mandatory unless the task is a pure docs/ops update with no behavio
 For meta-process/workflow-strategy changes, use `docs/workflow/workflow-optimization-loop.md`.
 For cross-tool Claude/Codex execution or parallel worktree assignment, use `docs/workflow/unified-codex-claude-loop.md`.
 
+## Precedence
+
+1. This is the default loop for single-lane delivery work.
+2. If execution is split across Claude/Codex lanes, parallel worktrees, or explicit cross-tool fanout, switch to `docs/workflow/unified-codex-claude-loop.md`.
+3. When the unified loop is selected, its phase gates supersede this loop for that task.
+
 ## Goal
 
 Ship mission-aligned changes without creating incident churn.

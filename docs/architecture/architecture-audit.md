@@ -1,4 +1,4 @@
- Priority Report (Apple Container-First Audit)
+# Architecture Audit Priority Report (Apple Container-First Audit)
 
   ### P0 (Fix Immediately)
 

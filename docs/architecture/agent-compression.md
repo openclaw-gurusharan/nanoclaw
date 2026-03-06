@@ -1,3 +1,10 @@
+# Agent Compression Reference (Template)
+
+Historical template/reference material for compression strategy.
+Repository-specific authoritative rules are:
+- `docs/workflow/nanoclaw-root-claude-compression.md` (root `CLAUDE.md`)
+- `docs/workflow/andy-compression-loop.md` (Andy lane docs)
+
 For a Codex-based harness, you want to keep the *same* progressive-disclosure pattern but tune the rule around three Codex realities: harness-first architecture, repo-as-system-of-record, and AGENTS.md as a compressed “map”, not a manual. [nngroup](https://www.nngroup.com/articles/progressive-disclosure/)
 
 Below is a **single unified rule** you can adapt (e.g. `AGENTS-CODEX.md` or baked into `AGENTS.md`).
@@ -44,16 +51,12 @@ Anything more detailed than that moves to the repo’s knowledge base (the “sy
 Typical locations:
 
 ```text
-/docs/                 # high-level knowledge base root
-  ARCHITECTURE.md      # top-level domain & layering map
-  DESIGN.md            # product and UX principles
-  QUALITY_SCORE.md     # quality bar & grading
-  SECURITY.md          # security invariants
-
-docs/exec-plans/       # execution plans, tech-debt trackers
-docs/design-docs/      # specific designs, decisions, tradeoffs
-docs/references/       # framework/tool references
-docs/generated/        # generated schemas, indexes, etc.
+/docs/architecture/    # architecture and domain boundaries
+/docs/workflow/        # execution loops, contracts, gates
+/docs/operations/      # ownership, update matrix, adapter policy
+/docs/reference/       # requirements/spec/security baselines
+/docs/troubleshooting/ # deterministic debug and recovery playbooks
+/docs/research/        # optimization evidence and pilot artifacts
 ```
 
 Move here:
@@ -78,12 +81,12 @@ When `AGENTS.md` drifts past ~100–120 lines **or** starts reading like a manua
 
 2. Move each block into:
    – /docs/<topic>.md
-   – or a more specific path (docs/design-docs/…, docs/exec-plans/…, docs/references/…).
+   – or a more specific path (docs/architecture/…, docs/workflow/…, docs/reference/…).
 
 3. Replace the block with ONE pointer line inside AGENTS.md, e.g.:
-   – “BEFORE any architectural change → read /docs/ARCHITECTURE.md”
-   – “Execution plans live in /docs/exec-plans/ (active + completed)”
-   – “Framework references live in /docs/references/…”
+   – “BEFORE any architectural change → read /docs/architecture/nanoclaw-system-architecture.md”
+   – “Execution workflow details live in /docs/workflow/…”
+   – “Contract and platform references live in /docs/reference/…”
 ```
 
 AGENTS.md must remain small, stable, and mechanically verifiable, while docs/ carries depth.
@@ -124,13 +127,13 @@ Any details beyond these bullets go in their respective docs and are only linked
 Instead of a long “index section”, AGENTS.md uses **short, imperative index lines** that Codex sees every turn:
 
 ```text
-BEFORE any non-trivial change → read /ARCHITECTURE.md and /docs/PLANS.md
-Design / UX / product questions → read /docs/DESIGN.md and /docs/product-specs/index.md
-Reliability / SLOs / incidents → read /docs/RELIABILITY.md
-Security / auth / data-handling → read /docs/SECURITY.md
-New feature or large refactor → read /docs/exec-plans/active/*.md
-Understanding existing decisions → read /docs/design-docs/index.md
-Framework-specific APIs not in training data → read /docs/references/*.md
+BEFORE any non-trivial change → read /docs/architecture/nanoclaw-system-architecture.md and /docs/workflow/nanoclaw-development-loop.md
+Design / UX / product questions → read /docs/MISSION.md and /docs/architecture/nanoclaw-system-architecture.md
+Reliability / SLOs / incidents → read /docs/workflow/nanoclaw-jarvis-debug-loop.md and /docs/troubleshooting/DEBUG_CHECKLIST.md
+Security / auth / data-handling → read /docs/reference/SECURITY.md
+New feature or large refactor → read /docs/workflow/nanoclaw-development-loop.md and /docs/workflow/unified-codex-claude-loop.md
+Understanding existing decisions → read /docs/README.md and /docs/architecture/nanoclaw-jarvis.md
+Framework-specific APIs not in training data → read /docs/reference/REQUIREMENTS.md and /docs/reference/SPEC.md
 ```
 
 These are **index-style pointers**, not full content. Codex then pulls specific files when needed.
@@ -144,7 +147,7 @@ To align with eval results like Vercel’s:
 ```text
 IMPORTANT: For this repo, prefer retrieval-led reasoning over pretraining-led reasoning.
 
--  FIRST: scan /ARCHITECTURE.md, /docs/PLANS.md, and relevant /docs/references/*.
+-  FIRST: scan /docs/architecture/nanoclaw-system-architecture.md, /docs/workflow/nanoclaw-development-loop.md, and relevant /docs/reference/*.md.
 -  THEN: propose changes consistent with repo docs and constraints.
 -  NEVER: rely solely on prior training for framework behavior if repo docs disagree.
 ```

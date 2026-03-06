@@ -78,7 +78,9 @@ export class WhatsAppChannel implements Channel {
 
   private pruneReconnectCloseEvents(nowMs: number): void {
     const cutoff = nowMs - WA_RECONNECT_BURST_WINDOW_MS;
-    this.reconnectCloseEvents = this.reconnectCloseEvents.filter((ts) => ts >= cutoff);
+    this.reconnectCloseEvents = this.reconnectCloseEvents.filter(
+      (ts) => ts >= cutoff,
+    );
   }
 
   private scheduleReconnect(): void {
@@ -88,11 +90,12 @@ export class WhatsAppChannel implements Channel {
     this.pruneReconnectCloseEvents(nowMs);
 
     const attempt = this.reconnectAttempt;
-    const exp = WA_RECONNECT_BASE_DELAY_MS * (2 ** Math.min(attempt, 16));
+    const exp = WA_RECONNECT_BASE_DELAY_MS * 2 ** Math.min(attempt, 16);
     const bounded = Math.min(WA_RECONNECT_MAX_DELAY_MS, exp);
-    const jitter = WA_RECONNECT_JITTER_MS > 0
-      ? Math.floor(Math.random() * (WA_RECONNECT_JITTER_MS + 1))
-      : 0;
+    const jitter =
+      WA_RECONNECT_JITTER_MS > 0
+        ? Math.floor(Math.random() * (WA_RECONNECT_JITTER_MS + 1))
+        : 0;
     let delayMs = Math.max(0, bounded + jitter);
 
     if (this.reconnectCloseEvents.length > WA_RECONNECT_BURST_THRESHOLD) {

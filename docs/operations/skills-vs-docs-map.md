@@ -97,7 +97,7 @@ These remain contract-first and must be maintained in docs/code/tests:
 - `docs/workflow/nanoclaw-jarvis-dispatch-contract.md`
 - `docs/operations/workflow-setup-responsibility-map.md`
 - `docs/operations/update-requirements-matrix.md`
-- `.claude/rules/jarvis-dispatch-contract-discipline.md`
+- `docs/workflow/jarvis-dispatch-contract-discipline.md`
 
 ## Retrieval Rule
 

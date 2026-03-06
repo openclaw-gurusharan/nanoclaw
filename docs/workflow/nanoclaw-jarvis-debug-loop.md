@@ -4,7 +4,6 @@ Use this loop when worker builds hang, delegation fails, or smoke flow breaks.
 
 ## Role Model (Mandatory)
 
-- `Andy-bot`: observe, summarize, triage risk, hand off.
 - `Andy-bot`: observe, summarize, triage risk, GitHub research on `openclaw-gurusharan`, hand off.
 - `Andy-developer`: dispatch/review owner for Jarvis workers.
 - `jarvis-worker-*`: bounded execution only.

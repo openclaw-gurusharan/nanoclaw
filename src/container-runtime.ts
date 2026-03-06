@@ -94,9 +94,7 @@ export function ensureContainerRuntimeRunning(): void {
     console.error(
       `║  1. Ensure ${CONTAINER_RUNTIME_BIN} is installed and running                ║`,
     );
-    console.error(
-      `║  2. Run: ${runtimeHealthCommand().padEnd(53)}║`,
-    );
+    console.error(`║  2. Run: ${runtimeHealthCommand().padEnd(53)}║`);
     console.error(
       '║  3. Restart NanoClaw                                           ║',
     );

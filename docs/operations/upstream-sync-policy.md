@@ -25,7 +25,7 @@ Run at minimum:
 After each daily sync:
 
 1. Archive the current `docs/CHANGELOG.md` to `docs/archives/` using a date-stamped name:
-   - `docs/archives/CHANGELOG-YYYY-MM-DD.md`
+   - `docs/archives/CHANGELOG-<YYYY-MM-DD>.md`
 2. Rewrite `docs/CHANGELOG.md` so it contains only the newest sync entry.
 3. The new latest entry must include:
 

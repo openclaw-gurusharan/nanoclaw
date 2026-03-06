@@ -6,6 +6,11 @@ cd "$ROOT_DIR"
 
 errors=()
 
+has_rg=0
+if command -v rg >/dev/null 2>&1; then
+  has_rg=1
+fi
+
 require_file() {
   local path="$1"
   if [ ! -f "$path" ]; then
@@ -24,7 +29,13 @@ require_pattern() {
   local file="$1"
   local pattern="$2"
   local message="$3"
-  if ! rg -q "$pattern" "$file"; then
+  if [ "$has_rg" -eq 1 ]; then
+    if ! rg -q "$pattern" "$file"; then
+      errors+=("$message")
+    fi
+    return
+  fi
+  if ! grep -Eq "$pattern" "$file"; then
     errors+=("$message")
   fi
 }

@@ -500,7 +500,8 @@ export async function runContainerAgent(
         ? group.containerConfig.timeout
         : CONTAINER_TIMEOUT;
     const configIdleTimeout =
-      group.containerConfig?.idleTimeout && group.containerConfig.idleTimeout > 0
+      group.containerConfig?.idleTimeout &&
+      group.containerConfig.idleTimeout > 0
         ? group.containerConfig.idleTimeout
         : IDLE_TIMEOUT;
     const configNoOutputTimeout =
@@ -556,7 +557,10 @@ export async function runContainerAgent(
       );
     };
 
-    hardTimeout = setTimeout(() => stopForTimeout('hard_timeout'), hardTimeoutMs);
+    hardTimeout = setTimeout(
+      () => stopForTimeout('hard_timeout'),
+      hardTimeoutMs,
+    );
     noOutputTimeout = setTimeout(
       () => stopForTimeout('no_output_timeout'),
       noOutputTimeoutMs,

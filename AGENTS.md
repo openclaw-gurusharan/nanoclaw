@@ -9,11 +9,11 @@
 - Before ending a session with in-progress work or blockers, follow `docs/workflow/session-recall.md` handoff flow (`qctx --close`).
 - Before changing session recall/sync/export behavior, follow `docs/workflow/session-recall.md`.
 - Run the task-start skill/MCP routing preflight defined by `CLAUDE.md` before ad-hoc implementation/debugging.
-- Before starting feature/bug/reliability implementation, follow `docs/workflow/nanoclaw-development-loop.md`.
+- Before starting feature/bug/reliability implementation (default single-lane), follow `docs/workflow/nanoclaw-development-loop.md`.
 - Before changing workflow strategy/cadence based on external research, follow `docs/workflow/workflow-optimization-loop.md`.
 - Before running weekly docs/scripts/config/code slop cleanup during optimization cycles, follow `docs/workflow/weekly-slop-optimization-loop.md`.
 - Before reviewing hooks/subagents or built-in tool routing governance, follow `docs/workflow/weekly-slop-optimization-loop.md` and `docs/operations/tooling-governance-budget.json`.
-- Before running parallel Claude/Codex worktrees or splitting execution/review ownership across tools, follow `docs/workflow/unified-codex-claude-loop.md`.
+- Before running parallel Claude/Codex worktrees or splitting execution/review ownership across tools (supersedes single-lane loop), follow `docs/workflow/unified-codex-claude-loop.md`.
 - Before defining subagent fanout for plan/review/verification, follow `docs/operations/subagent-catalog.md` and `docs/operations/subagent-routing.md`.
 - Before adapting behavior between Claude and Codex runtimes, follow `docs/operations/claude-codex-adapter-matrix.md`.
 - Before deciding what to offload to GitHub Actions/rulesets vs keep in local lanes, follow `docs/workflow/github-offload-boundary-loop.md`.

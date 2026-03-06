@@ -38,7 +38,9 @@ const EXPECTED_LIST_CMD = IS_APPLE_CONTAINER_RUNTIME
 function listOutput(names: string[]): string {
   if (IS_APPLE_CONTAINER_RUNTIME) {
     const header = 'CONTAINER IMAGE OS ARCH STATE ADDR';
-    const rows = names.map((name) => `${name} nanoclaw-worker:latest linux arm64 stopped`);
+    const rows = names.map(
+      (name) => `${name} nanoclaw-worker:latest linux arm64 stopped`,
+    );
     return [header, ...rows].join('\n');
   }
   return names.join('\n');
@@ -163,7 +165,9 @@ describe('cleanupOrphans', () => {
   });
 
   it('continues stopping remaining containers when one stop fails', () => {
-    mockExecSync.mockReturnValueOnce(listOutput(['nanoclaw-a-1', 'nanoclaw-b-2']));
+    mockExecSync.mockReturnValueOnce(
+      listOutput(['nanoclaw-a-1', 'nanoclaw-b-2']),
+    );
     // First stop fails
     mockExecSync.mockImplementationOnce(() => {
       throw new Error('already stopped');
