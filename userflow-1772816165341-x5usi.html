@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo App</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 400px;
+        margin: 40px auto;
+        padding: 20px;
+      }
+      h1 {
+        text-align: center;
+      }
+      .input-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      #todo-input {
+        flex: 1;
+        padding: 8px;
+        font-size: 16px;
+      }
+      #add-btn {
+        padding: 8px 16px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #todo-list {
+        list-style: none;
+        padding: 0;
+      }
+      #todo-list li {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      #todo-list li.completed {
+        text-decoration: line-through;
+        color: #888;
+      }
+      .delete-btn {
+        background: #ff4444;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Todo App</h1>
+    <div class="input-group">
+      <input type="text" id="todo-input" placeholder="Enter todo..." />
+      <button id="add-btn">Add</button>
+    </div>
+    <ul id="todo-list"></ul>
+
+    <script>
+      const input = document.getElementById('todo-input');
+      const addBtn = document.getElementById('add-btn');
+      const todoList = document.getElementById('todo-list');
+
+      function addTodo() {
+        const text = input.value.trim();
+        if (!text) return;
+
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${text}</span><button class="delete-btn">Delete</button>`;
+        li.querySelector('span').addEventListener('click', () =>
+          li.classList.toggle('completed'),
+        );
+        li.querySelector('.delete-btn').addEventListener('click', () =>
+          li.remove(),
+        );
+        todoList.appendChild(li);
+        input.value = '';
+      }
+
+      addBtn.addEventListener('click', addTodo);
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addTodo();
+      });
+    </script>
+  </body>
+</html>
