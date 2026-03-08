@@ -135,19 +135,22 @@ describe('jarvis-reconcile-stale-andy-requests.sh', () => {
   it('closes only stale matching requests when apply mode is used', () => {
     const dir = createTempDir();
     const dbPath = createTestDb(dir);
+    const now = Date.now();
+    const staleTimestamp = new Date(now - 2 * 60 * 60 * 1000).toISOString();
+    const freshTimestamp = new Date(now - 5 * 60 * 1000).toISOString();
     insertRequest(dbPath, {
       requestId: 'req-stale-2',
       state: 'worker_review_requested',
       workerRunId: 'run-stale-2',
       workerGroupFolder: 'jarvis-worker-1',
-      updatedAt: '2026-03-01T00:00:00.000Z',
+      updatedAt: staleTimestamp,
     });
     insertRequest(dbPath, {
       requestId: 'req-fresh-2',
       state: 'worker_review_requested',
       workerRunId: 'run-fresh-2',
       workerGroupFolder: 'jarvis-worker-1',
-      updatedAt: '2026-03-08T00:00:00.000Z',
+      updatedAt: freshTimestamp,
     });
 
     const output = execFileSync(
