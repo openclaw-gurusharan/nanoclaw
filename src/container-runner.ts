@@ -62,6 +62,8 @@ export interface ContainerOutput {
   sessionResumeStatus?: 'resumed' | 'fallback_new' | 'new';
   sessionResumeError?: string;
   error?: string;
+  agentId?: string;
+  agentType?: string;
 }
 
 interface VolumeMount {

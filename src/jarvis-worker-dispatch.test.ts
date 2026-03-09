@@ -12,6 +12,7 @@ import {
   recoverWorkerRunFromNoContainerFailure,
   updateAndyRequestByWorkerRun,
   updateAndyRequestState,
+  updateWorkerRunAttribution,
   updateWorkerRunLifecycle,
   updateWorkerRunStatus,
   updateWorkerRunCompletion,
@@ -1317,5 +1318,94 @@ describe('run_id contract invariants', () => {
     expect(errors).toContain(
       'run_id must be a non-empty string with no whitespace',
     );
+  });
+});
+
+describe('updateWorkerRunAttribution', () => {
+  beforeEach(() => {
+    _initTestDatabase();
+    insertWorkerRun('run-attr-1', 'jarvis-worker-1');
+  });
+
+  it('stores agent_id and agent_type on the worker run', () => {
+    updateWorkerRunAttribution(
+      'run-attr-1',
+      'agent-abc123',
+      'claude:claude-sonnet-4-6',
+    );
+    const row = getWorkerRun('run-attr-1');
+    expect(row?.agent_id).toBe('agent-abc123');
+    expect(row?.agent_type).toBe('claude:claude-sonnet-4-6');
+  });
+
+  it('agent_id and agent_type are null by default on a new run', () => {
+    const row = getWorkerRun('run-attr-1');
+    expect(row?.agent_id).toBeNull();
+    expect(row?.agent_type).toBeNull();
+  });
+
+  it('throws when agent_id is empty', () => {
+    expect(() =>
+      updateWorkerRunAttribution('run-attr-1', '', 'claude:claude-sonnet-4-6'),
+    ).toThrow('agentId');
+  });
+
+  it('throws when agent_type is empty', () => {
+    expect(() =>
+      updateWorkerRunAttribution('run-attr-1', 'agent-abc123', ''),
+    ).toThrow('agentType');
+  });
+
+  it('retry clears attribution so stale attribution cannot persist across retries', () => {
+    updateWorkerRunAttribution(
+      'run-attr-1',
+      'agent-abc123',
+      'claude:claude-sonnet-4-6',
+    );
+    updateWorkerRunStatus('run-attr-1', 'failed');
+    insertWorkerRun('run-attr-1', 'jarvis-worker-1');
+    const row = getWorkerRun('run-attr-1');
+    expect(row?.agent_id).toBeNull();
+    expect(row?.agent_type).toBeNull();
+  });
+
+  it('throws when agent_id is null (partial SubagentStart payload)', () => {
+    expect(() =>
+      updateWorkerRunAttribution(
+        'run-attr-1',
+        null as unknown as string,
+        'claude:claude-sonnet-4-6',
+      ),
+    ).toThrow('agentId');
+  });
+
+  it('throws when agent_type is null (partial SubagentStart payload)', () => {
+    expect(() =>
+      updateWorkerRunAttribution(
+        'run-attr-1',
+        'agent-abc123',
+        null as unknown as string,
+      ),
+    ).toThrow('agentType');
+  });
+
+  it('throws when agent_id is undefined (partial SubagentStart payload)', () => {
+    expect(() =>
+      updateWorkerRunAttribution(
+        'run-attr-1',
+        undefined as unknown as string,
+        'claude:claude-sonnet-4-6',
+      ),
+    ).toThrow('agentId');
+  });
+
+  it('throws when agent_type is undefined (partial SubagentStart payload)', () => {
+    expect(() =>
+      updateWorkerRunAttribution(
+        'run-attr-1',
+        'agent-abc123',
+        undefined as unknown as string,
+      ),
+    ).toThrow('agentType');
   });
 });

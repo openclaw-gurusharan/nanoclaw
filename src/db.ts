@@ -113,7 +113,9 @@ function createSchema(database: Database.Database): void {
       expects_followup_container INTEGER DEFAULT 0,
       supervisor_owner TEXT,
       lease_expires_at TEXT,
-      recovered_from_reason TEXT
+      recovered_from_reason TEXT,
+      agent_id TEXT,
+      agent_type TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_worker_runs_folder ON worker_runs(group_folder, started_at);
 
@@ -251,6 +253,8 @@ function createSchema(database: Database.Database): void {
     `ALTER TABLE worker_runs ADD COLUMN last_progress_at TEXT`,
     `ALTER TABLE worker_runs ADD COLUMN steer_count INTEGER DEFAULT 0`,
     `ALTER TABLE worker_runs ADD COLUMN lane_id TEXT`,
+    `ALTER TABLE worker_runs ADD COLUMN agent_id TEXT`,
+    `ALTER TABLE worker_runs ADD COLUMN agent_type TEXT`,
   ];
   for (const sql of workerRunsMigrations) {
     try {
@@ -1247,6 +1251,8 @@ export function insertWorkerRun(
              supervisor_owner = NULL,
              lease_expires_at = NULL,
              recovered_from_reason = NULL,
+             agent_id = NULL,
+             agent_type = NULL,
              retry_count = retry_count + 1
          WHERE run_id = ?`,
       ).run(new Date().toISOString(), runId);
@@ -1737,11 +1743,13 @@ export function getWorkerRun(runId: string):
       supervisor_owner: string | null;
       lease_expires_at: string | null;
       recovered_from_reason: string | null;
+      agent_id: string | null;
+      agent_type: string | null;
     }
   | undefined {
   return db
     .prepare(
-      `SELECT run_id, group_folder, lane_id, status, phase, started_at, completed_at, retry_count, result_summary, error_details, branch_name, pr_url, commit_sha, files_changed, test_summary, risk_summary, dispatch_repo, dispatch_branch, request_id, context_intent, dispatch_payload, parent_run_id, dispatch_session_id, selected_session_id, effective_session_id, session_selection_source, session_resume_status, session_resume_error, last_heartbeat_at, spawn_acknowledged_at, active_container_name, no_container_since, expects_followup_container, supervisor_owner, lease_expires_at, recovered_from_reason
+      `SELECT run_id, group_folder, lane_id, status, phase, started_at, completed_at, retry_count, result_summary, error_details, branch_name, pr_url, commit_sha, files_changed, test_summary, risk_summary, dispatch_repo, dispatch_branch, request_id, context_intent, dispatch_payload, parent_run_id, dispatch_session_id, selected_session_id, effective_session_id, session_selection_source, session_resume_status, session_resume_error, last_heartbeat_at, spawn_acknowledged_at, active_container_name, no_container_since, expects_followup_container, supervisor_owner, lease_expires_at, recovered_from_reason, agent_id, agent_type
        FROM worker_runs
        WHERE run_id = ?`,
     )
@@ -2250,6 +2258,21 @@ export function updateWorkerRunProgress(
   db.prepare(
     `UPDATE worker_runs SET last_progress_summary = ?, last_progress_at = ? WHERE run_id = ?`,
   ).run(summary, timestamp, runId);
+}
+
+export function updateWorkerRunAttribution(
+  runId: string,
+  agentId: string,
+  agentType: string,
+): void {
+  if (!agentId || !agentType) {
+    throw new Error(
+      `updateWorkerRunAttribution: both agentId and agentType are required (got agentId=${JSON.stringify(agentId)}, agentType=${JSON.stringify(agentType)})`,
+    );
+  }
+  db.prepare(
+    `UPDATE worker_runs SET agent_id = ?, agent_type = ? WHERE run_id = ?`,
+  ).run(agentId, agentType, runId);
 }
 
 export function getWorkerRunProgress(runId: string): {

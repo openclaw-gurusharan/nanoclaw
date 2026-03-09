@@ -16,7 +16,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { query, HookCallback, PreCompactHookInput, PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk';
+import { query, HookCallback, PreCompactHookInput, PreToolUseHookInput, SubagentStartHookInput } from '@anthropic-ai/claude-agent-sdk';
 import { fileURLToPath } from 'url';
 
 interface ContainerInput {
@@ -35,6 +35,8 @@ interface ContainerOutput {
   result: string | null;
   newSessionId?: string;
   error?: string;
+  agentId?: string;
+  agentType?: string;
 }
 
 interface SessionEntry {
@@ -181,6 +183,30 @@ function createPreCompactHook(assistantName?: string): HookCallback {
       log(`Failed to archive transcript: ${err instanceof Error ? err.message : String(err)}`);
     }
 
+    return {};
+  };
+}
+
+// Agent attribution captured from SDK SubagentStart hooks across all queries in this run.
+let capturedAgentId: string | undefined;
+let capturedAgentType: string | undefined;
+
+function createAttributionHook(): HookCallback {
+  return async (input, _toolUseId, _context) => {
+    const subagentInput = input as SubagentStartHookInput;
+    if (!capturedAgentId && (subagentInput.agent_id || subagentInput.agent_type)) {
+      // Always forward whatever fields are present so the host can see and
+      // validate the full payload. The host's updateWorkerRunAttribution call
+      // will throw for partial inputs, making the failure explicit and
+      // deterministic rather than silently dropped here.
+      capturedAgentId = subagentInput.agent_id;
+      capturedAgentType = subagentInput.agent_type;
+      if (capturedAgentId && capturedAgentType) {
+        log(`Attribution captured: agent_id=${capturedAgentId} agent_type=${capturedAgentType}`);
+      } else {
+        log(`Attribution partial: SubagentStart payload missing ${!capturedAgentId ? 'agent_id' : 'agent_type'} (agent_id=${JSON.stringify(capturedAgentId)} agent_type=${JSON.stringify(capturedAgentType)})`);
+      }
+    }
     return {};
   };
 }
@@ -461,6 +487,7 @@ async function runQuery(
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],
         PreToolUse: [{ matcher: 'Bash', hooks: [createSanitizeBashHook()] }],
+        SubagentStart: [{ hooks: [createAttributionHook()] }],
       },
     }
   })) {
@@ -489,7 +516,9 @@ async function runQuery(
       writeOutput({
         status: 'success',
         result: textResult || null,
-        newSessionId
+        newSessionId,
+        agentId: capturedAgentId,
+        agentType: capturedAgentType,
       });
     }
   }
