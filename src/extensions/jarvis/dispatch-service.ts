@@ -1,5 +1,6 @@
 import {
   findWorkerRunByEffectiveSessionId,
+  getAndyRequestById,
   getLatestReusableWorkerSession,
   getWorkerRun,
   insertWorkerRun,
@@ -436,13 +437,14 @@ export function queueAndyWorkerDispatchRun(
 export function recordBlockedDispatchAttempt(
   event: DispatchBlockEvent,
 ): string | undefined {
+  const requestId = resolveBlockedRequestId(event);
   const targetLaneId =
     resolveLaneIdFromGroupFolder(event.target_folder) ?? event.target_folder;
   if (!targetLaneId) return undefined;
   const sourceLaneId =
     resolveLaneIdFromGroupFolder(event.source_group) ?? event.source_group;
   return markAndyRequestDispatchBlocked({
-    requestId: event.request_id,
+    requestId,
     sourceLaneId,
     targetLaneId,
     runId: event.run_id,
@@ -451,4 +453,19 @@ export function recordBlockedDispatchAttempt(
     sessionStrategy:
       event.reason_code === 'duplicate_run_id' ? 'duplicate' : undefined,
   });
+}
+
+function resolveBlockedRequestId(
+  event: DispatchBlockEvent,
+): string | undefined {
+  if (event.request_id?.trim()) {
+    return event.request_id.trim();
+  }
+
+  const fallback = event.run_id?.trim();
+  if (!fallback || !fallback.startsWith('req-')) {
+    return undefined;
+  }
+
+  return getAndyRequestById(fallback) ? fallback : undefined;
 }

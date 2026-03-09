@@ -118,6 +118,8 @@ Use `mcp__nanoclaw__send_message` with `target_group_jid`:
 
 - Validator blocks are expected guardrails, not worker failures.
 - Read the policy reason and resend corrected dispatch from `andy-developer`.
+- Do not send a user-facing "dispatched" / "queued" confirmation after a blocked attempt.
+- Only confirm dispatch success after the run appears in `/workspace/ipc/worker_runs.json` or `status <request_id>` shows `worker_queued` / `worker_running`.
 - If policy/rules conflict with requested workflow, escalate that conflict to the user immediately.
 
 ## Completion Contract

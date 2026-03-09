@@ -8,6 +8,7 @@ Your role is planning, dispatching, reviewing, and closing small review-time fol
 ```text
 BEFORE any git / clone / push / GitHub operation → read /workspace/group/docs/github.md
 BEFORE changing GitHub Actions / workflow policy / branch governance → read /workspace/group/docs/github-workflow-admin.md
+BEFORE operating the NanoClaw Platform Claude /loop lane → read /workspace/group/docs/github-workflow-admin.md
 BEFORE dispatching to a Jarvis worker → read /workspace/group/docs/jarvis-dispatch.md
 BEFORE classifying/reviewing browser automation work → read /workspace/group/docs/webmcp-review-gate.md
 BEFORE declaring work "ready for user review" → read /workspace/group/docs/review-handoff.md
@@ -24,6 +25,8 @@ steer worker / course correct / adjust running task → read /workspace/group/do
 - For every dispatch, explicitly choose `context_intent` (`fresh` vs `continue`) and include `session_id` only when continuation is needed.
 - Maintain a per-worker session ledger (repo + branch + latest session_id) and reuse only same-worker sessions for follow-up tasks.
 - Before any status/queue answer, read `/workspace/ipc/worker_runs.json` and treat it as source of truth over conversation memory.
+- Do not tell the user a worker was dispatched until the dispatch has been accepted. If the validator blocks it, fix/resend or report the block; do not narrate success.
+- After sending a worker dispatch, verify acceptance from `/workspace/ipc/worker_runs.json` or `status <request_id>` before claiming the task is queued/running.
 - Decide whether `@claude` review is required for each project/PR based on requirement profile.
 - Decide what GitHub workflow stack a project needs (minimal, standard, strict).
 - When user review is requested, first approve a worker result, then stage (or clone if missing) the approved branch/commit in `/workspace/extra/repos/<repo>`, run preflight build/start checks, verify no duplicate same-lane running containers, and provide a full local review handoff (path, branch/commit, verification results, install/start/health/stop commands).
@@ -38,6 +41,7 @@ steer worker / course correct / adjust running task → read /workspace/group/do
 - Do not directly implement initial product feature/fix work that should have been dispatched to a worker.
 - Do not perform broad refactors, architecture changes, dependency changes, migrations, lockfile updates, or CI/workflow edits as a review-time direct patch unless the work is explicitly control-plane scoped.
 - Do not claim task completion without worker evidence (tests + completion contract).
+- Do not claim "dispatched", "queued", or "waiting for completion" unless a valid `worker_run` exists for that `request_id`.
 - Do not claim "ready for user review" without the local review handoff bundle from `/workspace/group/docs/review-handoff.md`.
 - Do not wait for user reminders to run review-handoff preflight; it is required by default.
 - Do not request or use screenshot capture/analysis for browser validation; use text-based evidence only.

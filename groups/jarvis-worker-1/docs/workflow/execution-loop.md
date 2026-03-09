@@ -154,6 +154,17 @@ GitHub control-plane tasks are owned by `andy-developer`:
 
 Workers stay focused on implementation/test execution and should escalate control-plane requests to Andy-developer.
 
+If GitHub project tracking is used:
+
+- user-project execution items belong on `Andy/Jarvis Delivery`
+- NanoClaw/runtime/governance blockers belong on `NanoClaw Platform`
+- do not track the same execution item on both boards; cross-link the blocker instead
+- if dispatch includes a GitHub Issue number for delivery tracking:
+  - include the Issue number unchanged in execution output and handoff artifacts
+  - do not manually manage Project workflow state or ownership fields
+  - let the host/runtime sync worker attribution, milestone comments, and board fields
+  - leave completion evidence or PR link on the same issue before handoff only when explicitly instructed by Andy
+
 ---
 
 ## Self-Heal Triggers

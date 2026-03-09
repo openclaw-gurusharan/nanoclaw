@@ -16,6 +16,7 @@ import {
   buildDispatchBlockedMessage as buildJarvisDispatchBlockedMessage,
   canJarvisDispatchToTarget,
   type DispatchBlockEvent,
+  scheduleAndyDeliverySyncForRun,
   normalizeWorkerDispatchPayloadText as normalizeJarvisWorkerDispatchPayloadText,
   queueAndyWorkerDispatchRun as queueJarvisWorkerDispatchRun,
   recordBlockedDispatchAttempt,
@@ -293,6 +294,7 @@ function startProgressPoller(deps: IpcDeps): void {
 
             if (latestSummary && latestTimestamp) {
               updateWorkerRunProgress(runId, latestSummary, latestTimestamp);
+              scheduleAndyDeliverySyncForRun(runId, 'progress');
               void emitBridgeEvent({
                 event_type: 'worker_progress',
                 summary: `[${workerFolder}] ↻ ${latestSummary}`,

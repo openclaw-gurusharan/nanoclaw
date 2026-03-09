@@ -53,13 +53,15 @@ fi
 mkdir -p "$WORKTREE_PATH/.claude/commands" "$WORKTREE_PATH/scripts/workflow"
 cp "$ROOT_DIR/.claude/commands/platform-pickup.md" "$WORKTREE_PATH/.claude/commands/platform-pickup.md"
 cp "$ROOT_DIR/scripts/workflow/platform-loop.js" "$WORKTREE_PATH/scripts/workflow/platform-loop.js"
+cp "$ROOT_DIR/scripts/workflow/platform-loop-worktree.sh" "$WORKTREE_PATH/scripts/workflow/platform-loop-worktree.sh"
 
 WORKTREE_EXCLUDE_FILE="$(git -C "$WORKTREE_PATH" rev-parse --git-path info/exclude)"
 mkdir -p "$(dirname "$WORKTREE_EXCLUDE_FILE")"
 for pattern in \
   ".claude/commands/platform-pickup.md" \
   ".claude/scheduled_tasks.lock" \
-  "scripts/workflow/platform-loop.js"
+  "scripts/workflow/platform-loop.js" \
+  "scripts/workflow/platform-loop-worktree.sh"
 do
   if ! grep -Fqx "$pattern" "$WORKTREE_EXCLUDE_FILE" 2>/dev/null; then
     echo "$pattern" >>"$WORKTREE_EXCLUDE_FILE"

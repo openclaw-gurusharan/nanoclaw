@@ -45,6 +45,8 @@ Use instead:
 - This repository ships two project workflows:
   - `.github/workflows/project-intake-sync.yml` for Issue intake + default field initialization
   - `.github/workflows/project-status-sync.yml` for status sync from Issue/PR lifecycle
+- Delivery execution state on `Andy/Jarvis Delivery` is additionally host-managed from `andy_requests` + `worker_runs` through `src/extensions/jarvis/github-delivery-sync.ts`.
+- Repo Issues/Discussions stay on `ingpoc/nanoclaw`; `NanoClaw Platform` board checks/mutations use `ingpoc`, while `Andy/Jarvis Delivery` board checks use `openclaw-gurusharan`.
 - Discussion category taxonomy is only partially repo-configurable. The repository ships templates for the default GitHub categories (`General`, `Ideas`, `Q&A`), and any rename to the preferred collaboration taxonomy is a one-time GitHub UI admin action.
 - The operating rules for how agents use those surfaces are intentionally not repeated here; they belong in `docs/workflow/github/github-agent-collaboration-loop.md`.
 
@@ -68,6 +70,18 @@ Use instead:
 - Bound the lane with workflow concurrency and a short timeout; Claude should stay review/discussion-first, not a required merge gate.
 - Maintain a single curated Claude workflow. If the Claude GitHub App opens bootstrap PRs with generated workflows, treat them as scaffolding to review and selectively absorb, not as the canonical control-plane implementation.
 - This repository ships an on-demand example at `.github/workflows/claude-review.yml`.
+
+## NanoClaw Platform Claude Loop Baseline
+
+- The primary implementation lane for autonomous `NanoClaw Platform` pilots is local Claude Code `/loop`, not GitHub Actions.
+- The repo-tracked command surface is `.claude/commands/platform-pickup.md`.
+- The local bootstrap surfaces are:
+  - `scripts/workflow/start-platform-loop.sh`
+  - `scripts/workflow/check-platform-loop.sh`
+  - `launchd/com.nanoclaw-platform-loop.plist`
+- The `/loop` lane may claim only one platform item at a time and must stop if any Claude-owned item is already in `Review`.
+- `/loop` may implement, test, branch, and open/update PRs, but it must not merge and it must not bypass deterministic required checks.
+- Codex remains the default review lane for these platform PRs.
 
 ## CI Failure Feedback Loop
 

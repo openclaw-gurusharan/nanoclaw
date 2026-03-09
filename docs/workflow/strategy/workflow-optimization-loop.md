@@ -35,12 +35,50 @@ Collect only high-signal sources:
 2. Source must include actionable workflow mechanics, not only opinions.
 3. Source must be recent enough for current tool/runtime behavior.
 
+Required weekly changelog scan for this repository:
+
+1. Claude Code release notes / changelog
+2. Claude Agent SDK release notes / changelog
+3. OpenCode release notes / changelog
+
+Use this source order for every tooling-improvement candidate:
+
+1. start from the upstream changelog / release notes to identify the new feature or behavior
+2. then read the corresponding implementation / usage docs to understand:
+   - how it is actually used
+   - what constraints or runtime assumptions it has
+   - what benefit it claims
+   - what part of NanoClaw it could improve
+
+Pinned source set for this repository:
+
+1. Claude Code changelog:
+   - `https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md`
+2. Claude Code docs:
+   - `https://code.claude.com/docs/en/overview`
+   - `https://code.claude.com/docs/en/headless`
+3. Claude Agent SDK changelog:
+   - `https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md`
+4. OpenCode docs:
+   - `https://opencode.ai/docs`
+
+For each source, capture:
+
+1. upstream change summary
+2. NanoClaw subsystem fit (`main`, `andy-developer`, `jarvis-worker-*`, shared runtime)
+3. candidate adoption or explicit `no-fit`
+4. risk / operator-load impact
+
+Do not stop at changelog headlines when a candidate looks promising; read the implementation docs before opening or updating the Discussion so Claude and Codex are debating the real usage model, not guessing from release-note wording.
+
 Record findings in `docs/research/` with:
 
 1. What they do.
 2. Why it works.
 3. Preconditions.
 4. Failure modes.
+
+Before implementation discussion, open or update a GitHub Discussion in `SDK / Tooling Opportunities` and require both Claude and Codex to leave a decision comment (`accept`, `pilot`, `defer`, `reject`) with explicit agent labels. If both choose `accept` or `pilot`, dedupe against existing promoted Issues first, then move the surviving execution Issue onto the correct board and leave a promotion summary comment in the Discussion. Default changelog/tooling adoption work to the `NanoClaw Platform` board unless it is explicitly scoped to a user-project delivery workflow.
 
 ## Phase 2: Translation to NanoClaw Context
 
@@ -64,6 +102,16 @@ Define a pilot with fixed boundaries:
 5. Success metrics and failure thresholds.
 
 Do not bundle multiple workflow changes in one pilot.
+
+Do not promote a changelog-derived idea directly from local notes into implementation without the Discussion decision step, unless a human explicitly instructs otherwise.
+
+If the pilot uses the dedicated NanoClaw Platform Claude `/loop` lane:
+
+1. keep only one active platform pilot in the lane at a time
+2. after discussion promotion, require Codex to write or normalize the full execution contract and checked `Ready Checklist` on the Issue before it can move to `Ready`
+3. require a decision-complete issue before moving to `Ready`
+4. require PR evidence before the item enters `Review`
+5. evaluate operator-load impact explicitly as part of the pilot result
 
 ## Phase 4: Execution + Evidence
 

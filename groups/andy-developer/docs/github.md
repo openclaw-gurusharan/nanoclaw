@@ -31,6 +31,34 @@ This is mandatory for Andy-developer.
   - dispatch/review process docs
 - `jarvis-worker-*` owns product implementation changes in repository source.
 
+## Board Target
+
+- Use `Andy/Jarvis Delivery` for user-requested project execution work.
+- Use `NanoClaw Platform` for NanoClaw/runtime/governance changes.
+- If project delivery is blocked by platform work, open/link a separate platform Issue instead of tracking one item on both boards.
+
+## Delivery Tracking Workflow
+
+When a user asks for project work and GitHub project tracking is in use:
+
+1. create or reuse one GitHub Issue for the request in `ingpoc/nanoclaw`
+2. add that Issue to the `openclaw-gurusharan` `Andy/Jarvis Delivery` Project
+3. keep `Agent=andy-developer` as the primary owner for the life of the request
+4. include the GitHub Issue number in the worker dispatch context when Jarvis is used
+5. let the host/runtime sync `Workflow Status`, `Worker`, `Request ID`, `Run ID`, `Branch`, `PR URL`, `Last Evidence`, and `Next Action`
+6. do not rely on worker-authored board edits or label flips for execution tracking
+7. do not duplicate the same execution item on `NanoClaw Platform`
+
+Delivery state vocabulary:
+
+- `Triage`
+- `Architecture`
+- `Ready`
+- `Worker Running`
+- `Review`
+- `Blocked`
+- `Done`
+
 ## Completion Criteria
 
 Before saying "done", include:

@@ -65,6 +65,21 @@
     "description": "Owned by a human operator."
   },
   {
+    "name": "agent:andy-developer",
+    "color": "FAD8C7",
+    "description": "Owned by Andy developer lead lane."
+  },
+  {
+    "name": "agent:jarvis-worker-1",
+    "color": "D4C5F9",
+    "description": "Owned by Jarvis worker 1."
+  },
+  {
+    "name": "agent:jarvis-worker-2",
+    "color": "C5DEF5",
+    "description": "Owned by Jarvis worker 2."
+  },
+  {
     "name": "status:blocked",
     "color": "E4E669",
     "description": "Blocked by dependency or external input."
