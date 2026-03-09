@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 
 import { DATA_DIR, GROUPS_DIR } from './config.js';
@@ -41,4 +42,29 @@ export function resolveGroupIpcPath(folder: string): string {
   const ipcPath = path.resolve(ipcBaseDir, folder);
   ensureWithinBase(ipcBaseDir, ipcPath);
   return ipcPath;
+}
+
+/**
+ * Validate that a group's CLAUDE.md is present and non-empty.
+ * Throws an InstructionsLoaded error for missing, unreadable, or empty files.
+ * Pass baseDir to override GROUPS_DIR (useful in tests).
+ */
+export function validateGroupClaudeMd(folder: string, baseDir?: string): void {
+  const groupPath = baseDir
+    ? path.resolve(baseDir, folder)
+    : resolveGroupFolderPath(folder);
+  const claudeMdPath = path.join(groupPath, 'CLAUDE.md');
+
+  let content: string;
+  try {
+    content = fs.readFileSync(claudeMdPath, 'utf8');
+  } catch {
+    throw new Error(
+      `InstructionsLoaded: ${claudeMdPath} is missing or unreadable`,
+    );
+  }
+
+  if (!content.trim()) {
+    throw new Error(`InstructionsLoaded: ${claudeMdPath} is empty`);
+  }
 }

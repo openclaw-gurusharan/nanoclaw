@@ -198,19 +198,31 @@ async function main(): Promise<void> {
   // Parse dispatch payload for retry metadata (run_id, branch)
   const dispatchMeta = parseMaybeJson(input.prompt) as { run_id?: string; branch?: string } | null;
 
-  // Build prompt — prepend CLAUDE.md if present (belt-and-suspenders;
-  // OpenCode also loads it via instructions config but this ensures it works
-  // even if OpenCode's instruction loading fails)
+  // InstructionsLoaded: validate group CLAUDE.md is present and non-empty
+  // before running OpenCode. Fail explicitly rather than silently proceeding
+  // with an empty or missing instruction surface.
   let prompt = input.prompt;
   const claudeMdPath = '/workspace/group/CLAUDE.md';
-  if (fs.existsSync(claudeMdPath)) {
-    try {
-      const claudeMd = fs.readFileSync(claudeMdPath, 'utf8');
-      prompt = `<system>\n${claudeMd}\n</system>\n\n${prompt}`;
-    } catch {
-      // Non-fatal — proceed without prepending
-    }
+  let claudeMd: string;
+  try {
+    claudeMd = fs.readFileSync(claudeMdPath, 'utf8');
+  } catch {
+    writeOutput({
+      status: 'error',
+      result: null,
+      error: `InstructionsLoaded: ${claudeMdPath} is missing or unreadable`,
+    });
+    process.exit(0);
   }
+  if (!claudeMd!.trim()) {
+    writeOutput({
+      status: 'error',
+      result: null,
+      error: `InstructionsLoaded: ${claudeMdPath} is empty`,
+    });
+    process.exit(0);
+  }
+  prompt = `<system>\n${claudeMd!}\n</system>\n\n${prompt}`;
 
   const candidates = buildModelCandidates(input.model, process.env.WORKER_MODEL);
   let lastError = '';

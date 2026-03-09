@@ -417,6 +417,20 @@ async function runQuery(
   let messageCount = 0;
   let resultCount = 0;
 
+  // InstructionsLoaded: validate group CLAUDE.md is present and non-empty
+  // before calling query(). Fail explicitly rather than silently proceeding
+  // with an empty or missing instruction surface.
+  const groupClaudeMdPath = '/workspace/group/CLAUDE.md';
+  let groupClaudeMd: string;
+  try {
+    groupClaudeMd = fs.readFileSync(groupClaudeMdPath, 'utf-8');
+  } catch {
+    throw new Error(`InstructionsLoaded: ${groupClaudeMdPath} is missing or unreadable`);
+  }
+  if (!groupClaudeMd.trim()) {
+    throw new Error(`InstructionsLoaded: ${groupClaudeMdPath} is empty`);
+  }
+
   // Load global CLAUDE.md as additional system context (shared across all groups)
   const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
   let globalClaudeMd: string | undefined;
