@@ -37,23 +37,32 @@ description:
 7. Watch checks until complete.
 8. If checks fail, pull logs, fix the issue, commit with the `commit` skill,
    push with the `push` skill, and re-run checks.
-9. When all checks are green and review feedback is addressed, squash-merge and
-   delete the branch using the PR title/body for the merge subject/body.
-10. **Context guard:** Before implementing review feedback, confirm it does not
+9. When all checks are green and review feedback is addressed, attempt the
+   normal squash-merge and delete the branch using the PR title/body for the
+   merge subject/body.
+10. If GitHub reports that base-branch policy still prohibits direct merge even
+    though the required checks are green, enable `--auto` merge and keep
+    watching until GitHub lands the PR.
+11. Use `--admin` only for explicit emergency bypass approval; do not treat it
+    as the default recovery path for branch-policy blocks.
+12. **Context guard:** Before implementing review feedback, confirm it does not
     conflict with the user’s stated intent or task context. If it conflicts,
     respond inline with a justification and ask the user before changing code.
-11. **Pushback template:** When disagreeing, reply inline with: acknowledge +
+13. **Pushback template:** When disagreeing, reply inline with: acknowledge +
     rationale + offer alternative.
-12. **Ambiguity gate:** When ambiguity blocks progress, use the clarification
+14. **Ambiguity gate:** When ambiguity blocks progress, use the clarification
     flow (assign PR to current GH user, mention them, wait for response). Do not
     implement until ambiguity is resolved.
     - If you are confident you know better than the reviewer, you may proceed
       without asking the user, but reply inline with your rationale.
-13. **Per-comment mode:** For each review comment, choose one of: accept,
+15. **Per-comment mode:** For each review comment, choose one of: accept,
     clarify, or push back. Reply inline (or in the issue thread for Codex
     reviews) stating the mode before changing code.
-14. **Reply before change:** Always respond with intended action before pushing
+16. **Reply before change:** Always respond with intended action before pushing
     code changes (inline for review comments, issue thread for Codex reviews).
+17. After merge, remove any dedicated ephemeral delivery worktree used only for
+    that PR once you have confirmed there is no remaining local work to keep.
+    Persistent automation worktrees are exempt.
 
 ## Commands
 
@@ -131,8 +140,14 @@ Exit codes:
 - Codex review jobs retry on failure and are non-blocking; use the presence of
   `## Codex Review — <persona>` issue comments (not job status) as the signal
   that review feedback is available.
-- Do not enable auto-merge; this repo has no required checks so auto-merge can
-  skip tests.
+- If direct merge is blocked by base-branch policy after the required checks
+  are green, enable auto-merge with `gh pr merge --auto` and continue watching
+  until the PR lands.
+- Use `gh pr merge --admin` only when the user explicitly asks to bypass branch
+  policy for an emergency.
+- After merge, clean up the dedicated PR worktree if it is an ephemeral delivery
+  lane and no unmerged local state remains. Do not remove long-lived automation
+  worktrees managed by other workflows.
 - If the remote PR branch advanced due to your own prior force-push or merge,
   avoid redundant merges; re-run the formatter locally if needed and
   `git push --force-with-lease`.

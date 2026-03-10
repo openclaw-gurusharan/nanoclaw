@@ -1,7 +1,79 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-10T09:09:45Z",
+  "updated_at": "2026-03-10T09:48:54Z",
   "incidents": [
+    {
+      "id": "incident-20260310T094854Z",
+      "title": "Parallel delivery worktrees were left behind after merge completion",
+      "status": "resolved",
+      "severity": "low",
+      "created_at": "2026-03-10T09:48:54Z",
+      "updated_at": "2026-03-10T09:48:54Z",
+      "summary": {
+        "symptom": "After agents completed delivery and merge work, ephemeral worktrees were often left on disk, creating local clutter and stale branch/worktree state.",
+        "suspected_cause": "The unified worktree workflow and landing skill defined creation and use of worktrees but did not make cleanup an explicit completion requirement.",
+        "impact": "Agents leave avoidable local mess behind, which increases operator cleanup burden and creates stale-state risk for later sessions.",
+        "next_action": "Make worktree cleanup an explicit finalization step and exit criterion for ephemeral delivery lanes."
+      },
+      "evidence": {
+        "bundle_count": 0
+      },
+      "context": {
+        "lane": "workflow-delivery"
+      },
+      "notes": [
+        {
+          "ts": "2026-03-10T09:48:54Z",
+          "author": "codex",
+          "text": "User reported that agents leave the system messy after worktree-based work. Existing scripts/worktree/clean.sh already existed, but the unified delivery workflow and land skill did not require agents to run cleanup after completion."
+        }
+      ],
+      "resolution": {
+        "summary": "Updated the unified delivery workflow and land skill so ephemeral delivery worktrees must be cleaned after task completion or merge, with explicit exemption for persistent automation worktrees.",
+        "confirmed_by_user": "After the agents have done thier work they should also cleanup the worktree, they leave the system pretty messy",
+        "confirmed_at": "2026-03-10T09:48:54Z",
+        "verification": "workflow-contract-check PASS and the updated guidance now routes agents to scripts/worktree/clean.sh with explicit cleanup ownership and exit criteria.",
+        "fix_reference": "docs/workflow/delivery/unified-codex-claude-loop.md and .claude/skills/land/SKILL.md",
+        "resolved_by": "codex"
+      },
+      "resolved_at": "2026-03-10T09:48:54Z"
+    },
+    {
+      "id": "incident-20260310T094546Z",
+      "title": "Land workflow still assumed direct merge and stale auto-merge policy",
+      "status": "resolved",
+      "severity": "low",
+      "created_at": "2026-03-10T09:45:46Z",
+      "updated_at": "2026-03-10T09:45:46Z",
+      "summary": {
+        "symptom": "A merge-ready PR hit `the base branch policy prohibits the merge`, and the local land skill still instructed agents not to enable auto-merge in this repository.",
+        "suspected_cause": "The repo branch policy changed, but the land skill and GitHub control-plane doc still encoded an older direct-merge assumption.",
+        "impact": "Agents following the documented land path hit avoidable retries and have to probe GitHub manually before discovering that auto-merge is now the standard recovery path.",
+        "next_action": "Update the land skill and GitHub control-plane merge policy to prefer auto-merge when branch policy blocks direct merge after checks are green."
+      },
+      "evidence": {
+        "bundle_count": 0
+      },
+      "context": {
+        "lane": "github-control-plane"
+      },
+      "notes": [
+        {
+          "ts": "2026-03-10T09:45:46Z",
+          "author": "codex",
+          "text": "While landing PR #58, GitHub rejected direct squash merge with `the base branch policy prohibits the merge` and suggested `--auto`. The local land skill still said not to enable auto-merge because the repo had no required checks, which is now stale for this repository."
+        }
+      ],
+      "resolution": {
+        "summary": "Updated the land skill and GitHub control-plane merge policy so agents prefer auto-merge when branch policy blocks direct merge after checks are green.",
+        "confirmed_by_user": "do you want to update workflow and do session introspection",
+        "confirmed_at": "2026-03-10T09:45:46Z",
+        "verification": "Re-reading the updated land path now matches the observed GitHub behavior: normal merge first, `--auto` under branch-policy block, `--admin` only for explicit emergency bypass.",
+        "fix_reference": ".claude/skills/land/SKILL.md and docs/workflow/github/nanoclaw-github-control-plane.md",
+        "resolved_by": "codex"
+      },
+      "resolved_at": "2026-03-10T09:45:46Z"
+    },
     {
       "id": "incident-20260310T090730Z",
       "title": "Global Codex skill symlink `~/.codex/skills/introspect` is broken",

@@ -57,7 +57,8 @@
       "Bash(gh pr:*)",
       "Bash(gh run:*)",
       "Bash(bash:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "mcp__deepwiki__read_wiki_contents"
     ]
   },
   "enableAllProjectMcpServers": true,
