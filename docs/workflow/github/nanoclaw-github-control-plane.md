@@ -55,8 +55,10 @@ Use instead:
 1. `main` is PR-only.
 2. Direct pushes to `main` are blocked.
 3. Required checks must pass before merge.
-4. Governance changes must include rollback notes in PR description.
-5. PRs should link an issue; maintenance/docs/governance PRs may use `No issue: maintenance` in the Linked Work Item section.
+4. If GitHub still blocks direct merge because of base-branch policy after the required checks are green, the standard path is to enable auto-merge and wait for GitHub to land the PR.
+5. Administrator merge bypass is emergency-only and requires explicit operator intent.
+6. Governance changes must include rollback notes in PR description.
+7. PRs should link an issue; maintenance/docs/governance PRs may use `No issue: maintenance` in the Linked Work Item section.
 
 ## Claude Review Automation Baseline
 

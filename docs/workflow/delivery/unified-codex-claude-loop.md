@@ -23,6 +23,7 @@ Mission anchor: `docs/MISSION.md`.
 3. Verification evidence is mandatory; summaries are not evidence.
 4. High-risk violations are blocked automatically.
 5. `CLAUDE.md` remains canonical policy owner; `AGENTS.md` and `.codex/*` mirror it.
+6. Delivery worktrees are ephemeral and must be cleaned up when the task is done.
 
 ## Session Topology (Balanced Parallelism)
 
@@ -96,6 +97,19 @@ bash scripts/workflow/finalize-pr.sh
 
 This gate includes mirror sync checks and workflow contract checks before PR finalization.
 
+After the PR is merged or the task is explicitly stopped:
+
+```bash
+bash scripts/worktree/clean.sh --ticket <id> --delete-branches
+```
+
+Cleanup rule:
+
+1. Remove `impl`, `verify`, and `review` worktrees once their PR/task is complete.
+2. Delete the corresponding local `wt/<ticket>-*` branches unless they are still needed for an active retry or handoff.
+3. Do not clean long-lived automation worktrees such as platform-loop or nightly-improvement lanes; those are managed by their own workflows.
+4. If cleanup is intentionally deferred, record why in the task handoff so the leftover worktree is not silent debt.
+
 ## Risk-Tiered Enforcement
 
 ### Hard blocks
@@ -151,3 +165,4 @@ A task is done when all are true:
 2. Review findings are resolved or explicitly accepted with rationale.
 3. Workflow contract and mirror checks pass.
 4. Incident state is updated with evidence (if incident involved).
+5. Ephemeral delivery worktrees for the ticket are removed or an explicit deferred-cleanup reason is recorded.
