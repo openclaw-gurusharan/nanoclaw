@@ -67,6 +67,7 @@ Commands:
   record --scan-file <path> [--upstream-discussion-number <n>] [--tooling-discussion-number <n>]
   upsert-discussion --kind <upstream|tooling> (--body-file <path> | --body-stdin) [--title <title>]
   comment-decision --discussion-number <n> --decision <pilot|defer|reject> --summary <text>
+    [--agent-label <label>] [--to <agent>] [--status <status>] [--next <text>]
 `);
 }
 
@@ -666,7 +667,7 @@ async function upsertDiscussion(kind, body, titleOverride = null, statePath = DE
   };
 }
 
-async function addDecisionComment(discussionNumber, decision, summary) {
+async function addDecisionComment(discussionNumber, decision, summary, extras = {}) {
   const discussions = await listRecentDiscussions();
   const discussion = discussions.find(
     (candidate) => candidate.number === Number(discussionNumber),
@@ -675,12 +676,24 @@ async function addDecisionComment(discussionNumber, decision, summary) {
     throw new Error(`Unable to resolve discussion #${discussionNumber}`);
   }
 
-  const body = [
+  const bodyLines = [
     '<!-- nightly-improvement-decision -->',
-    'Agent Label: Claude Code',
+    `Agent Label: ${extras.agentLabel || 'Claude Code'}`,
     `Decision: ${decision}`,
     `Summary: ${summary}`,
-  ].join('\n');
+  ];
+
+  if (extras.to) {
+    bodyLines.push(`To: ${extras.to}`);
+  }
+  if (extras.status) {
+    bodyLines.push(`Status: ${extras.status}`);
+  }
+  if (extras.next) {
+    bodyLines.push(`Next: ${extras.next}`);
+  }
+
+  const body = bodyLines.join('\n');
 
   const data = await githubGraphql(
     `
@@ -767,12 +780,21 @@ async function main() {
       const discussionNumber = optionValue(options, 'discussion-number');
       const decision = optionValue(options, 'decision');
       const summary = optionValue(options, 'summary');
+      const agentLabel = optionValue(options, 'agent-label');
+      const to = optionValue(options, 'to');
+      const status = optionValue(options, 'status');
+      const next = optionValue(options, 'next');
       if (!discussionNumber || !decision || !summary) {
         throw new Error(
           'comment-decision requires --discussion-number, --decision, and --summary',
         );
       }
-      const result = await addDecisionComment(discussionNumber, decision, summary);
+      const result = await addDecisionComment(discussionNumber, decision, summary, {
+        agentLabel,
+        to,
+        status,
+        next,
+      });
       writeOutput(result);
       return;
     }

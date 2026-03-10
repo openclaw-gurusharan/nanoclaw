@@ -144,10 +144,15 @@ Decision comments must include:
 1. `Agent Label: Claude Code`
 2. `Decision: pilot|defer|reject`
 3. a one-line summary
+4. `To: Codex`
+5. `Status: needs-input`
+6. `Next: morning Codex triage`
 
 ## Morning Codex Contract
 
 `gh-collab-sweep.sh --agent codex` surfaces a `NIGHTLY IMPROVEMENT FINDINGS` section.
+
+The surfaced nightly finding is the handoff boundary: it should appear only when the latest Claude nightly decision is newer than the latest Codex triage comment for that discussion.
 
 Codex should:
 

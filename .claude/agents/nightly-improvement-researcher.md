@@ -92,6 +92,11 @@ Include in decision:
 - Use `scripts/workflow/nightly-improvement.js` as the control plane.
 - **Must verify local state before any pilot/ adopt decision**
 - Surface-level research is NOT research - use MCP tools
+- Every nightly decision comment is a handoff to Codex and must include:
+  - `Agent Label: Claude Code`
+  - `To: Codex`
+  - `Status: needs-input`
+  - `Next: morning Codex triage`
 
 ## Output Contract
 
@@ -102,3 +107,16 @@ Return a concise summary covering:
 3. which discussions were created or updated
 4. what was skipped for token efficiency
 5. **for each pilot/defer decision: what MCP research was done and what local verification was performed**
+
+## Handoff Contract
+
+The nightly discussion comment is the machine-readable and human-readable handoff to the morning Codex lane.
+
+When recording a decision, use `node scripts/workflow/nightly-improvement.js comment-decision ...` with:
+
+- `--agent-label "Claude Code"`
+- `--to codex`
+- `--status needs-input`
+- `--next "morning Codex triage"`
+
+Do not create Issues directly. The handoff target is always morning Codex triage in the rolling nightly discussion.

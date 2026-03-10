@@ -164,6 +164,7 @@ Codex should:
 
 The sweep itself must not auto-promote or auto-close nightly findings.
 The nightly discussion should remain open as the rolling research thread unless the nightly workflow explicitly retires or replaces it.
+Nightly findings should surface only when a newer Claude nightly decision handoff is waiting on Codex triage.
 
 ## Session End Contract
 

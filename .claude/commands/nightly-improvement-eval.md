@@ -28,6 +28,9 @@ Requirements:
 8. Every decision comment must use:
    - `Agent Label: Claude Code`
    - `Decision: pilot|defer|reject`
+   - `To: Codex`
+   - `Status: needs-input`
+   - `Next: morning Codex triage`
 
 Execution flow:
 
@@ -46,14 +49,14 @@ Execution flow:
    - pipe a concise structured update that begins with `<!-- nightly-improvement:upstream -->` into:
      `node scripts/workflow/nightly-improvement.js upsert-discussion --kind upstream --body-stdin`
    - include: evaluated range, changed commits, subsystem fit, candidate adoption or `no-fit`, risk/operator-load note, and `P1/P2/P3`
-   - run `node scripts/workflow/nightly-improvement.js comment-decision --discussion-number <number> --decision <pilot|defer|reject> --summary "<one-line summary>"`
+   - run `node scripts/workflow/nightly-improvement.js comment-decision --discussion-number <number> --decision <pilot|defer|reject> --summary "<one-line summary>" --agent-label "Claude Code" --to codex --status needs-input --next "morning Codex triage"`
 6. If tooling candidates are present:
    - evaluate only the listed changed tools from the scan output
    - fetch extra implementation docs only for candidates that still look relevant
    - pipe a concise structured update that begins with `<!-- nightly-improvement:tooling -->` into:
      `node scripts/workflow/nightly-improvement.js upsert-discussion --kind tooling --body-stdin`
    - include: version deltas, source links used, subsystem fit, candidate adoption or `no-fit`, risk/operator-load note, and `P1/P2/P3`
-   - run `node scripts/workflow/nightly-improvement.js comment-decision --discussion-number <number> --decision <pilot|defer|reject> --summary "<one-line summary>"`
+   - run `node scripts/workflow/nightly-improvement.js comment-decision --discussion-number <number> --decision <pilot|defer|reject> --summary "<one-line summary>" --agent-label "Claude Code" --to codex --status needs-input --next "morning Codex triage"`
 7. After the relevant discussion updates succeed, run:
    - `node scripts/workflow/nightly-improvement.js record --scan-file /tmp/nightly-improvement-scan.json [--upstream-discussion-number <n>] [--tooling-discussion-number <n>]`
 8. End with a short summary covering:

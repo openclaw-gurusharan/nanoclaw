@@ -121,6 +121,7 @@ query($owner: String!, $repo: String!) {
           totalCount
           nodes {
             body
+            createdAt
           }
         }
       }
@@ -167,6 +168,14 @@ else
     || echo "")
 
   NIGHTLY="$(echo "$DISCUSSIONS" | jq -r --arg cutoff "${NIGHTLY_CUTOFF:-1970-01-01T00:00:00Z}" '
+    def latest_decision_ts($label):
+      ([.comments.nodes[]
+        | select(
+            ((.body // "") | test("nightly-improvement-decision"; "i"))
+            and ((.body // "") | test("Agent Label:\\s*" + $label; "i"))
+          )
+        | .createdAt] | sort | last // "");
+
     .[]
     | select(
         (.updatedAt >= $cutoff)
@@ -175,14 +184,21 @@ else
           ([.comments.nodes[].body // ""] | any(test("Promoted to #[0-9]+"; "i")))
           | not
         )
+        and (
+          (latest_decision_ts("Claude Code")) != ""
+        )
+        and (
+          (latest_decision_ts("Codex")) == ""
+          or (latest_decision_ts("Codex") < latest_decision_ts("Claude Code"))
+        )
       )
     | "  #\(.number)  [\(.category.slug)]  \(.title)  (updated \(.updatedAt), codex_decision=" +
       (
-        if ([.comments.nodes[].body // ""] | any(test("Agent Label:\\s*Codex"; "i")))
+        if ((latest_decision_ts("Codex")) != "")
         then "yes"
         else "no"
         end
-      ) + ")"
+      ) + ", handoff=pending)"
   ')"
 
   if [[ -z "$NIGHTLY" ]]; then
