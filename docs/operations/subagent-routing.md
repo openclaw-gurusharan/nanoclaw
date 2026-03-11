@@ -101,7 +101,7 @@ Do not delegate when:
 | `nanoclaw-jarvis-worker-runtime.md` | `explorer` | fg | runtime architecture decisions | config mapping, Dockerfile reads |
 | `nanoclaw-jarvis-acceptance-checklist.md` | `monitor` | bg | pass/fail judgment | full gate sequence |
 | `nanoclaw-container-debugging.md` | `explorer` -> `reviewer` | fg | root-cause triage | diagnostics first, then interpretation |
-| `nanoclaw-github-control-plane.md` | `explorer` | fg | policy decisions | workflow YAML reads, drift detection |
+| `github-delivery-governance.md` | `explorer` | fg | policy decisions | workflow YAML reads, drift detection |
 | `nanoclaw-andy-user-happiness-gate.md` | `monitor` | bg | user satisfaction judgment | probe scripts and verification runs |
 | `weekly-slop-optimization-loop.md` | `explorer` -> `monitor` | fg -> bg | prioritization | inventory first, then deterministic checks |
 

@@ -126,12 +126,12 @@ Define a pilot with fixed boundaries:
 
 Do not bundle multiple workflow changes in one pilot.
 
-Do not promote a changelog-derived idea directly from local notes into implementation without the Discussion decision step, unless a human explicitly instructs otherwise.
+Do not promote a changelog-derived idea directly from local notes into implementation without the Notion decision step, unless a human explicitly instructs otherwise.
 
 If the pilot uses the dedicated NanoClaw Platform Claude `/loop` lane:
 
 1. keep only one active platform pilot in the lane at a time
-2. after discussion promotion, require Codex to write or normalize the full execution contract and checked `Ready Checklist` on the Issue before it can move to `Ready`
+2. after Notion promotion, require Codex to write or normalize the full execution contract and checked `Ready Checklist` on the issue before it can move to `Ready`
 3. require a decision-complete issue before moving to `Ready`
 4. require PR evidence before the item enters `Review`
 5. evaluate operator-load impact explicitly as part of the pilot result

@@ -11,16 +11,16 @@ Use [`DOCS.md`](../DOCS.md) for the full inventory.
 docs/
   architecture/     # system architecture and design rationale
   workflow/
+    control-plane/  # Linear execution sweep and collaboration-surface contracts
     delivery/       # delivery loops, gates, and cross-tool execution
     runtime/        # runtime contracts, incident/debug loops, recall
-    github/         # control-plane transition docs, GitHub governance, and offload boundaries
+    github/         # GitHub delivery governance and offload boundaries
     docs-discipline/ # docs authoring, pruning, and trigger hygiene
     strategy/       # optimization cadence and slop reduction workflows
   operations/       # role authority and change-management matrix
   tools/            # tool-specific usage maps and best-practice routing
   reference/        # baseline requirements/spec/security documents
   troubleshooting/  # debug playbooks and platform-specific fixes
-  archives/         # historical RCA and archived doc snapshots
   research/         # workflow research intake and weekly optimization evidence
 ```
 

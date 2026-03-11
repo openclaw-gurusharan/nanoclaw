@@ -1,6 +1,6 @@
 # NanoClaw Feature Catalog
 
-Generated: 2026-03-11T07:38:17.026Z
+Generated: 2026-03-11T08:37:09.967Z
 Project: nanoclaw
 
 ## Features
@@ -368,7 +368,7 @@ Project: nanoclaw
   - DOCS.md
   - docs/architecture/mission-runtime-profiles.md
   - docs/archives/debug-known-issues-2026-02.md
-  - docs/archives/github-multi-agent-collaboration-loop.md
+  - docs/archives/pre-linear-github-first-collaboration-loop.md
   - docs/archives/worker-dispatch-root-cause-2026-02-24.md
   - docs/operations/skills-vs-docs-map.md
   - docs/operations/subagent-routing.md
@@ -377,6 +377,7 @@ Project: nanoclaw
   - docs/operations/workflow-setup-responsibility-map.md
   - docs/README.md
   - docs/troubleshooting/DEBUG_CHECKLIST.md
+  - docs/workflow/control-plane/collaboration-surface-contract.md
   - docs/workflow/delivery/claude-cli-resume-consult-lane.md
   - docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md
   - docs/workflow/delivery/nanoclaw-development-loop.md
@@ -387,9 +388,8 @@ Project: nanoclaw
   - docs/workflow/docs-discipline/docs-pruning-loop.md
   - docs/workflow/docs-discipline/nanoclaw-root-claude-compression.md
   - docs/workflow/docs-discipline/skill-routing-preflight.md
-  - docs/workflow/control-plane/collaboration-surface-contract.md
-  - docs/workflow/github/github-offload-boundary-loop.md
   - docs/workflow/github/github-delivery-governance.md
+  - docs/workflow/github/github-offload-boundary-loop.md
   - docs/workflow/runtime/jarvis-dispatch-contract-discipline.md
   - docs/workflow/runtime/nanoclaw-container-debugging.md
   - docs/workflow/runtime/nanoclaw-jarvis-debug-loop.md
@@ -420,11 +420,10 @@ Project: nanoclaw
   - AGENTS.md
   - CLAUDE.md
   - DOCS.md
-  - docs/archives/github-multi-agent-collaboration-loop.md
   - docs/operations/workflow-setup-responsibility-map.md
   - docs/README.md
-  - docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
+  - docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md
   - docs/workflow/github/github-delivery-governance.md
   - docs/workflow/runtime/nanoclaw-container-debugging.md
   - docs/workflow/runtime/nanoclaw-jarvis-debug-loop.md
@@ -631,55 +630,61 @@ Project: nanoclaw
 - Suggested Verify:
   - npm run typecheck
 
-### github-collaboration-control-plane - GitHub Collaboration Control Plane
+### workflow-collaboration-surfaces - Workflow Collaboration Surfaces
 - Risk: high
-- Summary: Issue-first Project board automation, discussion scaffolding, and governance docs for Claude/Codex collaboration.
-- Keywords: github project, discussions, control plane, collaboration, workflow, project sync
-- Files (28):
+- Summary: Linear execution control, Notion shared context, and GitHub delivery governance for Claude/Codex collaboration.
+- Keywords: linear, notion, control plane, collaboration, workflow, delivery governance
+- Files (33):
+  - .claude/agents/nightly-improvement-researcher.md
   - .claude/catalog/feature-catalog.seed.json
+  - .claude/commands/nightly-improvement-eval.md
   - .claude/commands/platform-pickup.md
-  - .github/DISCUSSION_TEMPLATE/general.yml
-  - .github/DISCUSSION_TEMPLATE/ideas.yml
-  - .github/DISCUSSION_TEMPLATE/q-a.yml
   - .github/ISSUE_TEMPLATE/config.yml
-  - .github/workflows/project-intake-sync.yml
-  - .github/workflows/project-status-sync.yml
   - AGENTS.md
   - CLAUDE.md
   - DOCS.md
-  - docs/archives/github-multi-agent-collaboration-loop.md
   - docs/operations/workflow-setup-responsibility-map.md
   - docs/README.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
-  - docs/workflow/github/github-delivery-governance.md
+  - docs/workflow/control-plane/session-work-sweep.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
+  - docs/workflow/github/github-delivery-governance.md
+  - docs/workflow/strategy/nightly-evaluation-loop.md
+  - groups/andy-developer/docs/workflow-control-admin.md
+  - launchd/com.nanoclaw-nightly-improvement.plist
   - launchd/com.nanoclaw-platform-loop.plist
   - scripts/workflow/check-platform-loop.sh
-  - scripts/workflow/github-project-sync.js
+  - scripts/workflow/linear-work-sweep.js
+  - scripts/workflow/nightly-improvement.js
   - scripts/workflow/platform-loop-sync.sh
   - scripts/workflow/platform-loop.js
   - scripts/workflow/run-platform-claude-session.sh
+  - scripts/workflow/start-nightly-improvement.sh
   - scripts/workflow/start-platform-loop.sh
   - scripts/workflow/trigger-platform-pickup-now.sh
-  - src/github-project-sync.test.ts
+  - scripts/workflow/work-control-plane.js
+  - scripts/workflow/work-sweep.sh
+  - src/nightly-improvement.test.ts
   - src/platform-loop-sync.test.ts
   - src/platform-loop.test.ts
-- Tests (3):
-  - src/github-project-sync.test.ts
+  - src/start-nightly-improvement.test.ts
+- Tests (4):
+  - src/nightly-improvement.test.ts
   - src/platform-loop-sync.test.ts
   - src/platform-loop.test.ts
+  - src/start-nightly-improvement.test.ts
 - Shared Files:
   - .claude/catalog/feature-catalog.seed.json
   - .claude/commands/platform-pickup.md
   - AGENTS.md
   - CLAUDE.md
   - DOCS.md
-  - docs/archives/github-multi-agent-collaboration-loop.md
   - docs/operations/workflow-setup-responsibility-map.md
   - docs/README.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
-  - docs/workflow/github/github-delivery-governance.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
+  - docs/workflow/github/github-delivery-governance.md
+  - docs/workflow/strategy/nightly-evaluation-loop.md
   - launchd/com.nanoclaw-platform-loop.plist
   - scripts/workflow/check-platform-loop.sh
   - scripts/workflow/platform-loop-sync.sh
@@ -689,7 +694,7 @@ Project: nanoclaw
   - scripts/workflow/trigger-platform-pickup-now.sh
 - Suggested Verify:
   - npm run typecheck
-  - npx vitest run src/github-project-sync.test.ts src/platform-loop-sync.test.ts src/platform-loop.test.ts
+  - npx vitest run src/nightly-improvement.test.ts src/platform-loop-sync.test.ts src/platform-loop.test.ts src/start-nightly-improvement.test.ts
 
 ### autonomous-lane-control-plane - Autonomous Lane Control Plane
 - Risk: high
@@ -704,8 +709,8 @@ Project: nanoclaw
   - .github/labels.json
   - docs/operations/workflow-setup-responsibility-map.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
-  - docs/workflow/github/github-delivery-governance.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
+  - docs/workflow/github/github-delivery-governance.md
   - docs/workflow/strategy/nightly-evaluation-loop.md
   - launchd/com.nanoclaw-morning-codex-prep.plist
   - launchd/com.nanoclaw-platform-loop.plist
@@ -736,8 +741,9 @@ Project: nanoclaw
   - .claude/commands/platform-pickup.md
   - docs/operations/workflow-setup-responsibility-map.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
-  - docs/workflow/github/github-delivery-governance.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
+  - docs/workflow/github/github-delivery-governance.md
+  - docs/workflow/strategy/nightly-evaluation-loop.md
   - launchd/com.nanoclaw-platform-loop.plist
   - scripts/workflow/check-platform-loop.sh
   - scripts/workflow/platform-loop-sync.sh

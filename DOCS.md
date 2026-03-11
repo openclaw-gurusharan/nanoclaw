@@ -25,6 +25,11 @@ Canonical classification for repository docs.
 
 Workflow docs are physically grouped by operational concern.
 
+### `docs/workflow/control-plane/`
+
+- `docs/workflow/control-plane/collaboration-surface-contract.md`: canonical Linear/Notion/GitHub/repo separation-of-concern contract
+- `docs/workflow/control-plane/session-work-sweep.md`: session-start Linear sweep protocol and morning handoff contract
+
 ### `docs/workflow/delivery/`
 
 - `docs/workflow/delivery/nanoclaw-development-loop.md`: default feature/bug/reliability delivery loop
@@ -32,6 +37,7 @@ Workflow docs are physically grouped by operational concern.
 - `docs/workflow/delivery/nanoclaw-jarvis-acceptance-checklist.md`: acceptance and smoke validation gates
 - `docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md`: user-facing reliability sign-off protocol
 - `docs/workflow/delivery/claude-cli-resume-consult-lane.md`: scoped Claude CLI consult lane guidance
+- `docs/workflow/delivery/platform-claude-pickup-lane.md`: Linear-driven NanoClaw platform pickup automation lane
 
 ### `docs/workflow/runtime/`
 
@@ -44,10 +50,8 @@ Workflow docs are physically grouped by operational concern.
 
 ### `docs/workflow/github/`
 
-- `docs/workflow/github/github-delivery-governance.md`: GitHub delivery governance rules
+- `docs/workflow/github/github-delivery-governance.md`: GitHub-only delivery governance for PRs, reviews, CI, and branch protection
 - `docs/workflow/github/github-offload-boundary-loop.md`: GitHub-vs-local workflow placement policy
-- `docs/workflow/control-plane/collaboration-surface-contract.md`: current collaboration-surface contract across Linear, Notion, GitHub, and repo artifacts
-- `docs/workflow/control-plane/session-work-sweep.md`: session-start work sweep protocol, agent-category affinity, and handoff comment format
 
 ### `docs/workflow/docs-discipline/`
 
@@ -90,13 +94,6 @@ Workflow docs are physically grouped by operational concern.
 
 - `docs/troubleshooting/DEBUG_CHECKLIST.md`: debug flow for runtime/container/session failures
 - `docs/troubleshooting/APPLE-CONTAINER-NETWORKING.md`: Apple container networking/build diagnostics
-
-## `docs/archives/`
-
-- `docs/archives/CHANGELOG-2026-02-26.md`: historical changelog snapshot prior to current changelog flow
-- `docs/archives/debug-known-issues-2026-02.md`: archived fixed-issue notes removed from the active debug checklist
-- `docs/archives/pre-linear-github-first-collaboration-loop.md`: archived pre-migration GitHub-first collaboration model retained for migration/reference
-- `docs/archives/worker-dispatch-root-cause-2026-02-24.md`: root-cause analysis archive for worker dispatch incident
 
 ## `docs/research/`
 

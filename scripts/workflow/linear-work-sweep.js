@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { resolveWorkControlPlane } from './work-control-plane.js';
 
 const LINEAR_API_URL = process.env.LINEAR_API_URL || 'https://api.linear.app/graphql';
@@ -10,6 +12,12 @@ const PROJECT_NAME =
 const PROJECT_ID =
   process.env.NANOCLAW_LINEAR_PROJECT_ID || process.env.LINEAR_PROJECT_ID || '';
 const FAIL_EXIT_CODE = 3;
+const NIGHTLY_STATE_PATH = path.join(
+  process.cwd(),
+  '.nanoclaw',
+  'nightly-improvement',
+  'state.json',
+);
 
 function parseArgs(argv) {
   const options = new Map();
@@ -168,6 +176,26 @@ function formatIssueLine(issue) {
   return `  ${issue.identifier}  [${issue.state || '?'}]  ${issue.title}`;
 }
 
+function loadNightlyContextRefs() {
+  if (!fs.existsSync(NIGHTLY_STATE_PATH)) {
+    return [];
+  }
+
+  try {
+    const state = JSON.parse(fs.readFileSync(NIGHTLY_STATE_PATH, 'utf8'));
+    return Object.values(state.context_refs || {}).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function formatNightlyLine(context) {
+  const title = context.title || context.kind || 'Nightly context';
+  const summary = context.lastDecisionSummary ? `  |  ${context.lastDecisionSummary}` : '';
+  const url = context.url ? `  |  ${context.url}` : '';
+  return `  ${title}${summary}${url}`;
+}
+
 async function main() {
   if (resolveWorkControlPlane() !== 'linear') {
     throw new Error('linear-work-sweep invoked while work control plane is not linear.');
@@ -193,6 +221,9 @@ async function main() {
     (issue) => issue.labels.includes(agentLabel) && issue.state.toLowerCase() === 'triage',
   );
   const blockedItems = issues.filter((issue) => issue.state.toLowerCase() === 'blocked');
+  const nightlyContexts = loadNightlyContextRefs().filter(
+    (context) => String(context.pendingFor || '').toLowerCase() === agent,
+  );
 
   console.log('');
   console.log(`=== Linear Work Sweep (${agent}) ===`);
@@ -216,6 +247,10 @@ async function main() {
 
   console.log('── BLOCKED ITEMS ──');
   console.log(formatSection(blockedItems, formatIssueLine));
+  console.log('');
+
+  console.log('── NIGHTLY CONTEXT HANDOFFS ──');
+  console.log(formatSection(nightlyContexts, formatNightlyLine));
   console.log('');
 
   console.log('=== End Sweep ===');

@@ -32,7 +32,7 @@ It does not own the overnight research lane; that belongs to `docs/workflow/stra
 - `node scripts/workflow/platform-loop.js ids --issue NCL-1 --title "example"`
 - `bash scripts/workflow/platform-loop-sync.sh --dry-run`
 - `bash scripts/workflow/start-platform-loop.sh --dry-run`
-- `npm test -- src/platform-loop.test.ts src/platform-loop-sync.test.ts src/github-project-sync.test.ts`
+- `npm test -- src/platform-loop.test.ts src/platform-loop-sync.test.ts`
 - `bash scripts/check-workflow-contracts.sh`
 
 ## Related Docs
@@ -40,7 +40,7 @@ It does not own the overnight research lane; that belongs to `docs/workflow/stra
 - `docs/workflow/strategy/nightly-evaluation-loop.md`
 - `docs/workflow/control-plane/collaboration-surface-contract.md`
 - `docs/workflow/github/github-delivery-governance.md`
-- `groups/andy-developer/docs/github-workflow-admin.md`
+- `groups/andy-developer/docs/workflow-control-admin.md`
 
 ## Precedence
 
@@ -51,7 +51,7 @@ It does not own the overnight research lane; that belongs to `docs/workflow/stra
 ## Candidate Formation
 
 1. Start in `SDK / Tooling Opportunities`.
-2. Require Claude and Codex decision comments: `accept`, `pilot`, `defer`, or `reject`.
+2. Require Claude and Codex decision updates: `accept`, `pilot`, `defer`, or `reject`.
 3. Promote to one platform work item only when the decision is concrete enough to commit work.
 4. Promotion alone does not make the work item `Ready`.
 5. Before the item can enter `Ready`, Codex must write or normalize the execution contract on the work item:

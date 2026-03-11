@@ -60,7 +60,7 @@ while IFS= read -r ref; do
     *YYYY-MM-DD*|*CHANGELOG-YYYY-*)
       continue
       ;;
-    docs/github-workflow-admin.md|docs/github.md|docs/jarvis-dispatch.md|docs/review-handoff.md|docs/workflow/execution-loop.md|docs/workflow/worker-skill-policy.md|docs/workflow/git-pr-workflow.md|docs/workflow/github-account-isolation.md)
+    docs/workflow-control-admin.md|docs/github.md|docs/jarvis-dispatch.md|docs/review-handoff.md|docs/workflow/execution-loop.md|docs/workflow/worker-skill-policy.md|docs/workflow/git-pr-workflow.md|docs/workflow/github-account-isolation.md)
       # Runtime-lane docs referenced from groups/* paths; not root docs.
       continue
       ;;

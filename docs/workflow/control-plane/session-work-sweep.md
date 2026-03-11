@@ -58,15 +58,15 @@ Missing Linear configuration is a startup error. There is no GitHub Project fall
 | My Issues | Linear issues labeled for the active agent | Resume owned work |
 | Needs My Review | Linear issues in `Review` with a matching review label | Unblock the other agent |
 | Triage Queue | Linear issues in `Triage` routed to the active agent | Clear intake before new execution |
-| Nightly Improvement Findings | Pending shared-context research items awaiting Codex triage | Turn overnight research into selective morning action |
+| Nightly Context Handoffs | Pending shared-context research items awaiting Codex triage | Turn overnight research into selective morning action |
 | Handoffs from other agent | Control-plane comments with `<!-- agent-handoff -->` marker | Async message-passing |
 | Blocked items | Any blocked work item in the active control plane | Surface dependencies |
 
 The session-start wrapper runs local recall first, then this sweep, then workflow preflight checks.
 
-## Agent-Category Affinity
+## Agent-Topic Affinity
 
-Each agent owns first response for a subset of Discussion categories.
+Each agent owns first response for a subset of shared-context topics.
 
 | Category | First Responder | Rationale |
 |----------|----------------|-----------|
@@ -80,7 +80,7 @@ First responder does not mean sole owner. After initial response, either agent m
 
 ## Handoff Comment Format
 
-When leaving work for the other agent on an Issue or Discussion, post a comment in this format:
+When leaving work for the other agent on an issue or linked delivery thread, post a comment in this format:
 
 ```
 <!-- agent-handoff -->
@@ -100,8 +100,7 @@ The sweep reads `<!-- agent-handoff -->` markers in recent Issue comments and su
 | My Issues (Backlog/Ready) | Confirm still relevant; set In Progress if starting work |
 | My Issues (Blocked) | Unblock or comment with blocker reason |
 | Needs My Review | Complete review or leave handoff comment with timeline |
-| Stale Discussions | Post response or declare output (accepted/deferred/rejected/reference-only) |
-| Nightly Improvement Findings | Codex reviews, comments a decision, and promotes only if the next action is concrete |
+| Nightly Context Handoffs | Codex reviews, records a decision update, and promotes only if the next action is concrete |
 | Handoffs from other agent | Acknowledge and act or comment with status |
 | Blocked items | Assess if you can unblock; if not, leave comment |
 
@@ -112,7 +111,7 @@ This same flow applies when session start stops with `ACTION REQUIRED` because o
 
 Required review flow:
 
-1. Open the Project item and inspect its `linked pull requests` field first.
+1. Open the Linear issue and inspect its linked PR or GitHub PR reference first.
 2. If a linked PR exists, open that PR immediately and perform the review there.
 3. Use repo-qualified GitHub commands for lookups and review actions in this repository, for example:
    - `gh pr view -R ingpoc/nanoclaw <number>`

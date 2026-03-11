@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "nanoclaw",
   "maintainer": "andy-developer",
-  "generated_at": "2026-03-11T07:38:17.026Z",
+  "generated_at": "2026-03-11T08:37:09.967Z",
   "source_seed": ".claude/catalog/feature-catalog.seed.json",
   "stats": {
     "feature_count": 29,
@@ -184,7 +184,7 @@
       "docs-topology-cleanup",
       "session-recall-tooling",
       "feature-tracking-pipeline",
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
     "scripts/jarvis-ops.sh": [
@@ -197,17 +197,17 @@
     "AGENTS.md": [
       "architecture-boundary-governance",
       "docs-topology-cleanup",
-      "github-collaboration-control-plane"
+      "workflow-collaboration-surfaces"
     ],
     "CLAUDE.md": [
       "architecture-boundary-governance",
       "docs-topology-cleanup",
-      "github-collaboration-control-plane"
+      "workflow-collaboration-surfaces"
     ],
     "DOCS.md": [
       "architecture-boundary-governance",
       "docs-topology-cleanup",
-      "github-collaboration-control-plane"
+      "workflow-collaboration-surfaces"
     ],
     "docs/ARCHITECTURE.md": [
       "architecture-boundary-governance"
@@ -215,7 +215,7 @@
     "docs/README.md": [
       "architecture-boundary-governance",
       "docs-topology-cleanup",
-      "github-collaboration-control-plane"
+      "workflow-collaboration-surfaces"
     ],
     "scripts/check-architecture-boundary.sh": [
       "architecture-boundary-governance"
@@ -233,9 +233,8 @@
     "docs/archives/debug-known-issues-2026-02.md": [
       "docs-topology-cleanup"
     ],
-    "docs/archives/github-multi-agent-collaboration-loop.md": [
-      "docs-topology-cleanup",
-      "github-collaboration-control-plane"
+    "docs/archives/pre-linear-github-first-collaboration-loop.md": [
+      "docs-topology-cleanup"
     ],
     "docs/archives/worker-dispatch-root-cause-2026-02-24.md": [
       "docs-topology-cleanup"
@@ -254,11 +253,16 @@
     ],
     "docs/operations/workflow-setup-responsibility-map.md": [
       "docs-topology-cleanup",
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
     "docs/troubleshooting/DEBUG_CHECKLIST.md": [
       "docs-topology-cleanup"
+    ],
+    "docs/workflow/control-plane/collaboration-surface-contract.md": [
+      "docs-topology-cleanup",
+      "workflow-collaboration-surfaces",
+      "autonomous-lane-control-plane"
     ],
     "docs/workflow/delivery/claude-cli-resume-consult-lane.md": [
       "docs-topology-cleanup"
@@ -291,18 +295,13 @@
     "docs/workflow/docs-discipline/skill-routing-preflight.md": [
       "docs-topology-cleanup"
     ],
-    "docs/workflow/github/github-agent-collaboration-loop.md": [
+    "docs/workflow/github/github-delivery-governance.md": [
       "docs-topology-cleanup",
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
     "docs/workflow/github/github-offload-boundary-loop.md": [
       "docs-topology-cleanup"
-    ],
-    "docs/workflow/github/nanoclaw-github-control-plane.md": [
-      "docs-topology-cleanup",
-      "github-collaboration-control-plane",
-      "autonomous-lane-control-plane"
     ],
     "docs/workflow/runtime/jarvis-dispatch-contract-discipline.md": [
       "docs-topology-cleanup"
@@ -548,71 +547,90 @@
     ".claude/skills/nanoclaw-testing/SKILL.md": [
       "project-skill-delivery-pipeline"
     ],
+    ".claude/agents/nightly-improvement-researcher.md": [
+      "workflow-collaboration-surfaces"
+    ],
+    ".claude/commands/nightly-improvement-eval.md": [
+      "workflow-collaboration-surfaces"
+    ],
     ".claude/commands/platform-pickup.md": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
-    ],
-    ".github/DISCUSSION_TEMPLATE/general.yml": [
-      "github-collaboration-control-plane"
-    ],
-    ".github/DISCUSSION_TEMPLATE/ideas.yml": [
-      "github-collaboration-control-plane"
-    ],
-    ".github/DISCUSSION_TEMPLATE/q-a.yml": [
-      "github-collaboration-control-plane"
     ],
     ".github/ISSUE_TEMPLATE/config.yml": [
-      "github-collaboration-control-plane"
+      "workflow-collaboration-surfaces"
     ],
-    ".github/workflows/project-intake-sync.yml": [
-      "github-collaboration-control-plane"
+    "docs/workflow/control-plane/session-work-sweep.md": [
+      "workflow-collaboration-surfaces"
     ],
-    ".github/workflows/project-status-sync.yml": [
-      "github-collaboration-control-plane"
-    ],
-    "docs/workflow/github/nanoclaw-platform-loop.md": [
-      "github-collaboration-control-plane",
+    "docs/workflow/delivery/platform-claude-pickup-lane.md": [
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
+    "docs/workflow/strategy/nightly-evaluation-loop.md": [
+      "workflow-collaboration-surfaces",
+      "autonomous-lane-control-plane"
+    ],
+    "groups/andy-developer/docs/workflow-control-admin.md": [
+      "workflow-collaboration-surfaces"
+    ],
+    "launchd/com.nanoclaw-nightly-improvement.plist": [
+      "workflow-collaboration-surfaces"
+    ],
     "launchd/com.nanoclaw-platform-loop.plist": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
     "scripts/workflow/check-platform-loop.sh": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
-    "scripts/workflow/github-project-sync.js": [
-      "github-collaboration-control-plane"
+    "scripts/workflow/linear-work-sweep.js": [
+      "workflow-collaboration-surfaces"
+    ],
+    "scripts/workflow/nightly-improvement.js": [
+      "workflow-collaboration-surfaces"
     ],
     "scripts/workflow/platform-loop-sync.sh": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
     "scripts/workflow/platform-loop.js": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
     "scripts/workflow/run-platform-claude-session.sh": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
+    "scripts/workflow/start-nightly-improvement.sh": [
+      "workflow-collaboration-surfaces"
+    ],
     "scripts/workflow/start-platform-loop.sh": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
     "scripts/workflow/trigger-platform-pickup-now.sh": [
-      "github-collaboration-control-plane",
+      "workflow-collaboration-surfaces",
       "autonomous-lane-control-plane"
     ],
-    "src/github-project-sync.test.ts": [
-      "github-collaboration-control-plane"
+    "scripts/workflow/work-control-plane.js": [
+      "workflow-collaboration-surfaces"
+    ],
+    "scripts/workflow/work-sweep.sh": [
+      "workflow-collaboration-surfaces"
+    ],
+    "src/nightly-improvement.test.ts": [
+      "workflow-collaboration-surfaces"
     ],
     "src/platform-loop-sync.test.ts": [
-      "github-collaboration-control-plane"
+      "workflow-collaboration-surfaces"
     ],
     "src/platform-loop.test.ts": [
-      "github-collaboration-control-plane"
+      "workflow-collaboration-surfaces"
+    ],
+    "src/start-nightly-improvement.test.ts": [
+      "workflow-collaboration-surfaces"
     ],
     ".codex/agents/morning-prep.toml": [
       "autonomous-lane-control-plane"
@@ -624,9 +642,6 @@
       "autonomous-lane-control-plane"
     ],
     ".github/labels.json": [
-      "autonomous-lane-control-plane"
-    ],
-    "docs/workflow/strategy/nightly-evaluation-loop.md": [
       "autonomous-lane-control-plane"
     ],
     "launchd/com.nanoclaw-morning-codex-prep.plist": [
@@ -717,7 +732,7 @@
         "npm run typecheck",
         "npx vitest run src/group-folder.test.ts src/group-queue.test.ts src/routing.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "whatsapp-channel",
@@ -750,7 +765,7 @@
         "npm run typecheck",
         "npx vitest run src/channels/whatsapp.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "ipc-dispatch-contract",
@@ -786,7 +801,7 @@
         "npm run typecheck",
         "npx vitest run src/extensions/jarvis/frontdesk-service.test.ts src/ipc-auth.test.ts src/jarvis-worker-dispatch.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "container-runtime",
@@ -821,7 +836,7 @@
         "npm run typecheck",
         "npx vitest run src/container-runner.test.ts src/container-runtime.test.ts src/worker-run-supervisor.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "runtime-ownership-isolation",
@@ -870,7 +885,7 @@
         "npm run typecheck",
         "npx vitest run src/channels/whatsapp.test.ts src/db.test.ts src/runtime-ownership.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "task-scheduling",
@@ -898,7 +913,7 @@
         "npm run typecheck",
         "npx vitest run src/task-scheduler.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "database-state",
@@ -927,7 +942,7 @@
         "npm run typecheck",
         "npx vitest run src/db.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "config-env",
@@ -952,7 +967,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "routing-formatting",
@@ -982,7 +997,7 @@
         "npm run typecheck",
         "npx vitest run src/formatting.test.ts src/routing.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "jarvis-worker-lifecycle",
@@ -1020,7 +1035,7 @@
         "npm run typecheck",
         "npx vitest run src/jarvis-worker-dispatch.test.ts src/worker-run-supervisor.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "forked-worker-runtime-restore",
@@ -1072,7 +1087,7 @@
         "npm run typecheck",
         "npx vitest run src/ipc-auth.test.ts src/jarvis-worker-dispatch.test.ts src/worker-run-supervisor.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "jarvis-extension-boundary",
@@ -1127,7 +1142,7 @@
         "npm run typecheck",
         "npx vitest run src/extensions/jarvis/lane-control-service.test.ts src/group-queue.test.ts src/ipc-auth.test.ts src/jarvis-worker-dispatch.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "andy-review-ownership",
@@ -1176,7 +1191,7 @@
         "npm run typecheck",
         "npx vitest run src/db.test.ts src/extensions/jarvis/frontdesk-service.test.ts src/jarvis-worker-dispatch.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "andy-request-admin-cleanup",
@@ -1209,7 +1224,7 @@
         "npm run typecheck",
         "npx vitest run src/jarvis-reconcile-stale-andy-requests.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "architecture-boundary-governance",
@@ -1248,7 +1263,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "docs-topology-cleanup",
@@ -1272,7 +1287,7 @@
         "DOCS.md",
         "docs/architecture/mission-runtime-profiles.md",
         "docs/archives/debug-known-issues-2026-02.md",
-        "docs/archives/github-multi-agent-collaboration-loop.md",
+        "docs/archives/pre-linear-github-first-collaboration-loop.md",
         "docs/archives/worker-dispatch-root-cause-2026-02-24.md",
         "docs/operations/skills-vs-docs-map.md",
         "docs/operations/subagent-routing.md",
@@ -1281,6 +1296,7 @@
         "docs/operations/workflow-setup-responsibility-map.md",
         "docs/README.md",
         "docs/troubleshooting/DEBUG_CHECKLIST.md",
+        "docs/workflow/control-plane/collaboration-surface-contract.md",
         "docs/workflow/delivery/claude-cli-resume-consult-lane.md",
         "docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md",
         "docs/workflow/delivery/nanoclaw-development-loop.md",
@@ -1291,9 +1307,8 @@
         "docs/workflow/docs-discipline/docs-pruning-loop.md",
         "docs/workflow/docs-discipline/nanoclaw-root-claude-compression.md",
         "docs/workflow/docs-discipline/skill-routing-preflight.md",
-        "docs/workflow/github/github-agent-collaboration-loop.md",
+        "docs/workflow/github/github-delivery-governance.md",
         "docs/workflow/github/github-offload-boundary-loop.md",
-        "docs/workflow/github/nanoclaw-github-control-plane.md",
         "docs/workflow/runtime/jarvis-dispatch-contract-discipline.md",
         "docs/workflow/runtime/nanoclaw-container-debugging.md",
         "docs/workflow/runtime/nanoclaw-jarvis-debug-loop.md",
@@ -1326,12 +1341,11 @@
         "AGENTS.md",
         "CLAUDE.md",
         "DOCS.md",
-        "docs/archives/github-multi-agent-collaboration-loop.md",
         "docs/operations/workflow-setup-responsibility-map.md",
         "docs/README.md",
+        "docs/workflow/control-plane/collaboration-surface-contract.md",
         "docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md",
-        "docs/workflow/github/github-agent-collaboration-loop.md",
-        "docs/workflow/github/nanoclaw-github-control-plane.md",
+        "docs/workflow/github/github-delivery-governance.md",
         "docs/workflow/runtime/nanoclaw-container-debugging.md",
         "docs/workflow/runtime/nanoclaw-jarvis-debug-loop.md",
         "docs/workflow/runtime/nanoclaw-jarvis-dispatch-contract.md",
@@ -1341,7 +1355,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "session-recall-tooling",
@@ -1375,7 +1389,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "reliability-e2e",
@@ -1402,7 +1416,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "observability-logging",
@@ -1431,7 +1445,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "ops-reliability-tooling",
@@ -1478,7 +1492,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "skills-engine-lifecycle",
@@ -1523,7 +1537,7 @@
         "npm run typecheck",
         "npx vitest run skills-engine/__tests__/apply.test.ts skills-engine/__tests__/rebase.test.ts skills-engine/__tests__/uninstall.test.ts skills-engine/__tests__/update.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "agent-runner-mcp",
@@ -1550,7 +1564,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "worker-runtime-lane",
@@ -1579,7 +1593,7 @@
         "npm run typecheck",
         "npx vitest run container/worker/runner/src/lib.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "core-skill-workflows",
@@ -1611,7 +1625,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "feature-tracking-pipeline",
@@ -1644,7 +1658,7 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "project-skill-delivery-pipeline",
@@ -1680,55 +1694,61 @@
       "suggested_verify_commands": [
         "npm run typecheck"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
-      "id": "github-collaboration-control-plane",
-      "name": "GitHub Collaboration Control Plane",
-      "summary": "Issue-first Project board automation, discussion scaffolding, and governance docs for Claude/Codex collaboration.",
+      "id": "workflow-collaboration-surfaces",
+      "name": "Workflow Collaboration Surfaces",
+      "summary": "Linear execution control, Notion shared context, and GitHub delivery governance for Claude/Codex collaboration.",
       "risk": "high",
       "keywords": [
-        "github project",
-        "discussions",
+        "linear",
+        "notion",
         "control plane",
         "collaboration",
         "workflow",
-        "project sync"
+        "delivery governance"
       ],
       "files": [
+        ".claude/agents/nightly-improvement-researcher.md",
         ".claude/catalog/feature-catalog.seed.json",
+        ".claude/commands/nightly-improvement-eval.md",
         ".claude/commands/platform-pickup.md",
-        ".github/DISCUSSION_TEMPLATE/general.yml",
-        ".github/DISCUSSION_TEMPLATE/ideas.yml",
-        ".github/DISCUSSION_TEMPLATE/q-a.yml",
         ".github/ISSUE_TEMPLATE/config.yml",
-        ".github/workflows/project-intake-sync.yml",
-        ".github/workflows/project-status-sync.yml",
         "AGENTS.md",
         "CLAUDE.md",
         "DOCS.md",
-        "docs/archives/github-multi-agent-collaboration-loop.md",
         "docs/operations/workflow-setup-responsibility-map.md",
         "docs/README.md",
-        "docs/workflow/github/github-agent-collaboration-loop.md",
-        "docs/workflow/github/nanoclaw-github-control-plane.md",
-        "docs/workflow/github/nanoclaw-platform-loop.md",
+        "docs/workflow/control-plane/collaboration-surface-contract.md",
+        "docs/workflow/control-plane/session-work-sweep.md",
+        "docs/workflow/delivery/platform-claude-pickup-lane.md",
+        "docs/workflow/github/github-delivery-governance.md",
+        "docs/workflow/strategy/nightly-evaluation-loop.md",
+        "groups/andy-developer/docs/workflow-control-admin.md",
+        "launchd/com.nanoclaw-nightly-improvement.plist",
         "launchd/com.nanoclaw-platform-loop.plist",
         "scripts/workflow/check-platform-loop.sh",
-        "scripts/workflow/github-project-sync.js",
+        "scripts/workflow/linear-work-sweep.js",
+        "scripts/workflow/nightly-improvement.js",
         "scripts/workflow/platform-loop-sync.sh",
         "scripts/workflow/platform-loop.js",
         "scripts/workflow/run-platform-claude-session.sh",
+        "scripts/workflow/start-nightly-improvement.sh",
         "scripts/workflow/start-platform-loop.sh",
         "scripts/workflow/trigger-platform-pickup-now.sh",
-        "src/github-project-sync.test.ts",
+        "scripts/workflow/work-control-plane.js",
+        "scripts/workflow/work-sweep.sh",
+        "src/nightly-improvement.test.ts",
         "src/platform-loop-sync.test.ts",
-        "src/platform-loop.test.ts"
+        "src/platform-loop.test.ts",
+        "src/start-nightly-improvement.test.ts"
       ],
       "tests": [
-        "src/github-project-sync.test.ts",
+        "src/nightly-improvement.test.ts",
         "src/platform-loop-sync.test.ts",
-        "src/platform-loop.test.ts"
+        "src/platform-loop.test.ts",
+        "src/start-nightly-improvement.test.ts"
       ],
       "missing_files": [],
       "missing_tests": [],
@@ -1738,12 +1758,12 @@
         "AGENTS.md",
         "CLAUDE.md",
         "DOCS.md",
-        "docs/archives/github-multi-agent-collaboration-loop.md",
         "docs/operations/workflow-setup-responsibility-map.md",
         "docs/README.md",
-        "docs/workflow/github/github-agent-collaboration-loop.md",
-        "docs/workflow/github/nanoclaw-github-control-plane.md",
-        "docs/workflow/github/nanoclaw-platform-loop.md",
+        "docs/workflow/control-plane/collaboration-surface-contract.md",
+        "docs/workflow/delivery/platform-claude-pickup-lane.md",
+        "docs/workflow/github/github-delivery-governance.md",
+        "docs/workflow/strategy/nightly-evaluation-loop.md",
         "launchd/com.nanoclaw-platform-loop.plist",
         "scripts/workflow/check-platform-loop.sh",
         "scripts/workflow/platform-loop-sync.sh",
@@ -1754,9 +1774,9 @@
       ],
       "suggested_verify_commands": [
         "npm run typecheck",
-        "npx vitest run src/github-project-sync.test.ts src/platform-loop-sync.test.ts src/platform-loop.test.ts"
+        "npx vitest run src/nightly-improvement.test.ts src/platform-loop-sync.test.ts src/platform-loop.test.ts src/start-nightly-improvement.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "autonomous-lane-control-plane",
@@ -1779,9 +1799,9 @@
         ".codex/config.toml",
         ".github/labels.json",
         "docs/operations/workflow-setup-responsibility-map.md",
-        "docs/workflow/github/github-agent-collaboration-loop.md",
-        "docs/workflow/github/nanoclaw-github-control-plane.md",
-        "docs/workflow/github/nanoclaw-platform-loop.md",
+        "docs/workflow/control-plane/collaboration-surface-contract.md",
+        "docs/workflow/delivery/platform-claude-pickup-lane.md",
+        "docs/workflow/github/github-delivery-governance.md",
         "docs/workflow/strategy/nightly-evaluation-loop.md",
         "launchd/com.nanoclaw-morning-codex-prep.plist",
         "launchd/com.nanoclaw-platform-loop.plist",
@@ -1815,9 +1835,10 @@
         ".claude/catalog/feature-catalog.seed.json",
         ".claude/commands/platform-pickup.md",
         "docs/operations/workflow-setup-responsibility-map.md",
-        "docs/workflow/github/github-agent-collaboration-loop.md",
-        "docs/workflow/github/nanoclaw-github-control-plane.md",
-        "docs/workflow/github/nanoclaw-platform-loop.md",
+        "docs/workflow/control-plane/collaboration-surface-contract.md",
+        "docs/workflow/delivery/platform-claude-pickup-lane.md",
+        "docs/workflow/github/github-delivery-governance.md",
+        "docs/workflow/strategy/nightly-evaluation-loop.md",
         "launchd/com.nanoclaw-platform-loop.plist",
         "scripts/workflow/check-platform-loop.sh",
         "scripts/workflow/platform-loop-sync.sh",
@@ -1830,7 +1851,7 @@
         "npm run typecheck",
         "npx vitest run src/platform-loop-sync.test.ts src/platform-loop.test.ts src/run-platform-claude-session.test.ts src/start-autonomy-reliability.test.ts src/start-nightly-improvement.test.ts src/start-platform-loop.test.ts src/start-pr-guardian.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     },
     {
       "id": "channel-extension-skills",
@@ -1871,7 +1892,7 @@
         "npm run typecheck",
         "npx vitest run .claude/skills/add-discord/tests/discord.test.ts .claude/skills/add-gmail/tests/gmail.test.ts .claude/skills/add-slack/tests/slack.test.ts .claude/skills/add-telegram/tests/telegram.test.ts .claude/skills/add-voice-transcription/tests/voice-transcription.test.ts"
       ],
-      "generated_at": "2026-03-11T07:38:17.026Z"
+      "generated_at": "2026-03-11T08:37:09.967Z"
     }
   ]
 }

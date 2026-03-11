@@ -97,10 +97,10 @@ Use instead:
   - `launchd/com.nanoclaw-nightly-improvement.plist`
 - The launcher runs `claude -p --agent nightly-improvement-researcher --model sonnet`.
 - The nightly lane is research-only:
-  - it may create or update Discussions
+  - it may create or update Notion shared-context pages
   - it may record runtime-local cursor state
-  - it must not create execution Issues directly
-  - it must not move Project state
+  - it must not create execution issues directly
+  - it must not move Linear state
   - it must not open PRs
 - The nightly lane must skip already evaluated upstream heads and tool versions unless explicitly forced.
 - Codex remains the morning triage lane for selective promotion from nightly findings into execution work.
@@ -116,7 +116,7 @@ Use instead:
 - The launcher runs `codex exec -p morning_prep` in non-interactive mode with structured output.
 - The morning lane must:
   - run `bash scripts/workflow/session-start.sh --agent codex --no-background-sync`
-  - resolve only GitHub collaboration items surfaced by that session-start sweep
+  - resolve only surfaced collaboration items from that session-start sweep
   - decide `promote`, `ready`, `defer`, or `reject` for nightly findings and roadmap candidates
   - move an issue to `Ready` only when the execution contract is complete
   - stop after writing its structured summary
