@@ -218,8 +218,14 @@ export function deriveRepoIdentity(input: ProjectBootstrapInput): RepoIdentity {
 function workspaceBase(projectKey: string): string {
   const configuredBase =
     process.env.NANOCLAW_SYMPHONY_WORKSPACE_BASE ||
-    process.env.SYMPHONY_WORKSPACE_ROOT ||
-    path.join(os.homedir(), 'code', 'symphony-workspaces', 'nanoclaw');
+    process.env.SYMPHONY_WORKSPACE_ROOT;
+  if (!configuredBase) {
+    throw new Error(
+      'NANOCLAW_SYMPHONY_WORKSPACE_BASE is not set. ' +
+        'Add it to .env (e.g. NANOCLAW_SYMPHONY_WORKSPACE_BASE=~/Documents/remote-claude/SymphonyWorkspace). ' +
+        'Start via `npm run start` or `npm run dev` to ensure .env is loaded.',
+    );
+  }
   const expanded = path.resolve(expandHome(configuredBase));
   const base =
     path.basename(expanded) === 'nanoclaw'

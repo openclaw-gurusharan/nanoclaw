@@ -6,8 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "NANOCLAW_RUNTIME_OWNER_MODE=manual node dist/index.js",
-    "dev": "NANOCLAW_RUNTIME_OWNER_MODE=manual tsx src/index.ts",
+    "start": "bash scripts/workflow/run-with-env.sh env NANOCLAW_RUNTIME_OWNER_MODE=manual node dist/index.js",
+    "dev": "bash scripts/workflow/run-with-env.sh env NANOCLAW_RUNTIME_OWNER_MODE=manual tsx src/index.ts",
     "symphony:setup": "bash scripts/workflow/run-with-env.sh npx tsx scripts/workflow/symphony.ts validate-registry",
     "symphony:run": "bash scripts/workflow/run-with-env.sh npx tsx scripts/workflow/symphony.ts show-projects",
     "symphony:sync-registry": "bash scripts/workflow/run-with-env.sh npx tsx scripts/workflow/symphony.ts sync-registry",
