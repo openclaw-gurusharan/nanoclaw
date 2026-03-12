@@ -23,7 +23,7 @@ function htmlEscape(value: string): string {
 
 function formatTimestamp(value?: string): string {
   if (!value) {
-    return 'Not recorded';
+    return '—';
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -39,7 +39,7 @@ function formatRelativeDuration(startedAt: string, endedAt?: string): string {
   const start = new Date(startedAt).getTime();
   const end = endedAt ? new Date(endedAt).getTime() : Date.now();
   if (Number.isNaN(start) || Number.isNaN(end)) {
-    return 'Unknown duration';
+    return '—';
   }
   const totalSeconds = Math.max(0, Math.floor((end - start) / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -58,39 +58,27 @@ function pluralize(value: number, singular: string, plural = `${singular}s`): st
   return `${value} ${value === 1 ? singular : plural}`;
 }
 
-function statusTone(status: string): string {
+function statusClass(status: string): string {
   switch (status) {
     case 'running':
     case 'done':
     case 'enabled':
-      return 'good';
+      return 'status-good';
     case 'planned':
     case 'dispatching':
     case 'review':
-      return 'warm';
+      return 'status-warm';
     case 'blocked':
     case 'failed':
     case 'canceled':
-      return 'bad';
+      return 'status-bad';
     default:
-      return 'muted';
+      return 'status-muted';
   }
-}
-
-function renderBadge(label: string, tone = 'muted'): string {
-  return `<span class="badge badge-${htmlEscape(tone)}">${htmlEscape(label)}</span>`;
 }
 
 function renderLink(url: string, label: string): string {
   return `<a href="${htmlEscape(url)}" target="_blank" rel="noreferrer">${htmlEscape(label)}</a>`;
-}
-
-function renderMetricCard(label: string, value: string, note: string): string {
-  return `<article class="metric-card" data-metric-label="${htmlEscape(label)}">
-  <div class="metric-label">${htmlEscape(label)}</div>
-  <div class="metric-value">${htmlEscape(value)}</div>
-  <div class="metric-note">${htmlEscape(note)}</div>
-</article>`;
 }
 
 function readLogTail(filePath: string, maxChars = 3000): string {
@@ -128,9 +116,9 @@ function sendJson(res: ServerResponse, statusCode: number, payload: unknown): vo
 
 function pageLayout(input: {
   title: string;
-  kicker: string;
   heading: string;
   subheading: string;
+  daemonHealthy: boolean;
   body: string;
 }): string {
   return `<!doctype html>
@@ -142,616 +130,524 @@ function pageLayout(input: {
   <title>${htmlEscape(input.title)}</title>
   <style>
     :root {
-      --ink: #24201b;
-      --ink-soft: #655d54;
-      --paper: #f7f4ed;
-      --paper-strong: #fdfbf7;
-      --line: rgba(53, 45, 36, 0.1);
-      --line-strong: rgba(53, 45, 36, 0.16);
-      --accent: rgb(255, 97, 26);
-      --accent-soft: rgb(255, 150, 102);
-      --olive: #315d54;
-      --rose: #93443b;
-      --amber: #8f622f;
-      --shadow: 0 8px 24px rgba(89, 67, 38, 0.05);
-      --radius-pill: 999px;
-      --radius-card: 18px;
-      --radius-panel: 16px;
-      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --ink: #1a1714;
+      --ink-soft: #6b6157;
+      --paper: #faf8f3;
+      --line: rgba(26, 23, 20, 0.1);
+      --line-strong: rgba(26, 23, 20, 0.22);
+      --accent: #b84a1a;
+      --olive: #2a5444;
+      --rose: #8b3530;
+      --amber: #7a5520;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html { color-scheme: light; }
     body {
-      margin: 0;
       color: var(--ink);
-      background: linear-gradient(180deg, #fbfaf6 0%, var(--paper) 100%);
+      background: var(--paper);
       font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
-      line-height: 1.42;
+      line-height: 1.5;
       min-height: 100vh;
     }
-    a {
-      color: inherit;
-      text-decoration: none;
-      border-bottom: 1px solid rgba(255, 97, 26, 0.35);
-      transition: border-color 0.3s var(--ease), color 0.3s var(--ease);
-    }
-    a:hover {
-      color: var(--accent);
-      border-color: rgba(255, 97, 26, 0.95);
-    }
-    code, pre {
-      font-family: "SFMono-Regular", "Menlo", "Monaco", "Courier New", monospace;
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, .mono {
+      font-family: "SFMono-Regular", Menlo, Monaco, "Courier New", monospace;
+      font-size: 0.88em;
+      letter-spacing: -0.01em;
     }
     .shell {
-      width: min(1120px, calc(100vw - 28px));
-      margin: 16px auto 36px;
+      width: min(1080px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 28px 0 56px;
     }
-    .hero {
-      position: relative;
-      overflow: hidden;
-      padding: 20px 20px 18px;
-      border-radius: 22px;
-      border: 1px solid var(--line-strong);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(251, 248, 241, 0.96));
-      box-shadow: var(--shadow);
-    }
-    .hero::after {
-      display: none;
-    }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: var(--radius-pill);
-      background: rgba(255, 255, 255, 0.92);
-      border: 1px solid rgba(255, 97, 26, 0.14);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      font-size: 0.68rem;
-      color: var(--ink-soft);
-    }
-    .eyebrow::before {
-      content: "";
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 30% 30%, var(--accent-soft), var(--accent));
-      box-shadow: 0 0 0 3px rgba(255, 97, 26, 0.08);
-    }
-    .hero-top {
+
+    /* ── Header ── */
+    .page-header {
       display: flex;
       justify-content: space-between;
-      gap: 14px;
-      align-items: start;
-      flex-wrap: wrap;
-      position: relative;
-      z-index: 1;
-    }
-    .hero-copy {
-      max-width: 38rem;
-    }
-    .hero h1 {
-      margin: 10px 0 6px;
-      font-size: clamp(1.9rem, 4vw, 2.95rem);
-      line-height: 0.98;
-      font-weight: 600;
-      letter-spacing: -0.04em;
-    }
-    .hero p {
-      margin: 0;
-      max-width: 34rem;
-      font-size: 0.95rem;
-      color: var(--ink-soft);
-    }
-    .hero-nav {
-      display: flex;
-      gap: 8px;
+      align-items: baseline;
+      gap: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--ink);
       flex-wrap: wrap;
     }
-    .nav-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 8px 12px;
-      border-radius: var(--radius-pill);
-      background: rgba(255, 255, 255, 0.88);
-      border: 1px solid var(--line);
+    .page-brand {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .page-brand span {
+      font-weight: 400;
       color: var(--ink-soft);
+      margin-left: 8px;
+      letter-spacing: 0;
+      text-transform: none;
       font-size: 0.82rem;
     }
-    .nav-pill strong {
-      color: var(--ink);
-      font-weight: 600;
-    }
-    .nav-pill .nav-sep {
-      color: var(--line);
-      font-weight: 300;
-      font-size: 0.9em;
-    }
-    .hero-grid,
-    .card-grid,
-    .run-grid,
-    .detail-grid {
-      display: grid;
-      gap: 18px;
-    }
-    .hero-grid {
-      margin-top: 18px;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      position: relative;
-      z-index: 1;
-    }
-    .metric-card,
-    .panel,
-    .project-card,
-    .run-card,
-    .issue-card {
-      background: rgba(255, 250, 243, 0.88);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-card);
-      box-shadow: 0 2px 10px rgba(89, 67, 38, 0.03);
-    }
-    .metric-card {
-      padding: 14px 14px 12px;
-    }
-    .metric-label {
-      font-size: 0.66rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--ink-soft);
-      margin-bottom: 8px;
-    }
-    .metric-value {
-      font-size: clamp(1.3rem, 2.8vw, 1.9rem);
-      line-height: 1.05;
-      letter-spacing: -0.04em;
-      margin-bottom: 6px;
-      font-variant-numeric: tabular-nums;
-    }
-    .metric-note {
-      color: var(--ink-soft);
+    .page-nav {
+      display: flex;
+      gap: 24px;
       font-size: 0.83rem;
     }
-    .section {
-      margin-top: 18px;
+    .page-nav a { color: var(--ink-soft); }
+    .page-nav a:hover { color: var(--ink); text-decoration: none; }
+    .page-nav a.active { color: var(--ink); font-weight: 600; }
+
+    /* ── Page heading ── */
+    .page-heading {
+      margin-top: 24px;
     }
-    .section-header {
+    .page-heading h1 {
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      font-weight: 600;
+    }
+    .page-heading p {
+      margin-top: 5px;
+      font-size: 0.88rem;
+      color: var(--ink-soft);
+      max-width: 64ch;
+    }
+
+    /* ── Stat strip ── */
+    .stat-strip {
       display: flex;
-      justify-content: space-between;
-      align-items: end;
-      gap: 14px;
-      margin-bottom: 10px;
+      gap: 0;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line-strong);
       flex-wrap: wrap;
     }
-    .section-title {
-      margin: 0;
-      font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+    .stat {
+      padding-right: 40px;
+      padding-bottom: 4px;
+    }
+    .stat-label {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-soft);
+      margin-bottom: 3px;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-note {
+      font-size: 0.73rem;
+      color: var(--ink-soft);
+      margin-top: 3px;
+    }
+
+    /* ── Sections ── */
+    .section {
+      margin-top: 40px;
+    }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--line-strong);
+      flex-wrap: wrap;
+    }
+    .section-head h2 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      color: var(--ink-soft);
+    }
+    .section-head a {
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+    }
+
+    /* ── Status ── */
+    .status-good { color: var(--olive); }
+    .status-bad  { color: var(--rose); }
+    .status-warm { color: var(--amber); }
+    .status-muted { color: var(--ink-soft); }
+
+    /* ── Project rows ── */
+    .project-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: start;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .project-row:last-child { border-bottom: none; }
+    .project-name {
+      font-size: 1rem;
+      font-weight: 600;
       letter-spacing: -0.02em;
     }
-    .section-note {
-      margin: 0;
+    .project-name a { color: var(--ink); }
+    .project-name a:hover { text-decoration: underline; }
+    .project-detail {
+      font-size: 0.82rem;
       color: var(--ink-soft);
-      font-size: 0.86rem;
-      max-width: 52ch;
+      margin-top: 3px;
     }
-    .card-grid {
-      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-    }
-    .project-card,
-    .run-card,
-    .issue-card,
-    .panel {
-      padding: 16px;
-    }
-    .project-card {
+    .project-links {
       display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease), border-color 0.35s var(--ease);
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      margin-top: 8px;
     }
-    .project-card:hover,
-    .run-card:hover,
-    .issue-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 24px rgba(89, 67, 38, 0.07);
-      border-color: rgba(255, 97, 26, 0.24);
+    .project-links a { color: var(--ink-soft); }
+    .project-links a:hover { color: var(--accent); text-decoration: none; }
+    .project-counts {
+      display: flex;
+      gap: 28px;
+      text-align: right;
+      flex-shrink: 0;
     }
-    .card-kicker {
+    .project-count-label {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-soft);
+      margin-bottom: 2px;
+    }
+    .project-count-value {
+      font-size: 1.2rem;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Runs table ── */
+    .run-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .run-table th {
+      text-align: left;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-soft);
+      font-weight: 700;
+      padding: 9px 16px 9px 0;
+      border-bottom: 1px solid var(--line-strong);
+      white-space: nowrap;
+    }
+    .run-table td {
+      padding: 11px 16px 11px 0;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      font-size: 0.87rem;
+    }
+    .run-table tr:last-child td { border-bottom: none; }
+    .run-table td.col-status { width: 80px; }
+    .run-table td.col-duration { width: 80px; white-space: nowrap; }
+    .run-table td.col-started { width: 140px; white-space: nowrap; color: var(--ink-soft); font-size: 0.8rem; }
+    .run-table td.col-backend { width: 100px; color: var(--ink-soft); font-size: 0.8rem; }
+    .run-issue { font-weight: 600; letter-spacing: -0.02em; }
+    .run-issue a { color: var(--ink); }
+    .run-issue a:hover { text-decoration: underline; }
+    .run-title { font-size: 0.82rem; color: var(--ink-soft); margin-top: 2px; }
+    .run-id { font-size: 0.68rem; color: var(--ink-soft); font-family: "SFMono-Regular", monospace; margin-top: 3px; }
+    .run-links { font-size: 0.75rem; margin-top: 4px; display: flex; gap: 12px; }
+    .run-links a { color: var(--ink-soft); }
+    .run-links a:hover { color: var(--accent); text-decoration: none; }
+
+    /* ── Issue rows ── */
+    .issue-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      gap: 10px;
+      align-items: start;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
       flex-wrap: wrap;
     }
-    .card-title {
-      margin: 0;
-      font-size: 1.08rem;
-      line-height: 1.12;
-      letter-spacing: -0.03em;
-    }
-    .card-copy {
-      margin: 0;
-      color: var(--ink-soft);
+    .issue-row:last-child { border-bottom: none; }
+    .issue-id { font-weight: 600; font-size: 0.88rem; }
+    .issue-id a { color: var(--ink); }
+    .issue-title { font-size: 0.83rem; color: var(--ink-soft); margin-top: 2px; }
+    .issue-meta { font-size: 0.78rem; color: var(--ink-soft); text-align: right; flex-shrink: 0; }
+
+    /* ── KV table ── */
+    .kv-table {
+      width: 100%;
+      border-collapse: collapse;
       font-size: 0.85rem;
     }
-    .badge-row,
-    .meta-grid {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
+    .kv-table td {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
     }
-    .link-row {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-      align-items: center;
-      font-size: 0.83rem;
+    .kv-table td:first-child {
+      font-size: 0.63rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
       color: var(--ink-soft);
-    }
-    .link-row a {
-      color: var(--ink-soft);
-    }
-    .link-row a:hover {
-      color: var(--accent);
-    }
-    .link-row > *:not(:last-child)::after {
-      content: "·";
-      margin-left: 4px;
-      color: rgba(58, 48, 37, 0.35);
-      pointer-events: none;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 28px;
-      padding: 4px 10px;
-      border-radius: var(--radius-pill);
-      font-size: 0.73rem;
+      white-space: nowrap;
+      padding-right: 24px;
+      width: 1%;
       font-weight: 600;
-      border: 1px solid transparent;
-      text-transform: capitalize;
     }
-    .badge-muted {
-      color: var(--ink-soft);
-      background: rgba(58, 48, 37, 0.06);
-      border-color: rgba(58, 48, 37, 0.08);
-    }
-    .badge-good {
-      color: var(--olive);
-      background: rgba(45, 97, 86, 0.12);
-      border-color: rgba(45, 97, 86, 0.18);
-    }
-    .badge-bad {
-      color: var(--rose);
-      background: rgba(161, 77, 66, 0.1);
-      border-color: rgba(161, 77, 66, 0.18);
-    }
-    .badge-warm {
-      color: var(--amber);
-      background: rgba(148, 96, 45, 0.12);
-      border-color: rgba(148, 96, 45, 0.18);
-    }
-    .mini-metrics {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .mini-metric {
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.7);
-      border: 1px solid rgba(58, 48, 37, 0.08);
-    }
-    .mini-label {
-      font-size: 0.64rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--ink-soft);
-      margin-bottom: 6px;
-    }
-    .mini-value {
-      font-size: 1rem;
-      letter-spacing: -0.04em;
-      font-variant-numeric: tabular-nums;
-    }
-    .run-grid {
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    }
-    .run-card,
-    .issue-card {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .run-headline,
-    .issue-headline {
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .mono {
-      font-family: "SFMono-Regular", "Menlo", "Monaco", "Courier New", monospace;
-      letter-spacing: -0.02em;
-    }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 8px;
-    }
-    .meta-item {
-      padding: 10px 12px;
-      background: rgba(58, 48, 37, 0.04);
-      border-radius: 12px;
-      border: 1px solid rgba(58, 48, 37, 0.06);
-    }
-    .meta-item strong {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 0.64rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--ink-soft);
-    }
-    .meta-item span.mono {
-      word-break: break-all;
-      overflow-wrap: anywhere;
-      font-size: 0.78rem;
-    }
+    .kv-table tr:last-child td { border-bottom: none; }
+
+    /* ── Detail layout ── */
     .detail-grid {
-      grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
-      align-items: start;
-      margin-top: 18px;
-    }
-    .stack {
       display: grid;
-      gap: 14px;
+      grid-template-columns: 1fr 360px;
+      gap: 48px;
+      margin-top: 40px;
+      align-items: start;
     }
-    .log-panel {
-      overflow: hidden;
+    .panel-head {
+      font-size: 0.63rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      color: var(--ink-soft);
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--line-strong);
+      margin-bottom: 2px;
     }
+    .stack { display: grid; gap: 36px; }
+
+    /* ── Log ── */
     pre.log-tail {
-      margin: 0;
-      padding: 14px;
-      border-radius: 14px;
-      background: #231f1b;
-      color: #f7efe2;
+      margin-top: 10px;
+      padding: 16px;
+      background: #1c1916;
+      color: #e0d5c5;
       overflow: auto;
-      max-height: 24rem;
-      line-height: 1.4;
-      font-size: 0.78rem;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      max-height: 28rem;
+      line-height: 1.45;
+      font-size: 0.75rem;
+      border-radius: 3px;
+      font-family: "SFMono-Regular", Menlo, Monaco, monospace;
     }
+
+    /* ── Result summary ── */
+    .result-box {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-left: 3px solid var(--line-strong);
+      font-size: 0.85rem;
+      color: var(--ink-soft);
+    }
+    .result-box.error { border-color: var(--rose); color: var(--rose); }
+
+    /* ── Empty state ── */
     .empty-state {
-      padding: 18px;
-      border-radius: var(--radius-card);
-      border: 1px dashed rgba(58, 48, 37, 0.18);
-      background: rgba(255, 255, 255, 0.54);
+      padding: 16px 0;
       color: var(--ink-soft);
-      font-size: 0.9rem;
-      max-width: 68ch;
+      font-size: 0.85rem;
+      font-style: italic;
     }
+
+    /* ── Footer ── */
     .footer-note {
-      margin-top: 16px;
+      margin-top: 40px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
       color: var(--ink-soft);
-      font-size: 0.8rem;
+      font-size: 0.73rem;
     }
-    @media (max-width: 900px) {
-      .shell { width: min(100vw - 16px, 1120px); margin-top: 10px; }
-      .hero { padding: 16px; border-radius: 18px; }
-      .detail-grid { grid-template-columns: 1fr; }
-      .mini-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    @media (max-width: 860px) {
+      .detail-grid { grid-template-columns: 1fr; gap: 32px; }
+      .project-row { grid-template-columns: 1fr; }
+      .project-counts { text-align: left; }
     }
-    @media (max-width: 640px) {
-      .hero h1 { font-size: 2rem; }
-      .hero-grid { grid-template-columns: 1fr 1fr; }
-      .mini-metrics { grid-template-columns: 1fr; }
-      .card-grid, .run-grid { grid-template-columns: 1fr; }
+    @media (max-width: 600px) {
+      .shell { width: calc(100vw - 24px); }
+      .stat-value { font-size: 1.4rem; }
+      .stat { padding-right: 24px; }
     }
   </style>
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <div class="hero-top">
-        <div class="hero-copy">
-          <div class="eyebrow">${htmlEscape(input.kicker)}</div>
-          <h1>${htmlEscape(input.heading)}</h1>
-          <p>${htmlEscape(input.subheading)}</p>
-        </div>
-        <nav class="hero-nav" aria-label="Symphony Navigation">
-          <a class="nav-pill" href="/"><strong>Overview</strong><span class="nav-sep">/</span>Portfolio</a>
-          <a class="nav-pill" href="/projects"><strong>Projects</strong><span class="nav-sep">/</span>Registry</a>
-          <a class="nav-pill" href="/runs"><strong>Runs</strong><span class="nav-sep">/</span>Activity</a>
-          <a class="nav-pill" href="/api/v1/state"><strong>API</strong><span class="nav-sep">/</span>JSON state</a>
-        </nav>
-      </div>
-      ${input.body}
-    </section>
+    <header class="page-header">
+      <div class="page-brand">Symphony<span>${input.daemonHealthy ? 'Daemon live' : 'Observe-only'}</span></div>
+      <nav class="page-nav" aria-label="Symphony Navigation">
+        <a href="/">Overview</a>
+        <a href="/projects">Projects</a>
+        <a href="/runs">Runs</a>
+        <a href="/api/v1/state">API</a>
+      </nav>
+    </header>
+    <div class="page-heading">
+      <h1>${htmlEscape(input.heading)}</h1>
+      <p>${htmlEscape(input.subheading)}</p>
+    </div>
+    ${input.body}
   </main>
 </body>
 </html>`;
 }
 
-function buildHeroMetrics(snapshot: Awaited<ReturnType<typeof loadDashboardSnapshot>>): string {
+function buildStatStrip(snapshot: Awaited<ReturnType<typeof loadDashboardSnapshot>>): string {
   const state = snapshot.runtimeState;
-  const activeRuns = snapshot.runs.filter((run) =>
-    run.status === 'planned' || run.status === 'dispatching' || run.status === 'running',
+  const activeRuns = snapshot.runs.filter(
+    (run) => run.status === 'planned' || run.status === 'dispatching' || run.status === 'running',
   ).length;
-  return `<div class="hero-grid">
-    ${renderMetricCard(
-      'Configured Projects',
-      `${state.registryProjectCount}`,
-      `${pluralize(state.enabledProjectCount, 'enabled lane')} in the registry`,
-    )}
-    ${renderMetricCard(
-      'Ready Queue',
-      `${Object.values(state.projectReadyCounts).reduce((sum, count) => sum + count, 0)}`,
-      'Eligible work waiting on dispatch policy',
-    )}
-    ${renderMetricCard(
-      'Active Runs',
-      `${activeRuns}`,
-      state.daemonHealthy ? 'Daemon healthy and reconciling' : 'Daemon idle or offline',
-    )}
-    ${renderMetricCard(
-      'Last Sync',
-      formatTimestamp(state.updatedAt),
-      state.daemonPid ? `Daemon PID ${state.daemonPid}` : 'Observe-only runtime snapshot',
-    )}
-  </div>`;
+  const totalReady = Object.values(state.projectReadyCounts).reduce((sum, count) => sum + count, 0);
+
+  return `<div class="stat-strip">
+  <div class="stat">
+    <div class="stat-label">Projects</div>
+    <div class="stat-value">${state.registryProjectCount}</div>
+    <div class="stat-note">${pluralize(state.enabledProjectCount, 'enabled lane')}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Ready</div>
+    <div class="stat-value">${totalReady}</div>
+    <div class="stat-note">Waiting on dispatch</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Active</div>
+    <div class="stat-value">${activeRuns}</div>
+    <div class="stat-note">${state.daemonHealthy ? 'Daemon reconciling' : 'Daemon offline'}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Synced</div>
+    <div class="stat-value" style="font-size:1.1rem;letter-spacing:-0.02em">${formatTimestamp(state.updatedAt)}</div>
+    <div class="stat-note">${state.daemonPid ? `PID ${state.daemonPid}` : 'No daemon PID'}</div>
+  </div>
+</div>`;
 }
 
-function renderProjectCard(
+function renderProjectRow(
   project: SymphonyProjectRuntimeSummary,
   registryEntry: ProjectRegistryEntry | undefined,
 ): string {
-  const backendBadges = (registryEntry?.allowedBackends || []).map((backend) =>
-    renderBadge(backend, backend === registryEntry?.defaultBackend ? 'warm' : 'muted'),
-  );
-  return `<article class="project-card" data-project-key="${htmlEscape(project.projectKey)}">
-    <div class="card-kicker">
-      ${renderBadge(project.symphonyEnabled ? 'Symphony enabled' : 'Symphony disabled', project.symphonyEnabled ? 'good' : 'muted')}
-      ${renderBadge(project.lastRunStatus, statusTone(project.lastRunStatus))}
+  const backends = (registryEntry?.allowedBackends || []).join(', ') || '—';
+  return `<div class="project-row" data-project-key="${htmlEscape(project.projectKey)}">
+  <div>
+    <div class="project-name">
+      <a href="/projects/${encodeURIComponent(project.projectKey)}">${htmlEscape(project.displayName)}</a>
     </div>
-    <div>
-      <h2 class="card-title"><a href="/projects/${encodeURIComponent(project.projectKey)}">${htmlEscape(project.displayName)}</a></h2>
-      <p class="card-copy">${htmlEscape(project.projectKey)} · ${htmlEscape(registryEntry?.readyPolicy || 'No ready policy recorded')}</p>
+    <div class="project-detail">
+      <span class="${statusClass(project.lastRunStatus)}">${htmlEscape(project.lastRunStatus)}</span>
+      &nbsp;·&nbsp;${htmlEscape(project.projectKey)}
+      &nbsp;·&nbsp;${htmlEscape(registryEntry?.readyPolicy || 'no policy')}
+      &nbsp;·&nbsp;backends: ${htmlEscape(backends)}
     </div>
-    <div class="mini-metrics">
-      <div class="mini-metric">
-        <div class="mini-label">Ready</div>
-        <div class="mini-value">${project.readyQueueCount}</div>
-      </div>
-      <div class="mini-metric">
-        <div class="mini-label">Active</div>
-        <div class="mini-value">${project.activeRunCount}</div>
-      </div>
-      <div class="mini-metric">
-        <div class="mini-label">Default</div>
-        <div class="mini-value mono">${htmlEscape(registryEntry?.defaultBackend || 'n/a')}</div>
-      </div>
-    </div>
-    <div class="badge-row">${backendBadges.join('') || renderBadge('No backends configured')}</div>
-    <div class="link-row">
-      ${registryEntry ? renderLink(registryEntry.notionRoot, 'Notion root') : ''}
+    <div class="project-links">
+      ${registryEntry ? renderLink(registryEntry.notionRoot, 'Notion') : ''}
       ${registryEntry ? renderLink(`https://github.com/${registryEntry.githubRepo}`, registryEntry.githubRepo) : ''}
       ${project.lastRunId ? `<a href="/runs/${encodeURIComponent(project.lastRunId)}">Last run</a>` : ''}
     </div>
-  </article>`;
+  </div>
+  <div class="project-counts">
+    <div>
+      <div class="project-count-label">Ready</div>
+      <div class="project-count-value">${project.readyQueueCount}</div>
+    </div>
+    <div>
+      <div class="project-count-label">Active</div>
+      <div class="project-count-value">${project.activeRunCount}</div>
+    </div>
+  </div>
+</div>`;
 }
 
-function renderRunCard(run: SymphonyRunRecord): string {
-  return `<article class="run-card" data-run-id="${htmlEscape(run.runId)}" data-run-status="${htmlEscape(run.status)}">
-    <div class="run-headline">
-      <div>
-        <div class="badge-row">
-          ${renderBadge(run.status, statusTone(run.status))}
-          ${renderBadge(run.backend, 'warm')}
-        </div>
-        <h2 class="card-title"><a href="/runs/${encodeURIComponent(run.runId)}">${htmlEscape(run.issueIdentifier)}</a></h2>
-        <p class="card-copy">${htmlEscape(run.issueTitle)}</p>
-      </div>
-      <div class="card-copy mono">${htmlEscape(run.projectKey)}</div>
-    </div>
-    <div class="meta-grid">
-      <div class="meta-item">
-        <strong>Started</strong>
-        <span>${htmlEscape(formatTimestamp(run.startedAt))}</span>
-      </div>
-      <div class="meta-item">
-        <strong>Duration</strong>
-        <span>${htmlEscape(formatRelativeDuration(run.startedAt, run.endedAt))}</span>
-      </div>
-      <div class="meta-item">
-        <strong>Workspace</strong>
-        <span class="mono">${htmlEscape(run.workspacePath)}</span>
-      </div>
-    </div>
-    <div class="link-row">
-      ${renderLink(run.linearIssueUrl, 'Linear issue')}
+function renderRunRow(run: SymphonyRunRecord): string {
+  return `<tr data-run-id="${htmlEscape(run.runId)}" data-run-status="${htmlEscape(run.status)}">
+  <td>
+    <div class="run-issue"><a href="/runs/${encodeURIComponent(run.runId)}">${htmlEscape(run.issueIdentifier)}</a></div>
+    <div class="run-title">${htmlEscape(run.issueTitle)}</div>
+    <div class="run-links">
+      ${renderLink(run.linearIssueUrl, 'Linear')}
       ${renderLink(`https://github.com/${run.githubRepo}`, run.githubRepo)}
-      <span class="mono" style="font-size:0.72rem;color:var(--ink-soft);word-break:break-all">${htmlEscape(run.runId)}</span>
     </div>
-  </article>`;
+    <div class="run-id">${htmlEscape(run.runId)}</div>
+  </td>
+  <td class="col-status"><span class="${statusClass(run.status)}">${htmlEscape(run.status)}</span></td>
+  <td class="col-duration">${htmlEscape(formatRelativeDuration(run.startedAt, run.endedAt))}</td>
+  <td class="col-started">${htmlEscape(formatTimestamp(run.startedAt))}</td>
+  <td class="col-backend">${htmlEscape(run.backend)}</td>
+</tr>`;
+}
+
+function renderRunTable(rows: string, emptyMessage: string): string {
+  if (!rows) {
+    return `<div class="empty-state">${emptyMessage}</div>`;
+  }
+  return `<table class="run-table">
+  <thead>
+    <tr>
+      <th>Issue</th>
+      <th>Status</th>
+      <th>Duration</th>
+      <th>Started</th>
+      <th>Backend</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>`;
 }
 
 function renderHome(snapshot: Awaited<ReturnType<typeof loadDashboardSnapshot>>): string {
-  const projects = snapshot.runtimeState.projects
+  const projectRows = snapshot.runtimeState.projects
     .map((project) =>
-      renderProjectCard(
+      renderProjectRow(
         project,
         snapshot.registry.projects.find((entry) => entry.projectKey === project.projectKey),
       ),
     )
     .join('');
 
-  const runs = snapshot.runs.slice(0, 8).map(renderRunCard).join('');
+  const runRows = snapshot.runs.slice(0, 10).map(renderRunRow).join('');
 
   return pageLayout({
     title: 'Symphony Control Room',
-    kicker: snapshot.runtimeState.daemonHealthy ? 'Daemon observed live' : 'Observe-only snapshot',
     heading: 'Symphony Control Room',
-    subheading:
-      'A portfolio view of configured projects, dispatch readiness, and live execution state across your custom Symphony runtime.',
+    subheading: 'Portfolio view of configured projects, dispatch readiness, and live execution state.',
+    daemonHealthy: snapshot.runtimeState.daemonHealthy,
     body: `
-      ${buildHeroMetrics(snapshot)}
-      <section class="section" id="project-portfolio" data-section="project-portfolio" aria-labelledby="project-portfolio-title">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title" id="project-portfolio-title">Project Portfolio</h2>
-            <p class="section-note">Registry-backed projects with their dispatch posture, backend policy, and most recent runtime signal.</p>
-          </div>
+      ${buildStatStrip(snapshot)}
+      <section class="section" id="project-portfolio">
+        <div class="section-head">
+          <h2>Project Portfolio</h2>
         </div>
-        <div class="card-grid">
-          ${projects || '<div class="empty-state">No projects found in the synced registry cache.</div>'}
-        </div>
+        ${projectRows || '<div class="empty-state">No projects found in the synced registry cache.</div>'}
       </section>
-      <section class="section" id="recent-runs" data-section="recent-runs" aria-labelledby="recent-runs-title">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title" id="recent-runs-title">Recent Run Activity</h2>
-            <p class="section-note">Latest execution records persisted under <code>.nanoclaw/symphony/runs</code>.</p>
-          </div>
-          <a href="/runs">Open full run ledger</a>
+      <section class="section" id="recent-runs">
+        <div class="section-head">
+          <h2>Recent Run Activity</h2>
+          <a href="/runs">All runs</a>
         </div>
-        <div class="run-grid">
-          ${runs || '<div class="empty-state">No run records yet. Dispatch one Ready issue to populate the runtime ledger.</div>'}
-        </div>
+        ${renderRunTable(runRows, 'No run records yet. Dispatch one Ready issue to populate the runtime ledger.')}
       </section>
-      <p class="footer-note">Auto-refresh every 30 seconds. Linear remains the execution source of truth; this dashboard is the orchestration surface.</p>
+      <p class="footer-note">Auto-refreshes every 30 seconds. Linear is the execution source of truth; this dashboard is the orchestration surface.</p>
     `,
   });
 }
 
-function renderIssueCard(issue: SymphonyLinearIssueSummary): string {
-  return `<article class="issue-card" data-issue-id="${htmlEscape(issue.id)}" data-issue-identifier="${htmlEscape(issue.identifier)}">
-    <div class="issue-headline">
-      <div>
-        <div class="badge-row">
-          ${renderBadge(issue.state, 'good')}
-          ${issue.priorityLabel ? renderBadge(issue.priorityLabel, issue.priority >= 2 ? 'warm' : 'muted') : ''}
-        </div>
-        <h2 class="card-title">${renderLink(issue.url, issue.identifier)}</h2>
-        <p class="card-copy">${htmlEscape(issue.title)}</p>
-      </div>
-      <div class="card-copy mono">${htmlEscape(issue.projectName)}</div>
-    </div>
-    <div class="meta-grid">
-      <div class="meta-item">
-        <strong>Priority</strong>
-        <span>${htmlEscape(issue.priorityLabel || `${issue.priority}`)}</span>
-      </div>
-      <div class="meta-item">
-        <strong>Labels</strong>
-        <span>${htmlEscape(issue.labels.join(', ') || 'No labels')}</span>
-      </div>
-    </div>
-  </article>`;
+function renderIssueRow(issue: SymphonyLinearIssueSummary): string {
+  return `<div class="issue-row" data-issue-id="${htmlEscape(issue.id)}">
+  <div>
+    <div class="issue-id">${renderLink(issue.url, issue.identifier)}</div>
+    <div class="issue-title">${htmlEscape(issue.title)}</div>
+  </div>
+  <div class="issue-meta">
+    <div class="status-good">${htmlEscape(issue.state)}</div>
+    ${issue.priorityLabel ? `<div>${htmlEscape(issue.priorityLabel)}</div>` : ''}
+    ${issue.labels.length ? `<div>${htmlEscape(issue.labels.join(', '))}</div>` : ''}
+  </div>
+</div>`;
 }
 
 function renderProjectDetail(input: {
@@ -759,95 +655,53 @@ function renderProjectDetail(input: {
   project: ProjectRegistryEntry;
   readyIssues: SymphonyLinearIssueSummary[];
 }): string {
-  const recentRuns = input.snapshot.runs
+  const runRows = input.snapshot.runs
     .filter((run) => run.projectKey === input.project.projectKey)
-    .slice(0, 8)
-    .map(renderRunCard)
+    .slice(0, 10)
+    .map(renderRunRow)
     .join('');
   const runtime = input.snapshot.runtimeState.projects.find(
     (entry) => entry.projectKey === input.project.projectKey,
   );
-  const readyIssues = input.readyIssues.map(renderIssueCard).join('');
+  const issueRows = input.readyIssues.map(renderIssueRow).join('');
 
   return pageLayout({
     title: `${input.project.displayName} · Symphony`,
-    kicker: input.project.symphonyEnabled ? 'Project queue enabled' : 'Project queue disabled',
     heading: input.project.displayName,
-    subheading:
-      'Project detail across registry policy, live ready work, and run history. Use this page to validate issue shape before dispatch.',
+    subheading: `${input.project.projectKey} · ${input.project.symphonyEnabled ? 'Symphony enabled' : 'Symphony disabled'}`,
+    daemonHealthy: input.snapshot.runtimeState.daemonHealthy,
     body: `
-      ${buildHeroMetrics(input.snapshot)}
+      ${buildStatStrip(input.snapshot)}
       <div class="detail-grid">
         <div class="stack">
-          <section class="panel" id="ready-queue" data-section="ready-queue" aria-labelledby="ready-queue-title">
-            <div class="section-header">
-              <div>
-                <h2 class="section-title" id="ready-queue-title">Ready Queue</h2>
-                <p class="section-note">Linear issues currently visible to Symphony for this project.</p>
-              </div>
-            </div>
-            <div class="run-grid">
-              ${readyIssues || '<div class="empty-state">No Ready Symphony candidates are currently visible for this project.</div>'}
-            </div>
+          <section id="ready-queue">
+            <div class="panel-head">Ready Queue</div>
+            ${issueRows || '<div class="empty-state">No Ready Symphony candidates currently visible.</div>'}
           </section>
-          <section class="panel" id="project-runs" data-section="project-runs" aria-labelledby="project-runs-title">
-            <div class="section-header">
-              <div>
-                <h2 class="section-title" id="project-runs-title">Recent Runs</h2>
-                <p class="section-note">Latest executions routed through the local runtime ledger.</p>
-              </div>
-            </div>
-            <div class="run-grid">
-              ${recentRuns || '<div class="empty-state">No run history yet for this project.</div>'}
-            </div>
+          <section id="project-runs">
+            <div class="panel-head">Recent Runs</div>
+            ${renderRunTable(runRows, 'No run history yet for this project.')}
           </section>
         </div>
         <div class="stack">
-          <section class="panel" id="project-policy" data-section="project-policy" aria-labelledby="project-policy-title">
-            <div class="section-header">
-              <div>
-                <h2 class="section-title" id="project-policy-title">Project Policy</h2>
-                <p class="section-note">Registry-backed configuration and enablement state.</p>
-              </div>
-            </div>
-            <div class="meta-grid">
-              <div class="meta-item">
-                <strong>Project Key</strong>
-                <span class="mono">${htmlEscape(input.project.projectKey)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Linear Project</strong>
-                <span>${htmlEscape(input.project.linearProject)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Symphony</strong>
-                <span>${input.project.symphonyEnabled ? 'Enabled' : 'Disabled'}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Default Backend</strong>
-                <span class="mono">${htmlEscape(input.project.defaultBackend)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Allowed Backends</strong>
-                <span>${htmlEscape(input.project.allowedBackends.join(', '))}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Ready Policy</strong>
-                <span>${htmlEscape(input.project.readyPolicy)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Workspace Root</strong>
-                <span class="mono">${htmlEscape(input.project.workspaceRoot)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Secret Scope</strong>
-                <span class="mono">${htmlEscape(input.project.secretScope)}</span>
-              </div>
-            </div>
-            <div class="link-row">
+          <section id="project-policy">
+            <div class="panel-head">Project Policy</div>
+            <table class="kv-table">
+              <tbody>
+                <tr><td>Project Key</td><td class="mono">${htmlEscape(input.project.projectKey)}</td></tr>
+                <tr><td>Linear Project</td><td>${htmlEscape(input.project.linearProject)}</td></tr>
+                <tr><td>Symphony</td><td>${input.project.symphonyEnabled ? 'Enabled' : 'Disabled'}</td></tr>
+                <tr><td>Default Backend</td><td class="mono">${htmlEscape(input.project.defaultBackend)}</td></tr>
+                <tr><td>Allowed Backends</td><td>${htmlEscape(input.project.allowedBackends.join(', '))}</td></tr>
+                <tr><td>Ready Policy</td><td>${htmlEscape(input.project.readyPolicy)}</td></tr>
+                <tr><td>Workspace Root</td><td class="mono">${htmlEscape(input.project.workspaceRoot)}</td></tr>
+                <tr><td>Secret Scope</td><td class="mono">${htmlEscape(input.project.secretScope)}</td></tr>
+              </tbody>
+            </table>
+            <div class="project-links" style="margin-top:12px">
               ${renderLink(input.project.notionRoot, 'Open Notion root')}
               ${renderLink(`https://github.com/${input.project.githubRepo}`, input.project.githubRepo)}
-              ${runtime?.lastRunId ? `<a href="/runs/${encodeURIComponent(runtime.lastRunId)}">Open last run</a>` : ''}
+              ${runtime?.lastRunId ? `<a href="/runs/${encodeURIComponent(runtime.lastRunId)}">Last run</a>` : ''}
             </div>
           </section>
         </div>
@@ -857,25 +711,19 @@ function renderProjectDetail(input: {
 }
 
 function renderRunsPage(snapshot: Awaited<ReturnType<typeof loadDashboardSnapshot>>): string {
-  const runs = snapshot.runs.map(renderRunCard).join('');
+  const runRows = snapshot.runs.map(renderRunRow).join('');
   return pageLayout({
     title: 'Symphony Run Ledger',
-    kicker: 'Execution ledger',
     heading: 'Run Ledger',
-    subheading:
-      'A compact view of all persisted run records, intended for operator review rather than tracker truth.',
+    subheading: 'All persisted run records, most recent first.',
+    daemonHealthy: snapshot.runtimeState.daemonHealthy,
     body: `
-      ${buildHeroMetrics(snapshot)}
-      <section class="section" id="run-ledger" data-section="run-ledger" aria-labelledby="run-ledger-title">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title" id="run-ledger-title">All Recorded Runs</h2>
-            <p class="section-note">Most recent first, with links back to the per-run detail pages.</p>
-          </div>
+      ${buildStatStrip(snapshot)}
+      <section class="section" id="run-ledger">
+        <div class="section-head">
+          <h2>All Recorded Runs</h2>
         </div>
-        <div class="run-grid">
-          ${runs || '<div class="empty-state">No run records have been written yet.</div>'}
-        </div>
+        ${renderRunTable(runRows, 'No run records have been written yet.')}
       </section>
     `,
   });
@@ -884,70 +732,57 @@ function renderRunsPage(snapshot: Awaited<ReturnType<typeof loadDashboardSnapsho
 function renderRunDetail(run: SymphonyRunRecord): string {
   const logTail = readLogTail(run.logFile);
   return pageLayout({
-    title: `${run.issueIdentifier} · ${run.runId}`,
-    kicker: `Run ${run.runId}`,
+    title: `${run.issueIdentifier} · Symphony`,
     heading: run.issueIdentifier,
-    subheading:
-      'Detailed view of one run record, including workspace, output paths, and the latest local log tail.',
+    subheading: run.issueTitle,
+    daemonHealthy: false,
     body: `
-      <div class="hero-grid">
-        ${renderMetricCard('Status', run.status, run.backend)}
-        ${renderMetricCard('Duration', formatRelativeDuration(run.startedAt, run.endedAt), formatTimestamp(run.startedAt))}
-        ${renderMetricCard('Project', run.projectKey, run.githubRepo)}
-        ${renderMetricCard('PID', run.pid === null ? 'Not running' : `${run.pid}`, run.endedAt ? formatTimestamp(run.endedAt) : 'Process still active or not yet reconciled')}
+      <div class="stat-strip">
+        <div class="stat">
+          <div class="stat-label">Status</div>
+          <div class="stat-value" style="font-size:1.4rem" class="${statusClass(run.status)}">${htmlEscape(run.status)}</div>
+          <div class="stat-note">${htmlEscape(run.backend)}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Duration</div>
+          <div class="stat-value" style="font-size:1.4rem">${htmlEscape(formatRelativeDuration(run.startedAt, run.endedAt))}</div>
+          <div class="stat-note">${htmlEscape(formatTimestamp(run.startedAt))}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Project</div>
+          <div class="stat-value" style="font-size:1.1rem;letter-spacing:-0.02em">${htmlEscape(run.projectKey)}</div>
+          <div class="stat-note">${htmlEscape(run.githubRepo)}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">PID</div>
+          <div class="stat-value" style="font-size:1.1rem">${run.pid === null ? '—' : htmlEscape(`${run.pid}`)}</div>
+          <div class="stat-note">${run.endedAt ? htmlEscape(formatTimestamp(run.endedAt)) : 'Still active'}</div>
+        </div>
       </div>
       <div class="detail-grid">
         <div class="stack">
-          <section class="panel" id="run-metadata" data-section="run-metadata" aria-labelledby="run-metadata-title">
-            <div class="section-header">
-              <div>
-                <h2 class="section-title" id="run-metadata-title">Run Metadata</h2>
-                <p class="section-note">Persisted orchestration details for this execution.</p>
-              </div>
-            </div>
-            <div class="meta-grid">
-              <div class="meta-item">
-                <strong>Linear Issue</strong>
-                <span>${renderLink(run.linearIssueUrl, run.issueIdentifier)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Workspace</strong>
-                <span class="mono">${htmlEscape(run.workspacePath)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Prompt File</strong>
-                <span class="mono">${htmlEscape(run.promptFile)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Manifest File</strong>
-                <span class="mono">${htmlEscape(run.manifestFile)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Log File</strong>
-                <span class="mono">${htmlEscape(run.logFile)}</span>
-              </div>
-              <div class="meta-item">
-                <strong>Exit File</strong>
-                <span class="mono">${htmlEscape(run.exitFile)}</span>
-              </div>
-            </div>
-            ${
-              run.error
-                ? `<div class="empty-state">Run error: ${htmlEscape(run.error)}</div>`
-                : run.resultSummary
-                  ? `<div class="empty-state">Result summary: ${htmlEscape(run.resultSummary)}</div>`
-                  : ''
-            }
+          <section id="run-metadata">
+            <div class="panel-head">Run Metadata</div>
+            <table class="kv-table">
+              <tbody>
+                <tr><td>Linear Issue</td><td>${renderLink(run.linearIssueUrl, run.issueIdentifier)}</td></tr>
+                <tr><td>Workspace</td><td class="mono">${htmlEscape(run.workspacePath)}</td></tr>
+                <tr><td>Prompt File</td><td class="mono">${htmlEscape(run.promptFile)}</td></tr>
+                <tr><td>Manifest File</td><td class="mono">${htmlEscape(run.manifestFile)}</td></tr>
+                <tr><td>Log File</td><td class="mono">${htmlEscape(run.logFile)}</td></tr>
+                <tr><td>Exit File</td><td class="mono">${htmlEscape(run.exitFile)}</td></tr>
+              </tbody>
+            </table>
+            ${run.error
+              ? `<div class="result-box error">${htmlEscape(run.error)}</div>`
+              : run.resultSummary
+                ? `<div class="result-box">${htmlEscape(run.resultSummary)}</div>`
+                : ''}
           </section>
         </div>
         <div class="stack">
-          <section class="panel log-panel" id="run-log" data-section="run-log" aria-labelledby="run-log-title">
-            <div class="section-header">
-              <div>
-                <h2 class="section-title" id="run-log-title">Latest Log Tail</h2>
-                <p class="section-note">Last local output captured for this run.</p>
-              </div>
-            </div>
+          <section id="run-log">
+            <div class="panel-head">Latest Log Tail</div>
             <pre class="log-tail">${htmlEscape(logTail)}</pre>
           </section>
         </div>

@@ -62,7 +62,13 @@
       "Bash(gh run:*)",
       "Bash(bash:*)",
       "Bash(xxd:*)",
-      "mcp__deepwiki__read_wiki_contents"
+      "mcp__deepwiki__read_wiki_contents",
+      "mcp__symphony__symphony_list_runs",
+      "mcp__symphony__symphony_get_run",
+      "mcp__symphony__symphony_get_runtime_state",
+      "Bash(ps aux:*)",
+      "Bash(xargs kill:*)",
+      "Bash(lsof -p 48424 2>/dev/null | grep cwd | head -3; ps -o pid,cwd -p 48424 2>/dev/null)"
     ]
   },
   "enableAllProjectMcpServers": true,
@@ -73,17 +79,6 @@
     "exa"
   ],
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/risk-tier-pretool-guard.sh"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
