@@ -28,11 +28,6 @@ type NotionDatabasePage = {
   properties: Record<string, NotionProperty | undefined>;
 };
 
-export type NotionPageReference = {
-  id: string;
-  url: string;
-};
-
 function requireNotionToken(): string {
   const token = process.env.NOTION_TOKEN || process.env.NOTION_API_KEY || '';
   if (!token) {
@@ -123,32 +118,16 @@ function readSelectProperty(page: NotionDatabasePage, propertyName: string): str
   return property.select.name.trim();
 }
 
-function notionRichText(content: string): Array<{
-  type: 'text';
-  text: { content: string };
-}> {
-  return [
-    {
-      type: 'text',
-      text: { content },
-    },
-  ];
-}
-
-async function notionRequest<T>(
-  method: 'GET' | 'POST' | 'PATCH',
-  route: string,
-  body?: unknown,
-): Promise<T> {
+async function notionRequest<T>(route: string, body: unknown): Promise<T> {
   const response = await fetch(`${NOTION_API_URL}${route}`, {
-    method,
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${requireNotionToken()}`,
       'Content-Type': 'application/json',
       'Notion-Version': NOTION_VERSION,
       'User-Agent': 'nanoclaw-symphony-registry-sync',
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: JSON.stringify(body),
   });
 
   const payload = (await response.json()) as T & { message?: string };
@@ -193,7 +172,7 @@ export async function fetchProjectRegistryFromNotion(
       results: NotionDatabasePage[];
       has_more: boolean;
       next_cursor: string | null;
-    }>('POST', `/databases/${databaseId}/query`, {
+    }>(`/databases/${databaseId}/query`, {
       page_size: 100,
       start_cursor: cursor,
     });
@@ -209,143 +188,6 @@ export async function fetchProjectRegistryFromNotion(
     schemaVersion: 1,
     projects,
   });
-}
-
-export async function findProjectRegistryPageByProjectKey(
-  databaseId: string,
-  projectKey: string,
-): Promise<NotionDatabasePage | null> {
-  const payload = await notionRequest<{
-    results: NotionDatabasePage[];
-  }>('POST', `/databases/${databaseId}/query`, {
-    filter: {
-      property: 'Project Key',
-      rich_text: {
-        equals: projectKey,
-      },
-    },
-    page_size: 10,
-  });
-
-  return payload.results[0] || null;
-}
-
-export async function createNotionChildPage(input: {
-  parentPageId: string;
-  title: string;
-  summaryLines?: string[];
-}): Promise<NotionPageReference> {
-  const children =
-    input.summaryLines && input.summaryLines.length > 0
-      ? input.summaryLines.map((line) => ({
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: notionRichText(line),
-          },
-        }))
-      : undefined;
-
-  const payload = await notionRequest<{
-    id: string;
-    url: string;
-  }>('POST', '/pages', {
-    parent: { page_id: input.parentPageId },
-    properties: {
-      title: {
-        title: notionRichText(input.title),
-      },
-    },
-    children,
-  });
-
-  return {
-    id: payload.id,
-    url: payload.url,
-  };
-}
-
-function registryPageProperties(entry: ProjectRegistryEntry) {
-  return {
-    Name: {
-      title: notionRichText(entry.displayName),
-    },
-    'Project Key': {
-      rich_text: notionRichText(entry.projectKey),
-    },
-    'Linear Project': {
-      rich_text: notionRichText(entry.linearProject),
-    },
-    'Notion Root': {
-      url: entry.notionRoot,
-    },
-    'GitHub Repo': {
-      rich_text: notionRichText(entry.githubRepo),
-    },
-    'Symphony Enabled': {
-      checkbox: entry.symphonyEnabled,
-    },
-    'Allowed Backends': {
-      multi_select: entry.allowedBackends.map((name) => ({ name })),
-    },
-    'Default Backend': {
-      select: { name: entry.defaultBackend },
-    },
-    'Work Classes Supported': {
-      multi_select: entry.workClassesSupported.map((name) => ({ name })),
-    },
-    'Secret Scope': {
-      rich_text: notionRichText(entry.secretScope),
-    },
-    'Workspace Root': {
-      rich_text: notionRichText(entry.workspaceRoot),
-    },
-    'Ready Policy': {
-      rich_text: notionRichText(entry.readyPolicy),
-    },
-  };
-}
-
-export async function upsertProjectRegistryEntryInNotion(
-  databaseId: string,
-  entry: ProjectRegistryEntry,
-): Promise<{ action: 'created' | 'updated'; page: NotionPageReference }> {
-  const existing = await findProjectRegistryPageByProjectKey(databaseId, entry.projectKey);
-
-  if (existing) {
-    const payload = await notionRequest<{
-      id: string;
-      url: string;
-    }>('PATCH', `/pages/${existing.id}`, {
-      properties: registryPageProperties(entry),
-    });
-
-    return {
-      action: 'updated',
-      page: {
-        id: payload.id,
-        url: payload.url,
-      },
-    };
-  }
-
-  const payload = await notionRequest<{
-    id: string;
-    url: string;
-  }>('POST', '/pages', {
-    parent: {
-      database_id: databaseId,
-    },
-    properties: registryPageProperties(entry),
-  });
-
-  return {
-    action: 'created',
-    page: {
-      id: payload.id,
-      url: payload.url,
-    },
-  };
 }
 
 export function loadProjectRegistryFromFile(filePath: string): ProjectRegistry {

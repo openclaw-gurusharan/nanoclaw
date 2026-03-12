@@ -18,8 +18,6 @@ describe('buildSymphonyLaunchPlan', () => {
       backend: 'claude-code',
       bin: 'claude',
       argv: [],
-      githubRepo: undefined,
-      useWorktree: false,
       workspacePath: '/tmp/nanoclaw-symphony/NCL-42',
       env: {
         NANOCLAW_SYMPHONY_PROJECT_KEY: 'nanoclaw',
