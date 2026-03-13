@@ -8,7 +8,7 @@ Run the nightly improvement evaluation flow.
 Manual-use note:
 
 - Scheduled nightly execution does not call this slash command.
-- The scheduled lane uses `scripts/workflow/start-nightly-improvement.sh`, which runs `claude -p --agent nightly-improvement-researcher`.
+- The scheduled lane is driven by the Linear issue NAN-29 dispatched via Symphony, which invokes the `nightly-improvement-researcher` agent.
 - Keep this command as a manual debugging wrapper only.
 
 Requirements:
@@ -53,9 +53,9 @@ Execution flow:
      `node scripts/workflow/nightly-improvement.js upsert-context --kind tooling --body-stdin`
    - include: version deltas, source links used, subsystem fit, candidate adoption or `no-fit`, risk/operator-load note, and `P1/P2/P3`
    - run `node scripts/workflow/nightly-improvement.js append-decision --kind tooling --decision <pilot|defer|reject> --summary "<one-line summary>" --agent-label "Claude Code" --to codex --status needs-input --next "morning Codex triage"`
-7. After the relevant context updates succeed, run:
+6. After the relevant context updates succeed, run:
    - `node scripts/workflow/nightly-improvement.js record --scan-file /tmp/nightly-improvement-scan.json`
-6. End with a short summary covering:
+7. End with a short summary covering:
    - whether upstream changed
    - which tools changed
    - which shared-context pages were created or updated

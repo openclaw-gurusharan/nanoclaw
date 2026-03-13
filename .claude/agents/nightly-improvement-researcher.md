@@ -20,9 +20,20 @@ allowedTools:
   - mcp__exa__web_search_exa
   - mcp__token-efficient__execute_code
   - mcp__token-efficient__process_logs
+  - mcp__plugin_Notion_notion__notion-search
+  - mcp__plugin_Notion_notion__notion-fetch
+  - mcp__plugin_Notion_notion__notion-create-pages
+  - mcp__plugin_Notion_notion__notion-update-page
+  - mcp__plugin_Notion_notion__notion-create-comment
+  - mcp__plugin_linear_linear__get_issue
+  - mcp__plugin_linear_linear__save_issue
+  - mcp__plugin_linear_linear__list_issues
+  - mcp__plugin_linear_linear__save_comment
+  - mcp__symphony__symphony_mark_run_status
+  - mcp__symphony__symphony_get_run
 memory: none
 permissionMode: bypassPermissions
-maxTurns: 18
+maxTurns: 24
 ---
 
 # Nightly Improvement Researcher
@@ -118,3 +129,19 @@ When recording a decision, use `node scripts/workflow/nightly-improvement.js app
 - `--next "morning Codex triage"`
 
 Do not create Linear issues directly. The handoff target is always morning Codex triage in the rolling nightly Notion context page.
+
+## Run Completion
+
+At the end of every run, mark the Symphony run status. Linear handles recurrence automatically when the issue returns to Ready.
+
+**On success:** `mcp__symphony__symphony_mark_run_status` with `status: "done"`
+
+**On failure (blocker, scan error, token exhausted):**
+
+1. `mcp__symphony__symphony_mark_run_status` with `status: "blocked"`
+2. Include the blocker reason in the nightly Notion page before stopping.
+
+For promoted experiments, create a Notion handoff page:
+
+1. Run `node scripts/workflow/nightly-improvement.js notion-handoff --experiment-branch <branch> --output /tmp/handoff.json`
+2. Read `/tmp/handoff.json` and pass `notionPayload` to `mcp__plugin_Notion_notion__notion-create-pages`

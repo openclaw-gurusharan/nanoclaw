@@ -17,6 +17,7 @@ export type SymphonyLaunchPlan = {
   workspacePath: string;
   useWorktree: boolean;
   githubRepo: string;
+  agentName?: string;
   env: Record<string, string>;
 };
 
@@ -24,6 +25,7 @@ export type SymphonyLaunchInput = SymphonyBackendResolution & {
   issueId: string;
   issueIdentifier: string;
   githubRepo: string;
+  agentName?: string;
 };
 
 function sanitizePathSegment(value: string): string {
@@ -58,6 +60,7 @@ export function buildSymphonyLaunchPlan(
     workspacePath,
     useWorktree,
     githubRepo: input.githubRepo,
+    agentName: input.agentName,
     env: {
       NANOCLAW_SYMPHONY_PROJECT_KEY: input.projectKey,
       NANOCLAW_SYMPHONY_SECRET_SCOPE: input.secretScope,

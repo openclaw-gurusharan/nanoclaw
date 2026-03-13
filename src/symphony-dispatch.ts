@@ -69,6 +69,7 @@ function commandForPlan(plan: ReturnType<typeof buildSymphonyLaunchPlan>): strin
     promptFile: shellEscape(promptFile),
     logFile: shellEscape(logFile),
     issueIdentifier: shellEscape(plan.env.NANOCLAW_SYMPHONY_ISSUE_IDENTIFIER),
+    agent: plan.agentName ? `--agent ${shellEscape(plan.agentName)}` : '',
   });
 }
 
@@ -142,6 +143,7 @@ args = [
 startup_timeout_sec = 20.0
 tool_timeout_sec = 120.0
 env_vars = ["NOTION_TOKEN", "NOTION_SESSION_SUMMARY_DATABASE_ID", "NOTION_NIGHTLY_DATABASE_ID", "NOTION_PROJECT_REGISTRY_DATABASE_ID", "LINEAR_API_KEY", "NANOCLAW_LINEAR_TEAM_KEY"]
+
 `;
 
   fs.writeFileSync(
@@ -283,6 +285,7 @@ export async function dispatchOnceForProject(
       workClass: parsed.workClass,
       executionLane: parsed.executionLane,
       targetRuntime: parsed.targetRuntime,
+      agentName: parsed.agentName,
       repoUrl: project.githubRepo,
       baseBranch: 'main',
       notionContextUrl: project.notionRoot,
@@ -293,6 +296,7 @@ export async function dispatchOnceForProject(
     issueId: issue.id,
     issueIdentifier: issue.identifier,
     githubRepo: project.githubRepo,
+    agentName: parsed.agentName,
   });
   const prompt = buildSymphonyPrompt(issue);
   const runId = buildRunId(issue.identifier);

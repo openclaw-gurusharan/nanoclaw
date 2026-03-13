@@ -64,6 +64,7 @@ export const SymphonyIssueRoutingSchema = z.object({
   workClass: SymphonyWorkClassSchema,
   executionLane: SymphonyExecutionLaneSchema,
   targetRuntime: SymphonyTargetRuntimeSchema.optional(),
+  agentName: z.string().optional(),
   repoUrl: z.string().min(1),
   baseBranch: z.string().min(1),
   notionContextUrl: z.string().optional(),
@@ -75,6 +76,7 @@ export type SymphonyBackendResolution = {
   projectKey: string;
   workspaceRoot: string;
   secretScope: string;
+  agentName?: string;
   reasons: string[];
 };
 
@@ -195,6 +197,7 @@ export function resolveSymphonyBackend(
     projectKey: project.projectKey,
     workspaceRoot: project.workspaceRoot,
     secretScope: project.secretScope,
+    agentName: issue.agentName,
     reasons,
   };
 }

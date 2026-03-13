@@ -46,6 +46,7 @@ export type SymphonyIssueContract = {
   workClass: SymphonyWorkClass;
   executionLane: SymphonyExecutionLane;
   targetRuntime: SymphonyTargetRuntime;
+  agentName?: string;
   missingSections: string[];
 };
 
@@ -74,10 +75,16 @@ export function parseSymphonyIssueContract(body: string): SymphonyIssueContract 
     parseRoutingLine(routingSection, 'Work Class').toLowerCase(),
   );
 
+  // Optional: Agent name to invoke via --agent flag (e.g. nightly-improvement-researcher)
+  const agentPattern = /^[-*]\s*Agent\s*:\s*(.+)$/im;
+  const agentMatch = routingSection.match(agentPattern);
+  const agentName = agentMatch?.[1]?.trim() || undefined;
+
   return {
     workClass,
     executionLane,
     targetRuntime,
+    agentName,
     missingSections,
   };
 }

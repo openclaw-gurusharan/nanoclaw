@@ -9,7 +9,7 @@ Armed means the loaded job is actively watching `com.apple.launchd.calendarinter
 | Label | Loaded | Armed | State | Schedule | Command |
 | --- | --- | --- | --- | --- | --- |
 | `com.nanoclaw.platform-loop` | `yes` | `yes` | `not running` | `Hour=15, Minute=0; Hour=10, Minute=0` | `/bin/bash /Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/scripts/workflow/check-platform-loop.sh` |
-| `com.nanoclaw.nightly-improvement` | `yes` | `yes` | `not running` | `Hour=0, Minute=30` | `/bin/bash /Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/scripts/workflow/start-nightly-improvement.sh` |
+| `com.nanoclaw.nightly-improvement` | `removed` | `-` | `-` | `driven by Linear NAN-29 via Symphony` | `-` |
 | `com.nanoclaw.morning-codex-prep` | `yes` | `yes` | `not running` | `Hour=8, Minute=30` | `/bin/bash /Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/scripts/workflow/start-morning-codex-prep.sh` |
 
 ### `com.nanoclaw.platform-loop`
@@ -30,18 +30,7 @@ Armed means the loaded job is actively watching `com.apple.launchd.calendarinter
 
 ### `com.nanoclaw.nightly-improvement`
 
-- Loaded: `yes`
-- Armed: `yes`
-- State: `not running`
-- Active Count: `0`
-- Runs: `0`
-- Last Exit Code: `(never exited)`
-- Installed Plist: `/Users/gurusharan/Library/LaunchAgents/com.nanoclaw-nightly-improvement.plist`
-- Command: `/bin/bash /Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/scripts/workflow/start-nightly-improvement.sh`
-- Stdout: `/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/logs/nightly-improvement.log`
-- Stderr: `/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/logs/nightly-improvement.error.log`
-- Calendar Triggers:
-  - `Hour=0, Minute=30`
+Removed. Nightly improvement is now driven by Linear issue NAN-29 dispatched via Symphony.
 
 ### `com.nanoclaw.morning-codex-prep`
 
@@ -57,4 +46,3 @@ Armed means the loaded job is actively watching `com.apple.launchd.calendarinter
 - Stderr: `/Users/gurusharan/Documents/remote-claude/Codex/jarvis-mac/nanoclaw/logs/morning-codex-prep.error.log`
 - Calendar Triggers:
   - `Hour=8, Minute=30`
-
