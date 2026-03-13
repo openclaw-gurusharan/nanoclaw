@@ -183,6 +183,66 @@ Exit codes:
 - 3: CI checks failed
 - 4: PR head updated (autofix commit detected)
 
+## Haiku Subagent Parallel Monitoring + Auto-Fix
+
+Spawn multiple Haiku subagents in PARALLEL (run_in_background: true) for cost-efficient concurrent monitoring:
+
+### 1. CI Monitor Haiku
+
+```
+agent:Haiku
+description: Monitor PR CI status
+prompt: |
+  Monitor PR #<PR_NUMBER> checks every 2 minutes.
+  Use: gh pr checks <PR_NUMBER> --repo ingpoc/nanoclaw
+  If any check fails: identify failure type (format/tooling/pr-body).
+  If format fail: auto-fix with "npm run format && git add -A && git commit -m 'style: auto-fix' && git push"
+  If tooling budget: run budget increase script && git push
+  If pr-body: edit PR with maintenance fallback && git push
+  Report each action taken.
+  Stop when all checks pass.
+model: haiku
+run_in_background: true
+```
+
+### 2. Conflict Monitor Haiku
+
+```
+agent:Haiku
+description: Monitor PR merge conflicts
+prompt: |
+  Monitor PR #<PR_NUMBER> mergeability every 2 minutes.
+  Use: gh pr view <PR_NUMBER> --repo ingpoc/nanoclaw --json mergeable
+  If CONFLICTING: notify user immediately with "PR #<N> has conflicts with main - need manual resolution"
+  If MERGEABLE: report "PR #<N> is mergeable"
+  Stop when merged or blocked.
+model: haiku
+run_in_background: true
+```
+
+### 3. Review Comment Monitor Haiku
+
+```
+agent:Haiku
+description: Monitor PR review comments
+prompt: |
+  Monitor PR #<PR_NUMBER> for review comments every 2 minutes.
+  Use: gh api repos/ingpoc/nanoclaw/issues/<PR_NUMBER>/comments
+  If new comment: summarize and notify main agent.
+  If "## Codex Review" found: treat as feedback requiring response.
+  Stop when merged.
+model: haiku
+run_in_background: true
+```
+
+**Pattern**: Spawn all 3 Haiku agents in parallel at start, each runs independently.
+
+- CI Haiku: auto-fixes common failures + reports status
+- Conflict Haiku: alerts user if blocked (requires human judgment)
+- Review Haiku: notifies on feedback
+
+Haiku is cost-efficient (~68K tokens/tick) for monitoring loops.
+
 ## Failure Handling
 
 - **AUTONOMOUS MODE**: When checks fail, use Auto-Fix Handlers first:
