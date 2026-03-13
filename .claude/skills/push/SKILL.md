@@ -17,6 +17,7 @@ description: Push current branch changes to origin and create or update the corr
 - Create a PR if none exists for the branch, otherwise update the existing PR.
 - Keep branch history clean when remote has moved.
 - For this repo, never push to `upstream`; `origin` is the only allowed push/PR target.
+- **ALWAYS use `--repo ingpoc/nanoclaw`** when creating or editing PRs - never use `--repo qwibitai/nanoclaw` or leave repo unspecified.
 
 ## Pre-Push Autofix
 
@@ -125,21 +126,22 @@ fi
 # Write a clear, human-friendly title that summarizes the shipped change.
 pr_title="<clear PR title written for this change>"
 if [ -z "$pr_state" ]; then
-  gh pr create --title "$pr_title"
+  # ALWAYS use --repo ingpoc/nanoclaw - never create PRs on qwibitai/nanoclaw
+  gh pr create --repo ingpoc/nanoclaw --title "$pr_title"
 else
   # Reconsider title on every branch update; edit if scope shifted.
-  gh pr edit --title "$pr_title"
+  gh pr edit --repo ingpoc/nanoclaw --title "$pr_title"
 fi
 
 # Write/edit PR body to match .github/pull_request_template.md before validation.
 # Example workflow:
 # 1) open the template and draft body content for this PR
-# 2) gh pr edit --body-file /tmp/pr_body.md
+# 2) gh pr edit --repo ingpoc/nanoclaw --body-file /tmp/pr_body.md
 # 3) for branch updates, re-check that title/body still match current diff
 # 4) confirm all template sections are filled and no placeholder comments remain
 
 # Show PR URL for the reply
-gh pr view --json url -q .url
+gh pr view --repo ingpoc/nanoclaw --json url -q .url
 ```
 
 ## Notes
