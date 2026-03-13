@@ -37,6 +37,38 @@ fi
 
 ## Haiku Subagent Parallel Pre-Push Checks
 
+**When to use:**
+
+- Large PR with many files → spawn for parallel speedup
+- Small/quick changes → skip, run sequential (faster for trivial cases)
+- Time-sensitive push → skip, run sequential
+- Regular push → default: spawn for thoroughness
+
+**When NOT to use:**
+
+- Single file changes
+- Documentation-only changes
+- Already verified changes (re-push after fix)
+- When any failure should immediately stop
+
+**Smart spawning logic:**
+
+```bash
+# Check if Haiku parallel checks are worthwhile
+file_count=$(git diff --name-only HEAD~1 | wc -l)
+if [ "$file_count" -gt 5 ]; then
+  # Spawn parallel Haiku checks
+else
+  # Run sequential checks (faster for small changes)
+fi
+```
+
+**When to kill:**
+
+- Any check fails → kill other running checks immediately
+- All checks pass → let them complete
+- User cancels → kill all
+
 For faster validation, spawn Haiku subagents in PARALLEL to run checks concurrently:
 
 ### 1. Typecheck Haiku

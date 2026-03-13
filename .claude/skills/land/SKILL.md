@@ -185,6 +185,36 @@ Exit codes:
 
 ## Haiku Subagent Parallel Monitoring + Auto-Fix
 
+**When to use:**
+
+- All PRs by default → monitor in background
+- When main agent needs to do other work → spawn and continue
+- Time-sensitive merges → spawn for parallel monitoring
+
+**When NOT to use:**
+
+- Quick single-command checks (use `gh pr checks` directly)
+- When you want to wait synchronously for checks
+
+**Smart spawning logic:**
+
+```bash
+# Check PR complexity
+changed_files=$(gh pr view --json changedFiles -q .changedFiles)
+if [ "$changed_files" -gt 10 ]; then
+  # Spawn full monitoring (likely to have issues)
+else
+  # Quick check may be sufficient
+fi
+```
+
+**When to kill:**
+
+- PR merged → kill all monitors
+- CI fails and auto-fix succeeds → keep monitoring for re-runs
+- User requests stop → kill all monitors
+- Blocked (conflict/review) → keep conflict monitor, kill others
+
 Spawn multiple Haiku subagents in PARALLEL (run_in_background: true) for cost-efficient concurrent monitoring:
 
 ### 1. CI Monitor Haiku
