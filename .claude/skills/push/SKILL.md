@@ -35,6 +35,69 @@ fi
 
 **Why**: Most CI format failures are preventable by fixing locally before push. This saves ~2-5 min per failure.
 
+## Haiku Subagent Parallel Pre-Push Checks
+
+For faster validation, spawn Haiku subagents in PARALLEL to run checks concurrently:
+
+### 1. Typecheck Haiku
+
+```
+agent:Haiku
+description: Run TypeScript type check
+prompt: |
+  Run: npm run typecheck
+  If errors: report specific error messages.
+  If pass: report "typecheck: PASS"
+model: haiku
+run_in_background: true
+```
+
+### 2. Tests Haiku
+
+```
+agent:Haiku
+description: Run unit tests
+prompt: |
+  Run: npm test 2>&1 | tail -20
+  If failures: report which tests failed.
+  If pass: report "tests: PASS"
+model: haiku
+run_in_background: true
+```
+
+### 3. Workflow Contracts Haiku
+
+```
+agent:Haiku
+description: Check workflow contracts
+prompt: |
+  Run: bash scripts/check-workflow-contracts.sh
+  If fail: report specific contract failures.
+  If pass: report "contracts: PASS"
+model: haiku
+run_in_background: true
+```
+
+### 4. Tooling Governance Haiku
+
+```
+agent:Haiku
+description: Check tooling governance
+prompt: |
+  Run: bash scripts/check-tooling-governance.sh
+  If fail: report specific governance issues.
+  If pass: report "governance: PASS"
+model: haiku
+run_in_background: true
+```
+
+**Pattern**: Spawn all 4 Haiku agents in parallel before push. Wait for all to complete.
+
+- If any fail: report failures, let user decide whether to proceed
+- If all pass: proceed with push
+
+This speeds up validation by running checks concurrently instead of sequentially.
+
 ## Related Skills
 
 - `pull`: use this when push is rejected or sync is not clean (non-fast-forward,
