@@ -81,6 +81,56 @@ npx tsx .claude/skills/nanoclaw-orchestrator/scripts/work-item.ts update \
   --id "<work-id>" --status done --evidence "data/diagnostics/tests/test-report.json" --note "typecheck + mapped tests passed"
 ```
 
+## Single-Lane Delivery (default)
+
+Default 5-step flow for feature/bug/reliability work:
+
+1. **Preflight**: `bash scripts/workflow/session-start.sh --agent <claude|codex>` + skill routing
+2. **Plan gate**: Define requirement, constraints, invariants, acceptance criteria before coding
+3. **Implementation**: Keep scope bounded to mapped feature touch-set
+4. **Verification**: `bash scripts/jarvis-ops.sh acceptance-gate` (with `--include-happiness` for Andy-facing)
+5. **Pre-push validation**: format check → typecheck → tests → workflow contracts → tooling governance → `git diff --check`
+
+Evidence manifest: `data/diagnostics/acceptance/acceptance-<timestamp>.json`
+
+For incident-involved changes: resolve only after user confirmation + verification evidence + prevention note.
+
+## Split-Lane Delivery (Claude + Codex)
+
+Use when execution is split across Claude/Codex lanes, parallel worktrees, or review fanout.
+
+Worktree topology: `wt/<ticket>-impl`, `wt/<ticket>-verify`, `wt/<ticket>-review`.
+
+| Phase | Command |
+|-------|---------|
+| Preflight | `bash scripts/workflow/preflight.sh` + `plan-lock.sh` |
+| Implementation | Scoped changes in `wt/<ticket>-impl` only |
+| Verification | `bash scripts/workflow/verify.sh` from verify lane |
+| Review fanout | Correctness + security + reliability findings with file/line evidence |
+| Finalization | `bash scripts/workflow/finalize-pr.sh` |
+| Cleanup | `bash scripts/worktree/clean.sh --ticket <id> --delete-branches` |
+
+Do not edit architecture/contract invariants in parallel lanes.
+
+## Platform Pickup
+
+Scheduled Claude Code lane that claims `Ready` NanoClaw work from Linear:
+
+```bash
+# Check next candidate
+node scripts/workflow/platform-loop.js next
+
+# Dry-run sync
+bash scripts/workflow/platform-loop-sync.sh --dry-run
+
+# Start pickup loop
+bash scripts/workflow/start-platform-loop.sh --dry-run
+```
+
+Pickup eligibility: `Work Class = nanoclaw-core`, `Execution Lane = claude-code`, state `Ready`, no other Claude item `In Progress` or `Review`.
+
+Boundaries: must not mark work `Ready`, reprioritize queue, invent scope, or consume downstream project issues.
+
 ## Rules
 
 - Never skip the feature map phase.

@@ -21,5 +21,6 @@ if [[ -z "$ORCHESTRATOR_ROOT" ]]; then
   exit 1
 fi
 
-exec bash "$ORCHESTRATOR_ROOT/scripts/workflow/run-with-env.sh" \
-  npx tsx "$ORCHESTRATOR_ROOT/scripts/workflow/symphony-mcp.ts"
+exec node --env-file="$REPO_ROOT/.env" \
+  --import "$REPO_ROOT/node_modules/tsx/dist/loader.mjs" \
+  "$ORCHESTRATOR_ROOT/scripts/workflow/symphony-mcp.ts"

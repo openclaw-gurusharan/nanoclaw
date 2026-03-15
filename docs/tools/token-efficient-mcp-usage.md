@@ -1,25 +1,31 @@
 # Token-Efficient MCP Usage
 
 ## Purpose
+
 Provide the canonical routing guide for when and how to use the token-efficient MCP server to preserve Codex context.
 
 ## Doc Type
+
 `map`
 
 ## Canonical Owner
+
 This doc owns token-efficient MCP usage guidance for Codex work in this repo. It must not duplicate general skill-routing policy from `docs/workflow/docs-discipline/skill-routing-preflight.md` or the strategy rationale in `docs/workflow/strategy/code-execution-mcp-pattern.md`.
 
 ## Use When
+
 - Choosing between token-efficient MCP, raw shell output, or other built-in tools.
 - Handling logs, CSV data, or scripts that would otherwise emit large stdout into chat context.
 - Teaching or reviewing Codex workflows where context preservation matters.
 
 ## Do Not Use When
+
 - Defining general MCP routing policy. Use `docs/workflow/docs-discipline/skill-routing-preflight.md`.
 - Recording why the code-execution MCP pattern is strategically valid. Use `docs/workflow/strategy/code-execution-mcp-pattern.md`.
 - Describing core product/runtime architecture. Use `docs/ARCHITECTURE.md` or `docs/reference/SPEC.md`.
 
 ## Verification
+
 - Live MCP interface checks in Codex:
   - `mcp__token-efficient__execute_code`
   - `mcp__token-efficient__process_csv`
@@ -33,9 +39,36 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
   - `bash scripts/check-docs-hygiene.sh`
 
 ## Related Docs
+
 - `docs/workflow/docs-discipline/skill-routing-preflight.md`
 - `docs/workflow/strategy/code-execution-mcp-pattern.md`
 - `docs/operations/skills-vs-docs-map.md`
+
+## Linear API Reads
+
+Use `mcp__symphony__linear_graphql` for all Linear reads and writes. It is the single canonical Linear access path — no REST API calls, no OAuth plugin.
+
+**Rule: request only the fields you need. Never fetch full payloads for scanning.**
+
+| Task | Query shape |
+|------|-------------|
+| Triage: list Ready issues | `identifier title state { name }` — omit description |
+| Check Symphony Routing section | `identifier description` for that one issue only |
+| Get full issue body | `identifier title description` for one issue |
+| Count issues by state | `filter` + `pageInfo { totalCount }` |
+| Post comment | `commentCreate` mutation |
+| Update issue state | `issueUpdate` mutation |
+
+### Narrow read example
+
+```
+mcp__symphony__linear_graphql(
+  query: "query { issues(filter: { project: { id: { eq: $project } } state: { name: { eq: \"Ready\" } } } first: 50) { nodes { identifier title state { name } } } }",
+  variables: "{\"project\": \"dbf032a2-8437-41df-87cf-bcdaadff7149\"}"
+)
+```
+
+Request only the fields you will actually read. Each extra field on 50 issues compounds cost.
 
 ## Decision Table
 
@@ -59,12 +92,14 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
 | Codex tool-budget governance | `docs/operations/tooling-governance-budget.json` |
 
 ## Update Surfaces
+
 - Update this doc when the token-efficient MCP tool set, defaults, or best-practice routing changes.
 - Update `docs/workflow/strategy/code-execution-mcp-pattern.md` only when the strategic recommendation changes.
 - Update `docs/workflow/docs-discipline/skill-routing-preflight.md` only when global routing policy changes.
 - Update `docs/operations/tooling-governance-budget.json` only when required MCP coverage changes.
 
 ## Default Usage Rules
+
 1. Treat token-efficient MCP as the default for noisy logs, CSV/data reduction, and scripts with potentially large stdout.
 2. Prefer `response_format: "tiny"` first, then `summary`, and use `full` only when the smaller modes are insufficient.
 3. Keep `include_metrics` off unless validating savings or debugging the MCP server itself.
@@ -73,6 +108,7 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
 6. Use raw shell only when the task is inherently shell-native and the expected output is already tiny.
 
 ## Use Cases
+
 - Large application logs where only `ERROR`, `WARN`, or a narrow regex matters.
 - CSV exports where only a few columns, rows, groups, or summary statistics are needed.
 - Diagnostic scripts that would normally print installation logs, retries, tracebacks, or intermediate progress.
@@ -80,6 +116,7 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
 - Context-sensitive sessions where preserving space matters more than having every intermediate line in chat history.
 
 ## Anti-Patterns
+
 - Running `cat`, `tail -n 500`, or broad `grep` on large logs and pasting the result into the transcript.
 - Using `execute_code` to do general repo search when `rg` or `Glob` is the right primitive.
 - Asking for `full` output by default.
@@ -90,6 +127,7 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
 ## Best-Practice Call Shapes
 
 ### Logs
+
 - Start with:
   - `process_logs(file_path, pattern, response_format="tiny", limit=20, context_lines=0)`
 - Widen only if needed:
@@ -98,6 +136,7 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
   - use `spill_to_file=true` before switching to `full`
 
 ### CSV
+
 - Start with:
   - `process_csv(file_path, response_format="summary", limit=20)`
 - Widen only if needed:
@@ -107,6 +146,7 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
   - use `spill_to_file=true` before requesting large `full` pages
 
 ### Code Execution
+
 - Start with:
   - `execute_code(code, language, response_format="tiny", max_output_chars=1200)`
 - Widen only if needed:
@@ -115,6 +155,7 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
   - use `spill_to_file=true` for verbose runs
 
 ## Exit Criteria
+
 - The chosen tool returns only the minimum result the model needs.
 - Raw logs, large tables, and verbose stdout stay out of chat history unless explicitly required.
 - If a full artifact is needed, the result is saved to disk and referenced instead of pasted into context.

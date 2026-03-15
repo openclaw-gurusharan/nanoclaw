@@ -119,6 +119,31 @@ Rules:
 3. global integrations such as Linear, Notion, and GitHub stay in the workspace secret layer
 4. project-specific secrets stay under the project scope
 
+### Backend Selection Guide
+
+Choose the backend based on what the agent needs to do **during** the run:
+
+| Backend | Runs As | MCP Plugins Available | Use When |
+|---------|---------|----------------------|----------|
+| `codex` | `codex exec {workspace}` | None (pure code execution) | Build, lint, compile, pure tests — no Linear/Notion writes needed |
+| `claude-code` | `claude -p {agent} < PROMPT.md` | Linear, Notion, GitHub OAuth MCP | Agent must post results to Linear, update Notion, or call MCP tools mid-run |
+| `opencode-worker` | OpenCode runtime | Varies by config | Not used in NanoClaw by default |
+
+**Invalid values** (will fail validation loudly):
+
+- `jarvis-worker` — execution lane concept, not a backend
+- `symphony` — orchestrator, not a runner
+- `human` — not a backend identifier
+
+When `Target Runtime: claude-code`, the `Agent:` field is required and must map to `.claude/agents/<name>.md`.
+
+Available agents:
+
+| Agent Name | Purpose | Work Class |
+|-----------|---------|------------|
+| `nanoclaw-test-runner` | Runs Required Checks from test issues, posts structured PASS/FAIL/BLOCKED to Linear, marks Symphony run done | `nanoclaw-core`, `downstream-project` |
+| `nightly-improvement-researcher` | Upstream changelog scan + tooling detection; nightly cadence only | `research` (do not reuse for other work) |
+
 ### NanoClaw enablement
 
 `NanoClaw` is Symphony-enabled.
@@ -161,6 +186,7 @@ Required issue-body section:
 ## Symphony Routing
 - Execution Lane: symphony
 - Target Runtime: codex | claude-code | opencode
+- Agent: <agent-name>          # required when Target Runtime: claude-code
 - Work Class: nanoclaw-core | downstream-project
 ```
 

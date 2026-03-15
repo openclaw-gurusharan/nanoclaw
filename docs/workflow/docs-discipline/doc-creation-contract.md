@@ -166,6 +166,27 @@ Do not create docs that:
 - exist only because the topic feels important
 - add multiple new `CLAUDE.md` triggers for one narrow workflow
 
+## Skills Anti-Pattern (applies to skills too)
+
+Skills are operators, not authorities. When creating/updating skills:
+
+1. **Reference scripts, don't duplicate them**
+   - ❌ Bad: `npm run typecheck && npm test && bash scripts/check-workflow-contracts.sh`
+   - ✅ Good: `bash scripts/jarvis-acceptance-gate.sh --skip-connectivity`
+
+2. **Single source of truth**
+   - If the command exists in a script, reference the script
+   - Don't hardcode logic that can drift from the canonical source
+   - Session introspection will catch drift and flag it
+
+3. **Verify script exists before referencing**
+   - Run `ls scripts/` to confirm path
+   - Run the script with `--help` or `--dry-run` to confirm interface
+
+4. **When in doubt, use session introspection**
+   - If a skill feels stale or wrong, follow session-introspection skill
+   - It will catch command-order bugs and stale workflows
+
 ## Creation Workflow
 
 When a new doc passes the admission gate:

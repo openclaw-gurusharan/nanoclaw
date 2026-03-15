@@ -45,6 +45,74 @@ npx tsx .claude/skills/nanoclaw-testing/scripts/run-feature-tests.ts "<feature-i
 - For Andy user-facing reliability fixes, `--live` must include `bash scripts/jarvis-ops.sh happiness-gate --user-confirmation "<manual User POV runbook completed>"`.
 - `happiness-gate` pass is not sufficient by itself; also complete manual user POV runbook in `docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md`.
 
+## User Happiness Gate (Andy)
+
+Run before declaring any Andy/Jarvis reliability fix complete.
+
+```bash
+bash scripts/jarvis-ops.sh happiness-gate --user-confirmation "<manual User POV runbook completed>"
+```
+
+| Criteria | Threshold |
+|----------|-----------|
+| Greeting response latency | <= 8s |
+| Progress query response | <= 8s |
+| Status query (no internal IDs) | <= 8s |
+| Reply quality | Direct, actionable, no stack traces |
+| Internal correctness | No unintended dispatches from status probes |
+
+**User POV Runbook** (required once per release candidate):
+
+1. Send development request to `andy-developer`
+2. Ask naturally: "what are you working on right now?"
+3. Ask follow-up: "what is the current progress?"
+4. In main lane, ask about `andy-developer` status
+5. Confirm replies are immediate, specific, no `req-*` IDs
+6. Confirm answer quality feels human-helpful
+
+Expanded form for debugging:
+
+```bash
+bash scripts/jarvis-ops.sh status
+bash scripts/jarvis-ops.sh verify-worker-connectivity
+bash scripts/jarvis-ops.sh linkage-audit
+node --experimental-transform-types scripts/test-andy-user-e2e.ts
+node --experimental-transform-types scripts/test-main-lane-status-e2e.ts
+```
+
+## Jarvis Acceptance Checklist
+
+Required outcomes before marking NanoClaw-Jarvis integration changes complete.
+
+### Architecture (Must Hold)
+
+- [ ] Host loop remains orchestrator (`src/index.ts`, `src/container-runner.ts`, `src/ipc.ts`)
+- [ ] No worker HTTP microservice introduced
+- [ ] Non-worker groups keep existing Claude Agent SDK behavior
+- [ ] Role split: Andy-bot (observe), Andy-developer (dispatch), jarvis-worker-* (execute)
+
+### Dispatch/Completion (Must Hold)
+
+- [ ] Worker dispatch is strict JSON (plain-text rejected)
+- [ ] `run_id` is canonical and caller-provided
+- [ ] Duplicate `run_id` does not double execute
+- [ ] Retry bounded to `failed` and `failed_contract`
+
+### Worker Runtime (Must Hold)
+
+- [ ] Worker lanes use `nanoclaw-worker:latest`
+- [ ] Worker secret scope is role-bounded
+- [ ] Skills/rules staging is deterministic and read-only in-container
+
+### Verification Gate
+
+```bash
+bash scripts/jarvis-ops.sh acceptance-gate
+# For Andy-facing: add --include-happiness --happiness-user-confirmation "<runbook completed>"
+```
+
+Evidence: `data/diagnostics/acceptance/acceptance-<timestamp>.json`
+
 ## Evidence Format
 
 `run-feature-tests.ts` prints a machine-readable JSON summary with:

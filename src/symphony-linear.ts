@@ -33,7 +33,7 @@ function requireLinearToken(): string {
   return token;
 }
 
-async function linearGraphql<T>(
+export async function linearGraphql<T>(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<T> {

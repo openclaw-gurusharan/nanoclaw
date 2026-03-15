@@ -46,7 +46,7 @@ Check the preflight results for `APPLE_CONTAINER` and `DOCKER`, and the PLATFORM
 - DOCKER=running → continue to 3b
 - DOCKER=installed_not_running → start Docker: `open -a Docker` (macOS) or `sudo systemctl start docker` (Linux). Wait 15s, re-check with `docker info`.
 - DOCKER=not_found → Use `AskUserQuestion: Docker is required for running agents. Would you like me to install it?` If confirmed:
-  - macOS: install via `brew install --cask docker`, then `open -a Docker` and wait for it to start. If brew not available, direct to Docker Desktop download at https://docker.com/products/docker-desktop
+  - macOS: install via `brew install --cask docker`, then `open -a Docker` and wait for it to start. If brew not available, direct to Docker Desktop download at <https://docker.com/products/docker-desktop>
   - Linux: install with `curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER`. Note: user may need to log out/in for group membership.
 
 ### 3b. Apple Container conversion gate (if needed)
@@ -68,6 +68,7 @@ grep -q "CONTAINER_RUNTIME_BIN = 'container'" src/container-runtime.ts && echo "
 Run `npx tsx setup/index.ts --step container -- --runtime <chosen>` and parse the status block.
 
 **If BUILD_OK=false:** Read `logs/setup.log` tail for the build error.
+
 - Cache issue (stale layers): `docker builder prune -f` (Docker) or `container builder stop && container builder rm && container builder start` (Apple Container). Retry.
 - Dockerfile syntax or missing files: diagnose from the log and fix, then retry.
 
@@ -114,6 +115,7 @@ AskUserQuestion: Shared number or dedicated? → AskUserQuestion: Trigger word? 
 **DM with bot:** Ask for bot's number, JID = `NUMBER@s.whatsapp.net`
 
 **Group:**
+
 1. `npx tsx setup/index.ts --step groups` (Bash timeout: 60000ms)
 2. BUILD=failed → fix TypeScript, re-run. GROUPS_IN_DB=0 → check logs.
 3. `npx tsx setup/index.ts --step groups -- --list` for pipe-separated JID|name lines.
@@ -133,6 +135,7 @@ AskUserQuestion: Agent access to external directories?
 ## 10. Start Service
 
 If service already running: unload first.
+
 - macOS: `launchctl unload ~/Library/LaunchAgents/com.nanoclaw.plist`
 - Linux: `systemctl --user stop nanoclaw` (or `systemctl stop nanoclaw` if root)
 
@@ -144,6 +147,7 @@ Run `npx tsx setup/index.ts --step service` and parse the status block.
 
 1. Immediate fix: `sudo setfacl -m u:$(whoami):rw /var/run/docker.sock`
 2. Persistent fix (re-applies after every Docker restart):
+
 ```bash
 sudo mkdir -p /etc/systemd/system/docker.service.d
 sudo tee /etc/systemd/system/docker.service.d/socket-acl.conf << 'EOF'
@@ -152,9 +156,11 @@ ExecStartPost=/usr/bin/setfacl -m u:USERNAME:rw /var/run/docker.sock
 EOF
 sudo systemctl daemon-reload
 ```
+
 Replace `USERNAME` with the actual username (from `whoami`). Run the two `sudo` commands separately — the `tee` heredoc first, then `daemon-reload`. After user confirms setfacl ran, re-run the service step.
 
 **If SERVICE_LOADED=false:**
+
 - Read `logs/setup.log` for the error.
 - macOS: check `launchctl list | grep nanoclaw`. If PID=`-` and status non-zero, read `logs/nanoclaw.error.log`.
 - Linux: check `systemctl --user status nanoclaw`.
@@ -165,6 +171,7 @@ Replace `USERNAME` with the actual username (from `whoami`). Run the two `sudo` 
 Run `npx tsx setup/index.ts --step verify` and parse the status block.
 
 **If STATUS=failed, fix each:**
+
 - SERVICE=stopped → `npm run build`, then restart: `launchctl kickstart -k gui/$(id -u)/com.nanoclaw` (macOS) or `systemctl --user restart nanoclaw` (Linux) or `bash start-nanoclaw.sh` (WSL nohup)
 - SERVICE=not_found → re-run step 10
 - CREDENTIALS=missing → re-run step 4
@@ -173,6 +180,61 @@ Run `npx tsx setup/index.ts --step verify` and parse the status block.
 - MOUNT_ALLOWLIST=missing → `npx tsx setup/index.ts --step mounts -- --empty`
 
 Tell user to test: send a message in their registered chat. Show: `tail -f logs/nanoclaw.log`
+
+## Session Recall
+
+Quick commands for session context reconstruction:
+
+```bash
+# Full startup flow (recommended)
+bash scripts/workflow/session-start.sh --agent <claude|codex>
+
+# Recall only
+bash scripts/qmd-context-recall.sh --bootstrap
+
+# Targeted context lookup
+bash scripts/qmd-context-recall.sh "worker connectivity dispatch"
+
+# Session end handoff
+bash scripts/qmd-context-recall.sh --close \
+  --issue INC-123 \
+  --done "implemented watchdog guard" \
+  --next "run verify-worker-connectivity"
+```
+
+| When | Command |
+|------|---------|
+| Session start | `bash scripts/workflow/session-start.sh --agent <claude\|codex>` |
+| Recall only | `bash scripts/qmd-context-recall.sh --bootstrap` |
+| Fast keyword recall | `bash scripts/qmd-context-recall.sh --search-mode bm25 "<topic>"` |
+| Best ranking recall | `bash scripts/qmd-context-recall.sh --search-mode hybrid "<topic>"` |
+| Session export sync | `bash scripts/qmd-session-sync.sh` |
+| Session end | `bash scripts/qmd-context-recall.sh --close --next "<next step>"` |
+| Audit context waste | `node scripts/workflow/session-context-audit.js --top 10` |
+
+## Session Work Sweep
+
+Session-start ritual that reads the active work control plane. Linear is the only supported work queue.
+
+```bash
+# Canonical entrypoint (runs recall + sweep + preflight)
+bash scripts/workflow/session-start.sh --agent <claude|codex>
+
+# Sweep-only fallback
+bash scripts/workflow/work-sweep.sh --agent <claude|codex> --fail-on-action-items
+```
+
+| Sweep Section | Required Action |
+|--------------|----------------|
+| My Issues | Confirm relevant; set In Progress if starting |
+| Needs My Review | Complete review or leave handoff comment |
+| Nightly Context Handoffs | Codex reviews, records decision, promotes if concrete |
+| Handoffs from other agent | Acknowledge and act or comment |
+| Blocked items | Assess if you can unblock; if not, comment |
+
+Agent-topic affinity: Workflow/Operating Model → Claude first. Feature Ideas/SDK/Upstream → Codex first.
+
+If `Needs My Review` contains items, resolve review before starting unrelated work.
 
 ## Troubleshooting
 

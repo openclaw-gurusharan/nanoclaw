@@ -1,13 +1,7 @@
 {
   "mcpServers": {
     "symphony": {
-      "command": "bash",
-      "args": [
-        "scripts/workflow/run-with-env.sh",
-        "npx",
-        "tsx",
-        "scripts/workflow/symphony-mcp.ts"
-      ]
+      "command": "./scripts/workflow/start-symphony-mcp.sh"
     }
   }
 }

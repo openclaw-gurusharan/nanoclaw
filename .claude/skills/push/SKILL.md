@@ -190,13 +190,8 @@ branch=$(git branch --show-current)
 bash scripts/workflow/finalize-pr.sh
 
 # If the full gate is intentionally out of scope for the change, run the
-# scoped minimum instead:
-npm run typecheck
-npm test
-bash scripts/check-workflow-contracts.sh
-bash scripts/check-claude-codex-mirror.sh
-bash scripts/check-tooling-governance.sh
-git diff --check
+# scoped validation via acceptance gate (ensures correct build → test order):
+bash scripts/jarvis-acceptance-gate.sh --skip-connectivity --skip-linkage
 
 # Initial push: respect the current origin remote.
 git push -u origin HEAD
