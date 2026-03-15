@@ -69,6 +69,7 @@ function commandForPlan(plan: ReturnType<typeof buildSymphonyLaunchPlan>): strin
     promptFile: shellEscape(promptFile),
     logFile: shellEscape(logFile),
     issueIdentifier: shellEscape(plan.env.NANOCLAW_SYMPHONY_ISSUE_IDENTIFIER),
+    agent: plan.agentName ? `--agent ${shellEscape(plan.agentName)}` : '',
   });
 }
 
@@ -211,6 +212,8 @@ export async function dispatchOnceForProject(
     ...resolved,
     issueId: issue.id,
     issueIdentifier: issue.identifier,
+    githubRepo: project.githubRepo,
+    agentName: parsed.agentName,
   });
   const prompt = buildSymphonyPrompt(issue);
   const runId = buildRunId(issue.identifier);

@@ -17,7 +17,9 @@ allowedTools:
   - Bash(mkdir:*)
   - Bash(cd:*)
   - Bash(python3:*)
-  - mcp__symphony__linear_graphql
+  - mcp__linear__linear_graphql
+  - mcp__notion__notion_query_memory
+  - mcp__notion__notion_create_memory
   - mcp__symphony__symphony_list_runs
   - mcp__symphony__symphony_mark_run_status
 memory: none
@@ -34,6 +36,19 @@ Bounded test execution agent. Runs the Required Checks from a Linear test issue,
 Execute only the commands listed in the issue's `## Required Checks` section. Parse the output. Post a structured pass/fail/blocked result comment to the Linear issue. Mark the run done or blocked. Stop.
 
 ## Protocol (MUST FOLLOW)
+
+### Step 0: Load Prior Context from Notion
+
+Before reading the issue, query relevant memories for this project.
+The project key is in the `$NANOCLAW_SYMPHONY_PROJECT_KEY` env var (e.g. `nanoclaw-test`):
+
+```
+mcp__notion__notion_query_memory  project_key=$NANOCLAW_SYMPHONY_PROJECT_KEY  type=decision  limit=5
+mcp__notion__notion_query_memory  project_key=$NANOCLAW_SYMPHONY_PROJECT_KEY  type=constraint  limit=3
+```
+
+If the database is not configured (`NOTION_AGENT_MEMORY_DATABASE_ID` missing) or empty, proceed normally — do not block.
+If results exist, factor them into execution (e.g. known constraints, prior decisions about env or test setup).
 
 ### Step 1: Read the Issue
 
@@ -71,7 +86,7 @@ For each command:
 
 ### Step 4: Post Results to Linear
 
-Post a single comment using `mcp__symphony__linear_graphql`:
+Post a single comment using `mcp__linear__linear_graphql`:
 
 ```graphql
 mutation CreateComment($issueId: String!, $body: String!) {
@@ -82,7 +97,7 @@ mutation CreateComment($issueId: String!, $body: String!) {
 }
 ```
 
-First resolve the issue's internal UUID: `query { issue(id: "NAN-33") { id } }`. Use that UUID as `issueId`.
+First resolve the issue's internal UUID: `query { issue(id: "NAN-33") { id } }` via `mcp__linear__linear_graphql`. Use that UUID as `issueId`.
 
 Format the comment exactly as:
 
@@ -108,10 +123,29 @@ Format the comment exactly as:
 **Overall**: PASS (all commands exited 0) | FAIL (N commands failed) | BLOCKED (could not run)
 ```
 
-### Step 5: Mark Run Status
+### Step 5: Write Back to Notion (Gate)
+
+Evaluate whether this run surfaced anything worth remembering. Write ONLY if true for at least one:
+
+- A constraint was discovered (missing env var, flaky test, external dependency required)
+- A lesson surfaced (why something failed, workaround found, expected failure explained)
+- A decision was made that future runs should know
+
+If yes:
+
+```text
+mcp__notion__notion_create_memory
+  project_key=$NANOCLAW_SYMPHONY_PROJECT_KEY
+  type=constraint | lesson | decision
+  content=<concise fact, max 200 words>
+```
+
+If nothing new was learned (routine pass/fail with no new findings): skip write-back entirely.
+
+### Step 6: Mark Run Status
 
 1. Find your run ID: `mcp__symphony__symphony_list_runs` with `project_key: "nanoclaw"`, `status: "running"`, take the most recent `runId`
-2. Call `mcp__symphony__symphony_mark_run_status`:
+2. Call `mcp__symphony__symphony_mark_run_status` via the symphony MCP:
    - `status: "done"` if all commands exited 0
    - `status: "done"` if some commands failed (failures are reported in the comment — the run itself completed)
    - `status: "blocked"` only if you could not run the checks at all (Step 2 blocker)

@@ -2,6 +2,12 @@
   "mcpServers": {
     "symphony": {
       "command": "./scripts/workflow/start-symphony-mcp.sh"
+    },
+    "notion": {
+      "command": "./scripts/workflow/start-notion-mcp.sh"
+    },
+    "linear": {
+      "command": "./scripts/workflow/start-linear-mcp.sh"
     }
   }
 }

@@ -44,6 +44,7 @@ Run these first, before implementation work starts:
 | Move runtime from Docker to Apple Container | `/convert-to-apple-container` |
 
 Enforcement intent:
+
 - If a request matches a router row, start with that skill before ad-hoc edits/debugging.
 - For feature work, `/customize` is mandatory preflight unless a more specific `/add-*` skill exists.
 
@@ -53,6 +54,7 @@ Use MCP tools first when intent matches. Do not default to ad-hoc shell/web flow
 
 | Intent | Preferred MCP | Typical Use |
 |--------|----------------|-------------|
+| Notion search, read, create-page (agent context/run summaries) | `symphony` | `notion_search`, `notion_get_page`, `notion_create_page` |
 | Large log/CSV/data processing and token-heavy analysis | `token-efficient` | `process_logs`, `process_csv`, `batch_process_csv`, `execute_code` |
 | Browser inspection, debugging, and automation (DOM, console, network, performance, interaction) | `chrome-devtools` | default browser MCP for local app/browser tasks |
 | Real-browser research or login-wall/dynamic browsing flows | `comet-bridge` | agentic browser exploration and deep browsing tasks |
@@ -60,6 +62,7 @@ Use MCP tools first when intent matches. Do not default to ad-hoc shell/web flow
 | GitHub repository architecture/Q&A | `deepwiki` | repo-grounded design/implementation questions |
 
 Fallback policy:
+
 - If no MCP matches the intent, use normal tools (shell, tests, docs, web).
 - If an MCP fails or is unavailable, run fix-first loop before fallback:
   - capture exact failure
@@ -83,6 +86,7 @@ Fallback policy:
 | `/add-voice-transcription` | WhatsApp voice transcription |
 | `/add-parallel` | Parallel AI MCP integration |
 | `/x-integration` | X/Twitter automation integration |
+| `/notion` | Notion workspace access — agent context injection and run summaries |
 | This fork intentionally excludes repo-local Qodo skills | Qodo is not configured for this repository; do not route coding/review work through Qodo-specific skills |
 
 ## What Skills Must Not Replace

@@ -41,7 +41,7 @@ function readExitPayload(filePath: string): { code: number; finishedAt: string }
 
 async function transitionIssueForRun(
   run: SymphonyRunRecord,
-  statusName: 'Review' | 'Blocked',
+  statusName: 'In Review' | 'Blocked',
   comment: string,
 ): Promise<void> {
   const issue = await getIssueByIdentifier(run.issueIdentifier);
@@ -81,12 +81,12 @@ async function reconcileRun(run: SymphonyRunRecord): Promise<SymphonyRunRecord> 
       });
       await transitionIssueForRun(
         next,
-        'Review',
+        'In Review',
         [
           '<!-- symphony-reconcile -->',
           `Run ID: ${next.runId}`,
           `Backend: ${next.backend}`,
-          `Status: Review`,
+          `Status: In Review`,
           `Workspace: ${next.workspacePath}`,
           `Log File: ${next.logFile}`,
         ].join('\n'),

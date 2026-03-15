@@ -1,19 +1,22 @@
 ---
 name: linear
 description: |
-  Canonical Linear access via mcp__symphony__linear_graphql.
+  Canonical Linear access via mcp__linear__linear_graphql.
   Use for all Linear reads, writes, comment edits, and mutations.
+  Load this skill before creating or updating any Symphony-dispatched issue —
+  Symphony silently skips issues with missing or malformed sections, so
+  using the built-in templates is essential to avoid wasted dispatch cycles.
   Do NOT use the OAuth plugin (mcp__plugin_linear_linear__*) or curl.
 ---
 
 # Linear GraphQL
 
-`mcp__symphony__linear_graphql` is the single canonical path for all Linear operations.
+`mcp__linear__linear_graphql` is the single canonical path for all Linear operations.
 
 ## Tool
 
 ```
-mcp__symphony__linear_graphql(query: "...", variables?: "{...}")
+mcp__linear__linear_graphql(query: "...", variables?: "{...}")
 ```
 
 - `query`: GraphQL query or mutation string
@@ -22,7 +25,7 @@ mcp__symphony__linear_graphql(query: "...", variables?: "{...}")
 
 ## Rules
 
-- Use `mcp__symphony__linear_graphql` for ALL Linear reads and writes
+- Use `mcp__linear__linear_graphql` for ALL Linear reads and writes
 - Never use `mcp__plugin_linear_linear__*` — it returns full payloads and cannot edit comments
 - Never use curl against `api.linear.app` — use this tool instead
 - Request only the fields you need — narrow reads save tokens
@@ -77,11 +80,36 @@ query {
 }
 ```
 
-### Templates
+## Issue Templates (Symphony-Ready)
+
+Before creating or updating any Symphony issue, read the correct template — an issue missing any required section will not be picked up by Symphony.
+
+| Project | Type | Template | Linear template ID |
+|---------|------|----------|--------------------|
+| nanoclaw | Work (feature, fix, improvement) | `references/issue-template-work.md` | `8503d706-dd07-4eb2-908e-86d85db7a3e4` |
+| NanoClaw Test | Test run | `references/issue-template-test.md` | `759a9bad-5b08-44e3-8b73-e4e9fb8afebc` |
+
+**When to use**: creating a new issue, moving an issue to Ready, or fixing an issue body that Symphony rejected.
+
+### Create issue from template
 
 ```graphql
-query { templates { id name type } }
+mutation {
+  issueCreate(input: {
+    teamId: "cc0d4b1e-7e26-4769-9a83-019d8b67c07c"
+    projectId: "<e63e3ba9... | dbf032a2...>"
+    title: "<title>"
+    description: "<full markdown body per template>"
+    priority: 2
+    stateId: "<state-id>"
+  }) {
+    success
+    issue { id identifier url }
+  }
+}
 ```
+
+Project IDs: `nanoclaw = e63e3ba9-8a36-4e3d-8882-5685754bc5ed` | `NanoClaw Test = dbf032a2-8437-41df-87cf-bcdaadff7149`
 
 ## Common Mutations
 
@@ -184,7 +212,7 @@ query { __type(name: "CommentCreateInput") {
 
 If Linear MCP fails completely:
 
-1. Check `.mcp.json` has `mcp__symphony__linear_graphql` configured
+1. Check `.mcp.json` has `mcp__linear__linear_graphql` configured
 2. Restart Claude Code session
 3. If still failing: check `LINEAR_API_KEY` in `.env`
 

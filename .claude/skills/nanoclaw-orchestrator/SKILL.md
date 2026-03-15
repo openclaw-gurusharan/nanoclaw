@@ -1,6 +1,8 @@
 ---
 name: nanoclaw-orchestrator
 description: "Use when coordinating NanoClaw feature delivery end-to-end with explicit state tracking: feature-tracking -> nanoclaw-implementation -> nanoclaw-testing. Load to keep work scoped, auditable, and resistant to code slop/duplication."
+context: fork
+agent: general-purpose
 ---
 
 # NanoClaw Orchestrator

@@ -1,15 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { notionRequest } from './symphony-notion.js';
 import {
   type ProjectRegistry,
   type ProjectRegistryEntry,
   validateProjectRegistry,
 } from './symphony-routing.js';
-
-const NOTION_API_URL =
-  process.env.NOTION_API_URL || 'https://api.notion.com/v1';
-const NOTION_VERSION = process.env.NOTION_VERSION || '2022-06-28';
 
 type NotionRichText = {
   plain_text?: string;
@@ -33,14 +30,6 @@ export type NotionPageReference = {
   id: string;
   url: string;
 };
-
-function requireNotionToken(): string {
-  const token = process.env.NOTION_TOKEN || process.env.NOTION_API_KEY || '';
-  if (!token) {
-    throw new Error('Missing NOTION_TOKEN or NOTION_API_KEY.');
-  }
-  return token;
-}
 
 function propertyOrThrow(
   page: NotionDatabasePage,
@@ -148,36 +137,6 @@ function notionRichText(content: string): Array<{
       text: { content },
     },
   ];
-}
-
-async function notionRequest<T>(
-  method: 'GET' | 'POST' | 'PATCH',
-  route: string,
-  body?: unknown,
-): Promise<T> {
-  const response = await fetch(`${NOTION_API_URL}${route}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${requireNotionToken()}`,
-      'Content-Type': 'application/json',
-      'Notion-Version': NOTION_VERSION,
-      'User-Agent': 'nanoclaw-symphony-registry-sync',
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-  const payload = (await response.json()) as T & { message?: string };
-  if (!response.ok) {
-    throw new Error(
-      `Notion API request failed: ${response.status} ${response.statusText}\n${JSON.stringify(
-        payload,
-        null,
-        2,
-      )}`,
-    );
-  }
-
-  return payload;
 }
 
 function pageToRegistryEntry(page: NotionDatabasePage): ProjectRegistryEntry {

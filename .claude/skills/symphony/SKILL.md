@@ -136,40 +136,23 @@ Available `claude-code` agents (`.claude/agents/<name>.md`):
 | Dashboard won't load | Pre-start check passes? | `npm run build` then retry |
 | State stays stale | Inspect `.nanoclaw/symphony/state.json` | Run `npm run symphony:daemon -- --once` |
 | Silent exit (no output) | Use CLI fallback above | `source .env && npx tsx scripts/workflow/symphony.ts serve` |
+| Daemon uses old code after code fix | Daemon loaded code at start and won't hot-reload | `pkill -f 'symphony.ts daemon' && npm run symphony:daemon &` |
 
 ### MCP Tooling Problems
 
 | Symptom | Check | Fix |
 |---------|-------|-----|
 | No Symphony tools | `.mcp.json` has symphony entry? | Add symphony server to `.mcp.json` |
+| MCP tools missing at session start | symphony-mcp.ts crashed at init | `npm run symphony:mcp &` (wait 3s), then retry tool |
 | Agent can't call `symphony_mark_run_status` | Check `.mcp.json` in worktree | Verify `injectMcpConfig` in `symphony-dispatch.ts` |
+
+> **`symphony:serve` vs `symphony:mcp`**: These are separate processes. `symphony:serve --port 4318` is the HTTP dashboard only — it does NOT provide MCP tools. MCP tools come from `symphony:mcp` (`scripts/workflow/symphony-mcp.ts`), which `.mcp.json` auto-starts. If MCP tools are missing, restart `symphony:mcp`, not `symphony:serve`.
 
 ---
 
-## Issue Template Creation
+## Issue Templates
 
-Use team template "TEMPLATE: Test Issue — [Feature/Component Name]" (ID: `759a9bad-5b08-44e3-8b73-e4e9fb8afebc`).
-
-### Via API (programmatic)
-
-```
-mcp__symphony__linear_graphql(query: "query { templates { id name type } }")
-```
-
-Copy `templateData.descriptionData` into the new issue body, replace all placeholders, then set state to `Ready`.
-
-### Template field checklist
-
-Before moving to Ready:
-
-- [ ] Title: replaced `[Feature/Component Name]`
-- [ ] Problem Statement: specific, not placeholder
-- [ ] Required Checks: real commands that exit 0
-- [ ] Blocked If: real env var or dependency names
-- [ ] Symphony Routing: `Work Class` and `Target Repo` match scope
-- [ ] No placeholder text remains (`[...]` patterns)
-
-All 7 required sections: Title, Description, Priority, Symphony Routing, Target Runtime, Work Class, Estimate.
+For issue creation and template requirements → load `/linear` skill, read `references/issue-template-work.md` or `references/issue-template-test.md`.
 
 ---
 
@@ -285,14 +268,10 @@ node --env-file=.env --import ./node_modules/tsx/dist/loader.mjs scripts/workflo
 
 ### Issue Requirements
 
-For Symphony to accept a Linear issue, it MUST have all 7 sections:
+Symphony validates all 7 sections before dispatching — a missing or placeholder section causes a silent skip with no error message.
 
-1. **Title**: Descriptive title
-2. **Description**: Full context
-3. **Priority**: P1-P4
-4. **Symphony Routing**: Agent name (e.g., "Agent: nightly-improvement-researcher")
-5. **Target Runtime**: Execution lane (e.g., "codex", "claude")
-6. **Work Class**: Task type (e.g., "research", "implementation")
-7. **Estimate**: Story points
+Required sections: **Title** · **Description** · **Priority** · **Symphony Routing** (Agent name) · **Target Runtime** · **Work Class** · **Estimate**
 
 > Work Class rules: `research` and `governance` are blocked by Symphony — use `nanoclaw-core` or `downstream-project`.
+
+For the exact content each section needs, load the `/linear` skill and read `references/issue-template-work.md` or `references/issue-template-test.md`.

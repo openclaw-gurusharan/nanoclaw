@@ -87,7 +87,21 @@
       "Bash(mcp__symphony__symphony_dispatch_once '{ \"project_key\": \"nanoclaw\", \"dry_run\": true }')",
       "mcp__symphony__symphony_list_ready_issues",
       "mcp__symphony__symphony_dispatch_once",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "mcp__symphony__symphony_reconcile_once",
+      "mcp__symphony__symphony_mark_run_status",
+      "mcp__symphony__symphony_get_run_log",
+      "Bash(cd:*)",
+      "mcp__symphony__notion_search",
+      "mcp__symphony__notion_create_page",
+      "mcp__symphony__notion_get_page",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:kareemf.com)",
+      "mcp__symphony__symphony_list_projects",
+      "mcp__notion__notion_query_memory",
+      "mcp__linear__linear_graphql",
+      "mcp__notion__notion_search",
+      "mcp__notion__notion_get_page"
     ]
   },
   "enableAllProjectMcpServers": true,

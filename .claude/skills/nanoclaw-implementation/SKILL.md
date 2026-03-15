@@ -1,6 +1,8 @@
 ---
 name: nanoclaw-implementation
 description: "Use when implementing or modifying NanoClaw features with strict file ownership discipline from feature-tracking. Load for feature delivery where you need to avoid duplicated logic, reuse existing code paths, and keep edits scoped to the right files."
+context: fork
+agent: general-purpose
 ---
 
 # NanoClaw Implementation
