@@ -83,9 +83,7 @@ if [ ! -f "docs/workflow/strategy/workflow-optimization-loop.md" ]; then
   errors+=("Missing optimization workflow doc: docs/workflow/strategy/workflow-optimization-loop.md")
 fi
 
-if [ ! -f "docs/workflow/strategy/weekly-slop-optimization-loop.md" ]; then
-  errors+=("Missing weekly slop optimization workflow doc: docs/workflow/strategy/weekly-slop-optimization-loop.md")
-fi
+# weekly-slop-optimization-loop.md moved to /weekly-cleanup skill
 
 if [ ! -f "docs/workflow/delivery/unified-codex-claude-loop.md" ]; then
   errors+=("Missing unified cross-tool workflow doc: docs/workflow/delivery/unified-codex-claude-loop.md")
@@ -131,32 +129,14 @@ if [ ! -f ".claude/examples/symphony-linear-issue-template.md" ]; then
   errors+=("Missing Symphony Linear issue template: .claude/examples/symphony-linear-issue-template.md")
 fi
 
-if ! has_text 'docs/workflow/delivery/nanoclaw-development-loop.md' CLAUDE.md; then
-  errors+=("CLAUDE.md is missing development-loop trigger reference")
-fi
+# CLAUDE.md trigger checks: only enforce docs that cause silent failures
+# without inline triggers. Codex-specific governance docs (development-loop,
+# unified-codex-claude-loop, adapter-matrix, subagent-catalog, tooling-governance-budget,
+# weekly-slop-optimization-loop) are reachable via DOCS.md / skills and don't
+# need inline CLAUDE.md triggers per compression gate (≥80% / silent failure / ≤3 lines).
 
 if ! has_text 'docs/workflow/strategy/workflow-optimization-loop.md' CLAUDE.md; then
   errors+=("CLAUDE.md is missing workflow-optimization-loop trigger reference")
-fi
-
-if ! has_text 'docs/workflow/strategy/weekly-slop-optimization-loop.md' CLAUDE.md; then
-  errors+=("CLAUDE.md is missing weekly-slop-optimization-loop trigger reference")
-fi
-
-if ! has_text 'docs/operations/tooling-governance-budget.json' CLAUDE.md; then
-  errors+=("CLAUDE.md is missing tooling-governance-budget trigger reference")
-fi
-
-if ! has_text 'docs/workflow/delivery/unified-codex-claude-loop.md' CLAUDE.md; then
-  errors+=("CLAUDE.md is missing unified-codex-claude-loop trigger reference")
-fi
-
-if ! has_text 'docs/operations/claude-codex-adapter-matrix.md' CLAUDE.md; then
-  errors+=("CLAUDE.md is missing claude-codex-adapter-matrix trigger reference")
-fi
-
-if ! has_text 'docs/operations/subagent-catalog.md' CLAUDE.md; then
-  errors+=("CLAUDE.md is missing subagent-catalog trigger reference")
 fi
 
 if ! has_text 'docs/ARCHITECTURE.md' CLAUDE.md; then
@@ -167,17 +147,9 @@ if ! has_text 'docs/ARCHITECTURE.md' AGENTS.md; then
   errors+=("AGENTS.md is missing architecture boundary reference")
 fi
 
-if ! has_text 'docs/workflow/control-plane/symphony-operations-runbook.md' CLAUDE.md; then
-  errors+=("CLAUDE.md is missing Symphony operations runbook trigger reference")
-fi
-
-if ! has_text 'docs/workflow/control-plane/symphony-operations-runbook.md' AGENTS.md; then
-  errors+=("AGENTS.md is missing Symphony operations runbook reference")
-fi
-
-if ! has_text 'docs/workflow/control-plane/symphony-operations-runbook.md' docs/README.md; then
-  errors+=("docs/README.md is missing Symphony operations runbook reference")
-fi
+# Symphony runbook is loaded via /symphony skill, not inline CLAUDE.md trigger.
+# DOCS.md has the canonical reference. AGENTS.md and docs/README.md don't need it
+# since symphony ops routes through the skill.
 
 if ! has_text 'docs/workflow/control-plane/symphony-operations-runbook.md' DOCS.md; then
   errors+=("DOCS.md is missing Symphony operations runbook reference")
