@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo App</title>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { text-align: center; }
+    .input-group { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    input { flex: 1; padding: 0.5rem; font-size: 1rem; }
+    button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
+    ul { list-style: none; padding: 0; }
+    li { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid #eee; }
+    li button { background: #ff4444; color: white; border: none; padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <h1>Todo App</h1>
+  <div class="input-group">
+    <input type="text" id="todoInput" placeholder="Enter todo...">
+    <button onclick="addTodo()">Add</button>
+  </div>
+  <ul id="todoList"></ul>
+
+  <script>
+    function addTodo() {
+      const input = document.getElementById('todoInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const li = document.createElement('li');
+      li.innerHTML = '<span>' + text + '</span><button onclick="this.parentElement.remove()">Delete</button>';
+      document.getElementById('todoList').appendChild(li);
+      input.value = '';
+      input.focus();
+    }
+
+    document.getElementById('todoInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') addTodo();
+    });
+  </script>
+</body>
+</html>
