@@ -67,15 +67,9 @@ else
   errors+=(".codex/settings.local.json should be a symlink to ../.claude/settings.local.json")
 fi
 
-require_pattern "CLAUDE.md" 'docs/workflow/delivery/unified-codex-claude-loop.md' "CLAUDE.md missing unified workflow trigger"
-require_pattern "CLAUDE.md" 'docs/operations/claude-codex-adapter-matrix.md' "CLAUDE.md missing adapter matrix trigger"
-require_pattern "CLAUDE.md" 'docs/operations/subagent-catalog.md' "CLAUDE.md missing subagent catalog trigger"
-require_pattern "CLAUDE.md" 'docs/operations/tooling-governance-budget.json' "CLAUDE.md missing tooling governance budget trigger"
-
-require_pattern "AGENTS.md" 'docs/workflow/delivery/unified-codex-claude-loop.md' "AGENTS.md missing unified workflow mirror reference"
-require_pattern "AGENTS.md" 'docs/operations/claude-codex-adapter-matrix.md' "AGENTS.md missing adapter matrix mirror reference"
-require_pattern "AGENTS.md" 'docs/operations/subagent-catalog.md' "AGENTS.md missing subagent catalog mirror reference"
-require_pattern "AGENTS.md" 'docs/operations/tooling-governance-budget.json' "AGENTS.md missing tooling governance budget mirror reference"
+# Codex-specific governance docs (unified-codex-claude-loop, adapter-matrix,
+# subagent-catalog, tooling-governance-budget) are reachable via DOCS.md.
+# Removed from CLAUDE.md/AGENTS.md per compression gate.
 
 require_pattern ".codex/config.toml" '\[agents\.explorer\]' ".codex/config.toml missing explorer role"
 require_pattern ".codex/config.toml" '\[agents\.reviewer\]' ".codex/config.toml missing reviewer role"
