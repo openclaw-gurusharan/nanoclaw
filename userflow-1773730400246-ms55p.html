@@ -17,6 +17,11 @@
   <h1>Todo</h1>
   <input type="text" id="todoInput" placeholder="Enter task...">
   <button id="addBtn">Add</button>
+  <div id="filters">
+    <button onclick="filterTodos('all')">All</button>
+    <button onclick="filterTodos('active')">Active</button>
+    <button onclick="filterTodos('completed')">Completed</button>
+  </div>
   <ul id="todoList"></ul>
   <script>
     const input = document.getElementById('todoInput');
@@ -27,13 +32,25 @@
       const text = input.value.trim();
       if (!text) return;
       const li = document.createElement('li');
-      li.innerHTML = '<span>' + text + '</span><button onclick="this.parentElement.remove()">Delete</button>';
+      li.innerHTML = '<label><input type="checkbox" onchange="filterTodos(currentFilter)">' + text + '</label><button onclick="this.parentElement.remove()">Delete</button>';
       list.appendChild(li);
       input.value = '';
     }
 
     addBtn.addEventListener('click', addTodo);
     input.addEventListener('keypress', e => { if (e.key === 'Enter') addTodo(); });
+    var currentFilter = 'all';
+    function filterTodos(filter) {
+      currentFilter = filter;
+      var items = list.querySelectorAll('li');
+      items.forEach(function(item) {
+        var checkbox = item.querySelector('input[type="checkbox"]');
+        var isCompleted = checkbox && checkbox.checked;
+        if (filter === 'all') { item.style.display = ''; }
+        else if (filter === 'active') { item.style.display = isCompleted ? 'none' : ''; }
+        else if (filter === 'completed') { item.style.display = isCompleted ? '' : 'none'; }
+      });
+    }
   </script>
 </body>
 </html>
