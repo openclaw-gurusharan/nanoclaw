@@ -37,6 +37,34 @@
   <script>
     let currentFilter = 'all';
 
+    function saveTodos() {
+      const items = [];
+      document.querySelectorAll('#todoList li').forEach(li => {
+        items.push({ text: li.childNodes[0].textContent, completed: li.classList.contains('completed') });
+      });
+      localStorage.setItem('todos', JSON.stringify(items));
+    }
+
+    function loadTodos() {
+      const saved = localStorage.getItem('todos');
+      if (!saved) return;
+      const items = JSON.parse(saved);
+      items.forEach(item => {
+        const li = document.createElement('li');
+        if (item.completed) li.classList.add('completed');
+        li.textContent = item.text;
+        li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') toggleComplete(li); };
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = function() { li.remove(); saveTodos(); };
+
+        li.appendChild(delBtn);
+        document.getElementById('todoList').appendChild(li);
+      });
+      renderTodos();
+    }
+
     function setFilter(filter) {
       currentFilter = filter;
       document.querySelectorAll('.filters button').forEach(btn => btn.classList.remove('active'));
@@ -46,6 +74,7 @@
 
     function toggleComplete(li) {
       li.classList.toggle('completed');
+      saveTodos();
       renderTodos();
     }
 
@@ -76,12 +105,15 @@
       li.appendChild(delBtn);
       document.getElementById('todoList').appendChild(li);
       input.value = '';
+      saveTodos();
       renderTodos();
     }
 
     document.getElementById('todoInput').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') addTodo();
     });
+
+    loadTodos();
   </script>
 </body>
 </html>
