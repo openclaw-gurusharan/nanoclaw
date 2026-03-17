@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo App</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 40px auto; padding: 20px; }
+    input { padding: 8px; width: 70%; }
+    button { padding: 8px 16px; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+    li button { background: #ff4444; color: white; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Todo</h1>
+  <input type="text" id="todoInput" placeholder="Enter task...">
+  <button id="addBtn">Add</button>
+  <ul id="todoList"></ul>
+  <script>
+    const input = document.getElementById('todoInput');
+    const addBtn = document.getElementById('addBtn');
+    const list = document.getElementById('todoList');
+
+    function addTodo() {
+      const text = input.value.trim();
+      if (!text) return;
+      const li = document.createElement('li');
+      li.innerHTML = '<span>' + text + '</span><button onclick="this.parentElement.remove()">Delete</button>';
+      list.appendChild(li);
+      input.value = '';
+    }
+
+    addBtn.addEventListener('click', addTodo);
+    input.addEventListener('keypress', e => { if (e.key === 'Enter') addTodo(); });
+  </script>
+</body>
+</html>
