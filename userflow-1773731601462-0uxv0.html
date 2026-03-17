@@ -13,8 +13,15 @@
     button { padding: 10px 20px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
     button:hover { background: #0056b3; }
     ul { list-style: none; }
-    li { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+    li { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
     li:last-child { border-bottom: none; }
+    li.completed { text-decoration: line-through; color: #999; }
+    .filters { display: flex; gap: 5px; margin-bottom: 15px; }
+    .filters button { padding: 5px 12px; font-size: 14px; background: #6c757d; }
+    .filters button.active { background: #0056b3; }
+    .todo-text { flex: 1; cursor: pointer; }
+    .complete-btn { background: #28a745; padding: 5px 10px; font-size: 14px; }
+    .complete-btn:hover { background: #218838; }
     .delete-btn { background: #dc3545; padding: 5px 10px; font-size: 14px; }
     .delete-btn:hover { background: #c82333; }
   </style>
@@ -25,24 +32,60 @@
     <input type="text" id="todoInput" placeholder="Enter todo...">
     <button id="addBtn">Add</button>
   </div>
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="active">Active</button>
+    <button class="filter-btn" data-filter="completed">Completed</button>
+  </div>
   <ul id="todoList"></ul>
 
   <script>
     const input = document.getElementById('todoInput');
     const addBtn = document.getElementById('addBtn');
     const list = document.getElementById('todoList');
+    let currentFilter = 'all';
+
+    function filterTodos() {
+      const items = list.querySelectorAll('li');
+      items.forEach(li => {
+        const isCompleted = li.classList.contains('completed');
+        if (currentFilter === 'all') {
+          li.style.display = '';
+        } else if (currentFilter === 'active') {
+          li.style.display = isCompleted ? 'none' : '';
+        } else if (currentFilter === 'completed') {
+          li.style.display = isCompleted ? '' : 'none';
+        }
+      });
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelector('.filter-btn.active').classList.remove('active');
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        filterTodos();
+      });
+    });
 
     function addTodo() {
       const text = input.value.trim();
       if (!text) return;
 
       const li = document.createElement('li');
-      li.innerHTML = `<span>${text}</span><button class="delete-btn">Delete</button>`;
+      li.innerHTML = `<span class="todo-text">${text}</span><button class="complete-btn">Complete</button><button class="delete-btn">Delete</button>`;
       list.appendChild(li);
       input.value = '';
       input.focus();
 
+      li.querySelector('.complete-btn').addEventListener('click', () => {
+        li.classList.toggle('completed');
+        li.querySelector('.complete-btn').textContent = li.classList.contains('completed') ? 'Undo' : 'Complete';
+        filterTodos();
+      });
+
       li.querySelector('.delete-btn').addEventListener('click', () => li.remove());
+      filterTodos();
     }
 
     addBtn.addEventListener('click', addTodo);
