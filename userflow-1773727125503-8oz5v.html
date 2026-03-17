@@ -13,8 +13,12 @@
     button:hover { background: #0056b3; }
     ul { list-style: none; padding: 0; }
     li { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-    li button { background: #dc3545; padding: 5px 10px; font-size: 14px; }
+    li.completed { text-decoration: line-through; color: #999; }
+    li button { background: #dc3545; padding: 5px 10px; font-size: 14px; margin-left: 10px; }
     li button:hover { background: #c82333; }
+    .filters { display: flex; gap: 5px; margin-bottom: 20px; }
+    .filters button { padding: 5px 10px; font-size: 14px; background: #f0f0f0; color: #333; }
+    .filters button.active { background: #007bff; color: white; }
   </style>
 </head>
 <body>
@@ -23,9 +27,39 @@
     <input type="text" id="todoInput" placeholder="Enter todo...">
     <button onclick="addTodo()">Add</button>
   </div>
+  <div class="filters">
+    <button onclick="setFilter('all')" id="filterAll" class="active">All</button>
+    <button onclick="setFilter('active')" id="filterActive">Active</button>
+    <button onclick="setFilter('completed')" id="filterCompleted">Completed</button>
+  </div>
   <ul id="todoList"></ul>
 
   <script>
+    let currentFilter = 'all';
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filters button').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('filter' + filter.charAt(0).toUpperCase() + filter.slice(1)).classList.add('active');
+      renderTodos();
+    }
+
+    function toggleComplete(li) {
+      li.classList.toggle('completed');
+      renderTodos();
+    }
+
+    function renderTodos() {
+      const list = document.getElementById('todoList');
+      const items = list.querySelectorAll('li');
+      items.forEach(li => {
+        const isCompleted = li.classList.contains('completed');
+        if (currentFilter === 'all') { li.style.display = ''; }
+        else if (currentFilter === 'active') { li.style.display = isCompleted ? 'none' : ''; }
+        else if (currentFilter === 'completed') { li.style.display = isCompleted ? '' : 'none'; }
+      });
+    }
+
     function addTodo() {
       const input = document.getElementById('todoInput');
       const text = input.value.trim();
@@ -33,6 +67,7 @@
 
       const li = document.createElement('li');
       li.textContent = text;
+      li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') toggleComplete(li); };
 
       const delBtn = document.createElement('button');
       delBtn.textContent = 'Delete';
@@ -41,6 +76,7 @@
       li.appendChild(delBtn);
       document.getElementById('todoList').appendChild(li);
       input.value = '';
+      renderTodos();
     }
 
     document.getElementById('todoInput').addEventListener('keypress', function(e) {
