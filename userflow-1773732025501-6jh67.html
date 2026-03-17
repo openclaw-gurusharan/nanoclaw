@@ -76,6 +76,39 @@
       color: #999;
       font-style: italic;
     }
+    .filters {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .filters button {
+      padding: 8px 16px;
+      background: #e9ecef;
+      color: #333;
+      font-size: 14px;
+    }
+    .filters button.active {
+      background: #007bff;
+      color: white;
+    }
+    .filters button:hover:not(.active) {
+      background: #dee2e6;
+    }
+    li.completed span {
+      text-decoration: line-through;
+      color: #999;
+    }
+    li .complete-btn {
+      background: #28a745;
+      margin-right: 8px;
+    }
+    li .complete-btn:hover {
+      background: #218838;
+    }
+    li .complete-btn.completed {
+      background: #6c757d;
+    }
   </style>
 </head>
 <body>
@@ -84,19 +117,43 @@
     <input type="text" id="todoInput" placeholder="Enter a todo...">
     <button id="addBtn">Add</button>
   </div>
+  <div class="filters">
+    <button id="filterAll" class="active">All</button>
+    <button id="filterActive">Active</button>
+    <button id="filterCompleted">Completed</button>
+  </div>
   <ul id="todoList"></ul>
 
   <script>
     const todoInput = document.getElementById('todoInput');
     const addBtn = document.getElementById('addBtn');
     const todoList = document.getElementById('todoList');
+    const filterAll = document.getElementById('filterAll');
+    const filterActive = document.getElementById('filterActive');
+    const filterCompleted = document.getElementById('filterCompleted');
+
+    let currentFilter = 'all';
 
     function addTodo() {
       const text = todoInput.value.trim();
       if (!text) return;
 
       const li = document.createElement('li');
-      li.innerHTML = `<span>${escapeHtml(text)}</span><button class="delete-btn">Delete</button>`;
+      li.dataset.completed = 'false';
+      li.innerHTML = `<span>${escapeHtml(text)}</span>
+        <div>
+          <button class="complete-btn">Complete</button>
+          <button class="delete-btn">Delete</button>
+        </div>`;
+
+      li.querySelector('.complete-btn').addEventListener('click', function() {
+        const isCompleted = li.dataset.completed === 'true';
+        li.dataset.completed = isCompleted ? 'false' : 'true';
+        li.classList.toggle('completed', !isCompleted);
+        this.textContent = isCompleted ? 'Complete' : 'Undo';
+        this.classList.toggle('completed', !isCompleted);
+        applyFilter();
+      });
 
       li.querySelector('.delete-btn').addEventListener('click', function() {
         li.remove();
@@ -106,6 +163,7 @@
       todoList.appendChild(li);
       todoInput.value = '';
       updateEmptyState();
+      applyFilter();
     }
 
     function escapeHtml(text) {
@@ -115,10 +173,50 @@
     }
 
     function updateEmptyState() {
-      if (todoList.children.length === 0) {
+      const items = Array.from(todoList.children).filter(li => !li.classList.contains('empty'));
+      if (items.length === 0) {
         todoList.innerHTML = '<li class="empty">No todos yet. Add one above!</li>';
       }
     }
+
+    function applyFilter() {
+      const items = todoList.querySelectorAll('li');
+      items.forEach(li => {
+        if (li.classList.contains('empty')) return;
+        const isCompleted = li.dataset.completed === 'true';
+        if (currentFilter === 'all') {
+          li.style.display = '';
+        } else if (currentFilter === 'active') {
+          li.style.display = isCompleted ? 'none' : '';
+        } else if (currentFilter === 'completed') {
+          li.style.display = isCompleted ? '' : 'none';
+        }
+      });
+    }
+
+    filterAll.addEventListener('click', function() {
+      currentFilter = 'all';
+      filterAll.classList.add('active');
+      filterActive.classList.remove('active');
+      filterCompleted.classList.remove('active');
+      applyFilter();
+    });
+
+    filterActive.addEventListener('click', function() {
+      currentFilter = 'active';
+      filterActive.classList.add('active');
+      filterAll.classList.remove('active');
+      filterCompleted.classList.remove('active');
+      applyFilter();
+    });
+
+    filterCompleted.addEventListener('click', function() {
+      currentFilter = 'completed';
+      filterCompleted.classList.add('active');
+      filterAll.classList.remove('active');
+      filterActive.classList.remove('active');
+      applyFilter();
+    });
 
     addBtn.addEventListener('click', addTodo);
 
