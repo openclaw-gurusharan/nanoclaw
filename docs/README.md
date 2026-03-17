@@ -32,6 +32,7 @@ docs/
 - Docs governance: `.claude/rules/docs-governance.md` (auto-loaded rule)
 - Token-efficient MCP usage: `docs/tools/token-efficient-mcp-usage.md`
 - Default delivery workflow: `docs/workflow/delivery/nanoclaw-development-loop.md`
+- WhatsApp-first system proving plan: `docs/workflow/strategy/launchdeck-proving-program.md`
 - Runtime and incident debugging: `docs/workflow/runtime/nanoclaw-jarvis-debug-loop.md`
 - Worker contract and runtime: `docs/workflow/runtime/nanoclaw-jarvis-dispatch-contract.md` + `docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md`
 - GitHub delivery governance: `docs/workflow/github/github-delivery-governance.md`

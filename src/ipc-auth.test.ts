@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import {
   _initTestDatabase,
@@ -314,6 +314,24 @@ describe('schedule_task authorization', () => {
     expect(request?.worker_run_id).toBe('task-queued-dispatch');
     expect(request?.worker_group_folder).toBe('jarvis-worker-1');
     expect(workerRun?.lane_id).toBe('jarvis-worker-1');
+  });
+
+  it('blocks worker lanes from sending chat messages to worker chats', async () => {
+    const sendMessage = vi.fn(async () => {});
+    deps.sendMessage = sendMessage;
+
+    await processTaskIpc(
+      {
+        type: 'message',
+        chatJid: 'jarvis-worker-1@nanoclaw',
+        text: 'Pipeline probe document created for NAN-54 Aadhaar-chain',
+      },
+      'jarvis-worker-1',
+      false,
+      deps,
+    );
+
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
 

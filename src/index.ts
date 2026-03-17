@@ -59,9 +59,11 @@ import {
   getLatestAndyRequestForChat,
   getMessagesSince,
   getLatestReusableWorkerSession,
+  listDispatchAttemptsForRequest,
   getNewMessages,
   getRegisteredGroup,
   getStoredMessage,
+  getUnprocessedMessages,
   getWorkerRuns,
   getWorkerRun,
   getRouterState,
@@ -75,6 +77,7 @@ import {
   setSession,
   storeChatMetadata,
   storeMessage,
+  updateAndyRequestState,
   updateWorkerRunAttribution,
   updateWorkerRunDispatchMetadata,
   updateWorkerRunSessionMetadata,
@@ -104,9 +107,16 @@ import {
   markAndyRequestsReviewInProgress,
   parseAndyReviewStateUpdates,
   recoverInterruptedWorkerDispatches,
+  recoverAndyReviewStateFromStoredMessages,
   recoverPendingMessages,
+  recoverTerminalWorkerDispatchMessages,
+  sanitizeUserFacingOutput,
   reconcileJarvisStaleWorkerRuns,
+  resolveAndyCoordinatorSessionOverride,
+  selectAndyMessageBatch,
+  shouldForceFreshAndySessionRun,
   selectWorkerSessionForDispatch,
+  setAndyCoordinatorSession,
   stripAndyReviewStateUpdates,
   syncAndyRequestWithWorkerRun,
   type WorkerSessionSelection,
@@ -116,6 +126,17 @@ import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { emitBridgeEvent } from './event-bridge.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
+import {
+  isContainerTimeoutError,
+  shouldRetryWorkerAgentFailure,
+} from './worker-agent-error-policy.js';
+import {
+  getGitHeadFiles,
+  getWorkerRepoWorkspacePath,
+  normalizeCommitShaFromWorkspace,
+  resetGitWorkspaceState,
+  verifyGitWorkspaceState,
+} from './worker-workspace-verifier.js';
 import {
   buildSessionContextVersion,
   shouldInvalidateStoredSession,
@@ -137,10 +158,7 @@ import {
   RegisteredGroup,
 } from './types.js';
 import { logger } from './logger.js';
-import {
-  notionQueryMemory,
-  notionCreateMemory,
-} from './symphony-notion.js';
+import { notionQueryMemory, notionCreateMemory } from './symphony-notion.js';
 import { readEnvFile } from './env.js';
 import { WorkerRunSupervisor } from './worker-run-supervisor.js';
 
@@ -231,25 +249,6 @@ function findGroupJidByFolder(
     if (group.folder === folder) return jid;
   }
   return undefined;
-}
-
-function stripCodeFence(raw: string): string {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return fenced ? fenced[1].trim() : trimmed;
-}
-
-function sanitizeUserFacingOutput(
-  group: RegisteredGroup,
-  text: string,
-): string {
-  if (group.folder !== ANDY_DEVELOPER_FOLDER) return text;
-
-  const parsed = parseDispatchPayload(stripCodeFence(text));
-  if (!parsed) return text;
-
-  const requestLabel = parsed.request_id ? ` for \`${parsed.request_id}\`` : '';
-  return `Dispatched \`${parsed.run_id}\`${requestLabel} to \`${parsed.repo}\` on \`${parsed.branch}\` (${parsed.task_type}).`;
 }
 
 function timestampToMs(value: string | undefined): number | null {
@@ -470,7 +469,13 @@ function buildAndyPromptWorkerContext(snapshot: WorkerRunsSnapshot): string {
     return Number.isFinite(startedMs) && nowMs - startedMs <= currentWindowMs;
   });
   const currentFailures = snapshot.recent.filter((r) => {
-    if (r.status !== 'failed' && r.status !== 'failed_contract') return false;
+    if (
+      r.status !== 'failed' &&
+      r.status !== 'failed_contract' &&
+      r.status !== 'failed_timeout'
+    ) {
+      return false;
+    }
     const startedMs = Date.parse(r.started_at);
     return Number.isFinite(startedMs) && nowMs - startedMs <= currentWindowMs;
   }).length;
@@ -503,7 +508,10 @@ function buildAndyPromptWorkerContext(snapshot: WorkerRunsSnapshot): string {
               (r) => r.status === 'review_requested' || r.status === 'done',
             ).length;
             const fail = laneRuns.filter(
-              (r) => r.status === 'failed' || r.status === 'failed_contract',
+              (r) =>
+                r.status === 'failed' ||
+                r.status === 'failed_contract' ||
+                r.status === 'failed_timeout',
             ).length;
             const active = laneRuns.filter(
               (r) => r.status === 'queued' || r.status === 'running',
@@ -714,7 +722,8 @@ function extractWorkerRunContext(
 async function queryProjectMemories(repo: string): Promise<string> {
   const databaseId =
     process.env.NOTION_AGENT_MEMORY_DATABASE_ID ||
-    readEnvFile(['NOTION_AGENT_MEMORY_DATABASE_ID']).NOTION_AGENT_MEMORY_DATABASE_ID ||
+    readEnvFile(['NOTION_AGENT_MEMORY_DATABASE_ID'])
+      .NOTION_AGENT_MEMORY_DATABASE_ID ||
     '';
   if (!databaseId) return '';
 
@@ -727,12 +736,13 @@ async function queryProjectMemories(repo: string): Promise<string> {
     const entries = [...projectMemories, ...globalMemories];
     if (entries.length === 0) return '';
 
-    const lines = entries.map(
-      (m) => `- [${m.type}/${m.scope}] ${m.content}`,
-    );
+    const lines = entries.map((m) => `- [${m.type}/${m.scope}] ${m.content}`);
     return ['## Prior Knowledge', '', ...lines].join('\n');
   } catch (err) {
-    logger.debug({ err, repo }, 'Failed to query project memories — continuing without');
+    logger.debug(
+      { err, repo },
+      'Failed to query project memories — continuing without',
+    );
     return '';
   }
 }
@@ -748,7 +758,8 @@ async function persistWorkerLearnings(
 ): Promise<void> {
   const databaseId =
     process.env.NOTION_AGENT_MEMORY_DATABASE_ID ||
-    readEnvFile(['NOTION_AGENT_MEMORY_DATABASE_ID']).NOTION_AGENT_MEMORY_DATABASE_ID ||
+    readEnvFile(['NOTION_AGENT_MEMORY_DATABASE_ID'])
+      .NOTION_AGENT_MEMORY_DATABASE_ID ||
     '';
   if (!databaseId) return;
 
@@ -764,12 +775,18 @@ async function persistWorkerLearnings(
         content: trimmed,
       });
     } catch (err) {
-      logger.debug({ err, runId, projectKey }, 'Failed to persist worker learning');
+      logger.debug(
+        { err, runId, projectKey },
+        'Failed to persist worker learning',
+      );
     }
   }
 }
 
-function buildWorkerDispatchPrompt(payload: DispatchPayload, memories?: string): string {
+function buildWorkerDispatchPrompt(
+  payload: DispatchPayload,
+  memories?: string,
+): string {
   const acceptanceTests = payload.acceptance_tests
     .map((test, idx) => `${idx + 1}. ${test}`)
     .join('\n');
@@ -803,6 +820,10 @@ function buildWorkerDispatchPrompt(payload: DispatchPayload, memories?: string):
     'Task instructions:',
     payload.input,
     '',
+    'Branch execution rules:',
+    '- Before editing, clone/open the repo workspace and create or switch to the dispatched branch exactly as provided above.',
+    '- If the repo already exists locally, you must still checkout the dispatched branch before making changes.',
+    '',
     'Acceptance tests (all required):',
     acceptanceTests,
     '',
@@ -812,6 +833,7 @@ function buildWorkerDispatchPrompt(payload: DispatchPayload, memories?: string):
     '- Do not include markdown fences.',
     '- Do not include narrative text before or after the <completion> block.',
     '- Execute commands from /workspace/group only; do not use /workspace/extra or other external directories.',
+    '- Repository workspaces live under /workspace/group/workspace/<repo>; prefer relative paths such as workspace/<repo>/... from the /workspace/group cwd.',
     `- completion.run_id must exactly equal "${payload.run_id}".`,
     `- completion.branch must exactly equal "${payload.branch}".`,
     '- completion.commit_sha must be a real 6-40 char git SHA from the checked-out branch.',
@@ -831,6 +853,11 @@ function buildWorkerCompletionRepairPrompt(
   requiredFields: string[],
   missingFields: string[],
   outputBuffer: string,
+  workspaceFacts?: {
+    actualBranch: string | null;
+    headCommit: string | null;
+    filesChanged: string[];
+  },
 ): string {
   const requiredList = requiredFields.map((field) => `- ${field}`).join('\n');
   const missingList =
@@ -858,6 +885,74 @@ function buildWorkerCompletionRepairPrompt(
     `- completion.branch must exactly equal "${expectedBranch}".`,
     '- completion.commit_sha must be a valid 6-40 char hex SHA (or n/a/none only for ping-/smoke-/health-/sync- no-code runs).',
     '- files_changed must be a JSON array of strings.',
+    '- Do not reuse stale values from memory when the host provides authoritative workspace facts below.',
+    ...(workspaceFacts
+      ? [
+          '',
+          'Authoritative workspace facts from the host:',
+          `- actual_branch: ${workspaceFacts.actualBranch ?? 'unknown'}`,
+          `- actual_head_commit: ${workspaceFacts.headCommit ?? 'unknown'}`,
+          '- files_changed_from_HEAD:',
+          ...(workspaceFacts.filesChanged.length > 0
+            ? workspaceFacts.filesChanged.map((file) => `  - ${file}`)
+            : ['  - <none detected>']),
+        ]
+      : []),
+    '',
+    'Previous output excerpt (for correction only):',
+    excerpt,
+  ].join('\n');
+}
+
+function buildAndyReviewStateRepairPrompt(
+  requestIds: string[],
+  outputBuffer: string,
+): string {
+  const requestList = requestIds
+    .map((requestId) => `- ${requestId}`)
+    .join('\n');
+  const excerpt = outputBuffer.slice(-1600);
+  return [
+    'Your previous review response did not emit the required hidden review state markers.',
+    'Emit only <review_state_update>...</review_state_update> blocks now.',
+    'Rules:',
+    '- Do not call tools.',
+    '- Do not run commands.',
+    '- Do not include prose, markdown, or explanations.',
+    '- Emit one block for each request_id below.',
+    '- Use state completed, failed, or andy_patch_in_progress.',
+    '- Include a concise summary in each block.',
+    '',
+    'Request IDs requiring a marker:',
+    requestList,
+    '',
+    'Previous output excerpt (for correction only):',
+    excerpt,
+  ].join('\n');
+}
+
+const ANDY_DISPATCH_INTENT_PATTERN =
+  /\b(?:dispatch(?:ed|ing)?|queued|queueing)\b[\s\S]*\b(?:jarvis-worker-[12]|worker)\b/i;
+
+function buildAndyDispatchRepairPrompt(
+  requestId: string,
+  outputBuffer: string,
+  blockedReason?: string,
+): string {
+  const excerpt = outputBuffer.slice(-1600);
+  return [
+    'Your previous response indicated worker dispatch intent, but no accepted worker dispatch was recorded for the tracked request.',
+    'If this request should go to a jarvis-worker-* lane, repair it now.',
+    'Rules:',
+    '- Use mcp__nanoclaw__send_message exactly once to the intended jarvis-worker-* target group JID.',
+    '- The message body sent to the worker must be exactly one strict JSON dispatch object string.',
+    '- Include request_id exactly as provided below.',
+    '- Do not answer the user with prose that claims dispatched, queued, or running.',
+    '- After the worker message is sent, emit only an <internal>...</internal> note confirming the repair attempt.',
+    '- If no worker delegation is needed, reply with one short user-facing sentence that does not mention dispatch or jarvis-worker lanes.',
+    ...(blockedReason ? ['', `Latest validator block: ${blockedReason}`] : []),
+    '',
+    `Tracked request_id: ${requestId}`,
     '',
     'Previous output excerpt (for correction only):',
     excerpt,
@@ -868,21 +963,26 @@ function selectMessagesForExecution(
   group: RegisteredGroup,
   messages: NewMessage[],
 ): NewMessage[] {
-  if (!isJarvisWorkerFolder(group.folder) || messages.length <= 1) {
+  if (!isJarvisWorkerFolder(group.folder)) {
     return messages;
   }
 
-  for (const msg of messages) {
-    const payload = parseDispatchPayload(msg.content);
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const payload = parseDispatchPayload(messages[i].content);
     if (!payload) continue;
     const validity = validateDispatchPayload(payload);
-    if (validity.valid) {
-      // Worker lanes must process one canonical dispatch at a time.
-      return [msg];
-    }
+    if (!validity.valid) continue;
+
+    // Worker lanes must process one canonical dispatch at a time. If the same
+    // run_id was replayed multiple times, drain every duplicate message in the
+    // selected batch so restarts do not resurrect the same work one message at
+    // a time.
+    return messages.filter(
+      (msg) => parseDispatchPayload(msg.content)?.run_id === payload.run_id,
+    );
   }
 
-  return messages;
+  return [];
 }
 
 function markBatchProcessed(
@@ -895,6 +995,20 @@ function markBatchProcessed(
     messages.map((m) => m.id),
     runId,
   );
+}
+
+function markWorkerDispatchMessagesProcessed(
+  chatJid: string,
+  runId: string,
+  messages: Array<{ id: string }>,
+): void {
+  const ids = new Set(messages.map((message) => message.id));
+  for (const pending of getUnprocessedMessages(chatJid)) {
+    if (parseDispatchPayload(pending.content)?.run_id === runId) {
+      ids.add(pending.id);
+    }
+  }
+  markMessagesProcessed(chatJid, [...ids], runId);
 }
 
 function shouldAllowNoCodeCompletion(runId: string): boolean {
@@ -1085,13 +1199,29 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   if (missedMessages.length === 0) return true;
   const selectedMessages = selectMessagesForExecution(group, missedMessages);
+  if (isJarvisWorkerFolder(group.folder) && selectedMessages.length === 0) {
+    markBatchProcessed(chatJid, missedMessages);
+    markCursorInFlight(
+      chatJid,
+      missedMessages[missedMessages.length - 1].timestamp,
+    );
+    commitInFlightCursor(chatJid);
+    logger.warn(
+      {
+        group: group.name,
+        droppedCount: missedMessages.length,
+      },
+      'Ignoring non-dispatch messages on worker lane',
+    );
+    return true;
+  }
 
   // Per-message idempotency: skip messages already processed (defense against cursor rollback replays)
   const alreadyProcessed = getProcessedMessageIds(
     chatJid,
     selectedMessages.map((m) => m.id),
   );
-  const messagesToProcess = selectedMessages.filter(
+  let messagesToProcess = selectedMessages.filter(
     (m) => !alreadyProcessed.has(m.id),
   );
   if (messagesToProcess.length === 0) {
@@ -1106,6 +1236,36 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     );
     return true;
   }
+  if (group.folder === ANDY_DEVELOPER_FOLDER) {
+    const replayTimestamp = new Date().toISOString();
+    const selection = selectAndyMessageBatch(
+      messagesToProcess,
+      replayTimestamp,
+    );
+    if (selection.deferredMessages.length > 0) {
+      markMessagesProcessed(
+        chatJid,
+        selection.deferredMessages.map((message) => message.originalMessageId),
+      );
+      storeChatMetadata(chatJid, replayTimestamp, group.name, 'nanoclaw', true);
+      for (const deferred of selection.deferredMessages) {
+        storeMessage(deferred.replayMessage);
+      }
+      logger.info(
+        {
+          chatJid,
+          activeRequestId: selection.activeRequestId,
+          deferredMessageCount: selection.deferredMessages.length,
+        },
+        'Deferred older Andy request messages behind fresh coordinator intake',
+      );
+    }
+    messagesToProcess = selection.selectedMessages;
+    if (messagesToProcess.length === 0) {
+      return true;
+    }
+  }
+
   const batchLastTimestamp =
     messagesToProcess[messagesToProcess.length - 1].timestamp;
 
@@ -1171,10 +1331,15 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     );
   }
   const activeAndyRequestId = andyRequestsInBatch[0]?.requestId;
+  const reviewRequestIds = andyRequestsInBatch
+    .filter((request) => request.kind === 'review')
+    .map((request) => request.requestId);
 
   const workerRun = extractWorkerRunContext(group, messagesToProcess);
   const workerMemories = workerRun
-    ? await queryProjectMemories(workerRun.dispatchPayload.project_key ?? workerRun.dispatchPayload.repo)
+    ? await queryProjectMemories(
+        workerRun.dispatchPayload.project_key ?? workerRun.dispatchPayload.repo,
+      )
     : '';
   const basePrompt = workerRun
     ? buildWorkerDispatchPrompt(workerRun.dispatchPayload, workerMemories)
@@ -1184,15 +1349,86 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       ? `${buildAndyFrontdeskContextBlock(chatJid, activeAndyRequestId)}\n\n${basePrompt}`
       : basePrompt;
   let workerOutputBuffer = '';
+  let andyOutputBuffer = '';
 
   let workerSessionSelection: WorkerSessionSelection | null = null;
   let runtimeEffectiveSessionId: string | undefined;
   let runtimeSessionResumeStatus: ContainerOutput['sessionResumeStatus'];
   let runtimeSessionResumeError: string | undefined;
   let workerRunMarkedRunning = false;
+  let workerCompletionAccepted = false;
   let workerSpawnContainerName: string | undefined;
+  const primaryAndyRequest = andyRequestsInBatch[0];
+  const coordinatorSessionOverride =
+    !workerRun && group.folder === ANDY_DEVELOPER_FOLDER
+      ? primaryAndyRequest?.kind === 'review'
+        ? null
+        : resolveAndyCoordinatorSessionOverride(andyRequestsInBatch)
+      : undefined;
 
   if (workerRun) {
+    const linkedRequest = workerRun.dispatchPayload.request_id
+      ? getAndyRequestById(workerRun.dispatchPayload.request_id)
+      : null;
+    if (linkedRequest?.state === 'cancelled') {
+      markWorkerDispatchMessagesProcessed(
+        chatJid,
+        workerRun.runId,
+        messagesToProcess,
+      );
+      completeWorkerRun(
+        workerRun.runId,
+        'failed',
+        'Worker dispatch cancelled before execution',
+        JSON.stringify({
+          reason: 'request_cancelled_before_worker_start',
+          request_id: workerRun.dispatchPayload.request_id,
+        }),
+      );
+      workerRunSupervisor.markTerminal(workerRun.runId);
+      refreshWorkerRunSnapshotsForGroups();
+      logger.warn(
+        {
+          runId: workerRun.runId,
+          requestId: workerRun.dispatchPayload.request_id,
+          group: group.name,
+        },
+        'Skipping worker dispatch because the linked Andy request is cancelled',
+      );
+      return true;
+    }
+
+    if (workerRun.dispatchPayload.context_intent === 'fresh') {
+      const repoPath = getWorkerRepoWorkspacePath(
+        group.folder,
+        workerRun.dispatchPayload.repo,
+      );
+      const resetState = resetGitWorkspaceState({
+        repoPath,
+        baseBranch: workerRun.dispatchPayload.base_branch,
+      });
+      if (resetState.removedCorruptRepo) {
+        logger.warn(
+          {
+            runId: workerRun.runId,
+            group: group.name,
+            repoPath: resetState.repoPath,
+          },
+          'Removed corrupt worker repo workspace before fresh dispatch',
+        );
+      } else if (resetState.existed) {
+        logger.info(
+          {
+            runId: workerRun.runId,
+            group: group.name,
+            repoPath: resetState.repoPath,
+            checkedOutBaseBranch: resetState.checkedOutBaseBranch,
+          },
+          'Reset worker repo workspace for fresh dispatch',
+        );
+      }
+    }
+
     const existingRun = getWorkerRun(workerRun.runId);
     // IPC pre-queues andy-developer dispatches as status=queued before the
     // worker lane consumes the message. Allow that first execution pass.
@@ -1201,6 +1437,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       existingRun.status !== 'queued' &&
       isNonRetryableWorkerStatus(existingRun.status)
     ) {
+      markWorkerDispatchMessagesProcessed(
+        chatJid,
+        workerRun.runId,
+        messagesToProcess,
+      );
       markCursorInFlight(chatJid, batchLastTimestamp);
       commitInFlightCursor(chatJid);
       logger.warn(
@@ -1246,6 +1487,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           }),
         );
       }
+      markWorkerDispatchMessagesProcessed(
+        chatJid,
+        workerRun.runId,
+        messagesToProcess,
+      );
       markCursorInFlight(chatJid, batchLastTimestamp);
       commitInFlightCursor(chatJid);
       refreshWorkerRunSnapshotsForGroups();
@@ -1277,7 +1523,8 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (
       !existingRun ||
       existingRun.status === 'failed' ||
-      existingRun.status === 'failed_contract'
+      existingRun.status === 'failed_contract' ||
+      existingRun.status === 'failed_timeout'
     ) {
       const insertState = insertWorkerRun(
         workerRun.runId,
@@ -1285,6 +1532,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         dispatchMetadata,
       );
       if (insertState === 'duplicate') {
+        markWorkerDispatchMessagesProcessed(
+          chatJid,
+          workerRun.runId,
+          messagesToProcess,
+        );
         markCursorInFlight(chatJid, batchLastTimestamp);
         commitInFlightCursor(chatJid);
         logger.warn(
@@ -1363,7 +1615,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   const sessionOverride = workerSessionSelection
     ? (workerSessionSelection.selectedSessionId ?? null)
-    : undefined;
+    : coordinatorSessionOverride;
   const onSpawn = workerRun
     ? (containerName: string) => {
         if (workerRunMarkedRunning) return;
@@ -1416,6 +1668,21 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         }
         let cleaned = raw;
         if (group.folder === ANDY_DEVELOPER_FOLDER) {
+          andyOutputBuffer += `${raw}\n`;
+          if (
+            result.newSessionId &&
+            !workerRun &&
+            andyRequestsInBatch.length > 0
+          ) {
+            for (const request of andyRequestsInBatch) {
+              if (request.kind === 'coordinator') {
+                setAndyCoordinatorSession(
+                  request.requestId,
+                  result.newSessionId,
+                );
+              }
+            }
+          }
           const reviewStateUpdates = parseAndyReviewStateUpdates(raw);
           if (reviewStateUpdates.length > 0) {
             applyAndyReviewStateUpdates(reviewStateUpdates);
@@ -1431,7 +1698,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           `Agent output: ${raw.slice(0, 200)}`,
         );
         if (text) {
-          const outboundText = sanitizeUserFacingOutput(group, text);
+          const outboundText = await sanitizeUserFacingOutput(group, text);
           if (outboundText && channel) {
             await channel.sendMessage(chatJid, outboundText);
             outputSentToUser = true;
@@ -1483,6 +1750,13 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   }
 
   if (workerRun) {
+    const requireCodeChanges = [
+      'code',
+      'implement',
+      'fix',
+      'refactor',
+      'release',
+    ].includes(workerRun.dispatchPayload.task_type);
     let completion = parseCompletionContract(workerOutputBuffer);
     let completionCheck = validateCompletionContract(completion, {
       expectedRunId: workerRun.runId,
@@ -1490,16 +1764,32 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       requiredFields: workerRun.requiredFields,
       browserEvidenceRequired: workerRun.browserEvidenceRequired,
       allowNoCodeChanges: shouldAllowNoCodeCompletion(workerRun.runId),
+      requireCodeChanges,
     });
 
     if (!completionCheck.valid && runOutcome.status !== 'error' && !hadError) {
       workerRunSupervisor.markRepairPending(workerRun.runId);
+      const repairRepoPath = getWorkerRepoWorkspacePath(
+        group.folder,
+        workerRun.dispatchPayload.repo,
+      );
+      const repairWorkspaceCheck = verifyGitWorkspaceState({
+        repoPath: repairRepoPath,
+        expectedBranch: workerRun.dispatchPayload.branch,
+        expectedCommitSha: getWorkerRun(workerRun.runId)?.commit_sha || '',
+        requireCleanWorktree: false,
+      });
       const repairPrompt = buildWorkerCompletionRepairPrompt(
         workerRun.runId,
         workerRun.dispatchPayload.branch,
         workerRun.requiredFields,
         completionCheck.missing,
         workerOutputBuffer,
+        {
+          actualBranch: repairWorkspaceCheck.actualBranch,
+          headCommit: repairWorkspaceCheck.headCommit,
+          filesChanged: getGitHeadFiles(repairRepoPath),
+        },
       );
 
       let repairBuffer = '';
@@ -1563,6 +1853,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           requiredFields: workerRun.requiredFields,
           browserEvidenceRequired: workerRun.browserEvidenceRequired,
           allowNoCodeChanges: shouldAllowNoCodeCompletion(workerRun.runId),
+          requireCodeChanges,
         });
       }
 
@@ -1595,6 +1886,78 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         session_resume_status: runtimeSessionResumeStatus ?? null,
         session_resume_error: runtimeSessionResumeError ?? null,
       });
+    }
+
+    if (completion && completionCheck.valid && requireCodeChanges) {
+      const repoPath = getWorkerRepoWorkspacePath(
+        group.folder,
+        workerRun.dispatchPayload.repo,
+      );
+      let workspaceCheck = verifyGitWorkspaceState({
+        repoPath,
+        expectedBranch: workerRun.dispatchPayload.branch,
+        expectedCommitSha: completion.commit_sha,
+        requireCleanWorktree: true,
+      });
+      const normalizedCommitSha = normalizeCommitShaFromWorkspace({
+        reportedCommitSha: completion.commit_sha,
+        expectedBranch: workerRun.dispatchPayload.branch,
+        verification: workspaceCheck,
+      });
+      if (
+        normalizedCommitSha &&
+        normalizedCommitSha !== completion.commit_sha &&
+        workspaceCheck.errors.every(
+          (error) => error === 'workspace head mismatch',
+        )
+      ) {
+        completion = {
+          ...completion,
+          commit_sha: normalizedCommitSha,
+        };
+        completionCheck = validateCompletionContract(completion, {
+          expectedRunId: workerRun.runId,
+          expectedBranch: workerRun.dispatchPayload.branch,
+          requiredFields: workerRun.requiredFields,
+          browserEvidenceRequired: workerRun.browserEvidenceRequired,
+          allowNoCodeChanges: shouldAllowNoCodeCompletion(workerRun.runId),
+          requireCodeChanges,
+        });
+        workspaceCheck = verifyGitWorkspaceState({
+          repoPath,
+          expectedBranch: workerRun.dispatchPayload.branch,
+          expectedCommitSha: completion.commit_sha,
+          requireCleanWorktree: true,
+        });
+        logger.info(
+          {
+            runId: workerRun.runId,
+            group: group.name,
+            normalizedCommitSha,
+          },
+          'Normalized worker completion commit SHA from verified workspace state',
+        );
+      }
+      if (!workspaceCheck.valid) {
+        completionCheck = {
+          valid: false,
+          missing: [
+            ...new Set([...completionCheck.missing, ...workspaceCheck.errors]),
+          ],
+        };
+        logger.warn(
+          {
+            runId: workerRun.runId,
+            group: group.name,
+            repoPath: workspaceCheck.repoPath,
+            actualBranch: workspaceCheck.actualBranch,
+            headCommit: workspaceCheck.headCommit,
+            dirtyEntries: workspaceCheck.dirtyEntries,
+            errors: workspaceCheck.errors,
+          },
+          'Worker workspace state did not match completion contract',
+        );
+      }
     }
 
     if (completion && completionCheck.valid) {
@@ -1653,6 +2016,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         });
         workerRunSupervisor.markTerminal(workerRun.runId);
         refreshWorkerRunSnapshotsForGroups();
+        workerCompletionAccepted = true;
         logger.info(
           { runId: workerRun.runId, group: group.name },
           'Worker completion contract accepted',
@@ -1726,6 +2090,9 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         );
         workerRunSupervisor.markTerminal(workerRun.runId);
       } else {
+        const terminalStatus = isContainerTimeoutError(runOutcome.error)
+          ? 'failed_timeout'
+          : 'failed';
         const missingSummary = completionCheck.missing.join(', ');
         syncAndyRequestWithWorkerRun(
           workerRun.runId,
@@ -1736,7 +2103,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         );
         completeWorkerRun(
           workerRun.runId,
-          'failed',
+          terminalStatus,
           missingSummary
             ? `Worker execution failed; missing: ${missingSummary}`
             : 'worker execution failed',
@@ -1814,20 +2181,233 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     }
   }
 
+  if (!workerRun && reviewRequestIds.length > 0) {
+    let unresolvedReviewRequests = reviewRequestIds.filter(
+      (requestId) =>
+        getAndyRequestById(requestId)?.state === 'review_in_progress',
+    );
+    if (
+      unresolvedReviewRequests.length > 0 &&
+      runOutcome.status !== 'error' &&
+      !hadError
+    ) {
+      logger.warn(
+        {
+          group: group.name,
+          requestIds: unresolvedReviewRequests,
+        },
+        'Andy review output missing review_state_update markers, requesting repair',
+      );
+      const repairPrompt = buildAndyReviewStateRepairPrompt(
+        unresolvedReviewRequests,
+        andyOutputBuffer,
+      );
+      let repairHadError = false;
+      const repairSessionOverride =
+        runtimeEffectiveSessionId ?? coordinatorSessionOverride ?? null;
+      const repairOutcome = await runAgent(
+        group,
+        repairPrompt,
+        chatJid,
+        async (result) => {
+          if (!result.result) {
+            if (result.status === 'error') {
+              repairHadError = true;
+            }
+            return;
+          }
+          const raw =
+            typeof result.result === 'string'
+              ? result.result
+              : JSON.stringify(result.result);
+          const reviewStateUpdates = parseAndyReviewStateUpdates(raw);
+          if (reviewStateUpdates.length > 0) {
+            applyAndyReviewStateUpdates(reviewStateUpdates);
+          }
+          if (result.status === 'error') {
+            repairHadError = true;
+          }
+        },
+        repairSessionOverride,
+      );
+      if (repairOutcome.newSessionId) {
+        runtimeEffectiveSessionId = repairOutcome.newSessionId;
+        sessions[group.folder] = repairOutcome.newSessionId;
+        setSession(group.folder, repairOutcome.newSessionId);
+      }
+      if (repairOutcome.status === 'error' || repairHadError) {
+        hadError = true;
+      }
+      unresolvedReviewRequests = reviewRequestIds.filter(
+        (requestId) =>
+          getAndyRequestById(requestId)?.state === 'review_in_progress',
+      );
+      if (unresolvedReviewRequests.length > 0) {
+        hadError = true;
+        for (const requestId of unresolvedReviewRequests) {
+          const request = getAndyRequestById(requestId);
+          if (request?.worker_run_id) {
+            syncAndyRequestWithWorkerRun(
+              request.worker_run_id,
+              'failed',
+              'Andy review protocol violation: missing <review_state_update> marker',
+            );
+          }
+        }
+        logger.error(
+          {
+            group: group.name,
+            requestIds: unresolvedReviewRequests,
+          },
+          'Andy review repair failed to emit required review_state_update markers',
+        );
+      }
+    }
+  }
+
+  if (
+    !workerRun &&
+    andyRequestsInBatch.some((request) => request.kind === 'coordinator')
+  ) {
+    let dispatchRepairRequests = andyRequestsInBatch
+      .filter((request) => request.kind === 'coordinator')
+      .map((request) => request.requestId)
+      .filter((requestId) => !getAndyRequestById(requestId)?.worker_run_id);
+    const latestBlockedAttempt = dispatchRepairRequests
+      .map((requestId) => {
+        const attempt = listDispatchAttemptsForRequest(requestId).find(
+          (candidate) => candidate.status === 'blocked',
+        );
+        return attempt ? { requestId, attempt } : undefined;
+      })
+      .find((value): value is NonNullable<typeof value> => Boolean(value));
+    const blockedDispatchReason =
+      latestBlockedAttempt?.attempt.reason_text?.trim();
+    const dispatchRepairTriggerReason =
+      blockedDispatchReason ||
+      (ANDY_DISPATCH_INTENT_PATTERN.test(andyOutputBuffer)
+        ? 'unaccepted dispatch intent'
+        : undefined);
+
+    if (
+      dispatchRepairRequests.length > 0 &&
+      runOutcome.status !== 'error' &&
+      !hadError &&
+      dispatchRepairTriggerReason
+    ) {
+      const repairRequestId =
+        latestBlockedAttempt?.requestId ?? dispatchRepairRequests[0]!;
+      logger.warn(
+        {
+          group: group.name,
+          requestId: repairRequestId,
+          trigger: dispatchRepairTriggerReason,
+        },
+        'Andy coordinator dispatch requires repair before a worker run can be accepted',
+      );
+      const repairPrompt = buildAndyDispatchRepairPrompt(
+        repairRequestId,
+        andyOutputBuffer,
+        blockedDispatchReason,
+      );
+      let repairHadError = false;
+      const repairSessionOverride =
+        runtimeEffectiveSessionId ?? coordinatorSessionOverride ?? null;
+      const repairOutcome = await runAgent(
+        group,
+        repairPrompt,
+        chatJid,
+        async (result) => {
+          if (!result.result) {
+            if (result.status === 'error') {
+              repairHadError = true;
+            }
+            return;
+          }
+          const raw =
+            typeof result.result === 'string'
+              ? result.result
+              : JSON.stringify(result.result);
+          andyOutputBuffer += `${raw}\n`;
+          const text = raw
+            .replace(/<internal>[\s\S]*?<\/internal>/g, '')
+            .trim();
+          if (text) {
+            const outboundText = await sanitizeUserFacingOutput(group, text);
+            if (outboundText && channel) {
+              await channel.sendMessage(chatJid, outboundText);
+              outputSentToUser = true;
+              outputAckCursor = maxTimestamp(
+                outputAckCursor,
+                inFlightAgentTimestamp[chatJid] || batchLastTimestamp,
+              );
+            }
+          }
+          if (result.status === 'error') {
+            repairHadError = true;
+          }
+        },
+        repairSessionOverride,
+      );
+      if (repairOutcome.newSessionId) {
+        runtimeEffectiveSessionId = repairOutcome.newSessionId;
+        sessions[group.folder] = repairOutcome.newSessionId;
+        setSession(group.folder, repairOutcome.newSessionId);
+      }
+      if (repairOutcome.status === 'error' || repairHadError) {
+        hadError = true;
+      }
+      dispatchRepairRequests = andyRequestsInBatch
+        .filter((request) => request.kind === 'coordinator')
+        .map((request) => request.requestId)
+        .filter((requestId) => !getAndyRequestById(requestId)?.worker_run_id);
+      if (
+        dispatchRepairRequests.length > 0 &&
+        ANDY_DISPATCH_INTENT_PATTERN.test(andyOutputBuffer)
+      ) {
+        hadError = true;
+        for (const requestId of dispatchRepairRequests) {
+          updateAndyRequestState(
+            requestId,
+            'failed',
+            'Andy dispatch protocol violation: worker dispatch was described but never accepted',
+          );
+        }
+        logger.error(
+          {
+            group: group.name,
+            requestIds: dispatchRepairRequests,
+          },
+          'Andy dispatch repair failed to produce an accepted worker run',
+        );
+      }
+    }
+  }
+
   if (!workerRun && andyRequestsInBatch.length > 0) {
     const coordinatorSessionId =
-      runOutcome.newSessionId ?? sessions[group.folder] ?? null;
+      runOutcome.newSessionId ?? coordinatorSessionOverride ?? null;
+    const runFailed = runOutcome.status === 'error' || hadError;
     for (const request of andyRequestsInBatch) {
       completeAndyCoordinatorRequest({
         requestId: request.requestId,
         coordinatorSessionId,
-        runFailed: runOutcome.status === 'error' || hadError,
+        runFailed,
         errorText: runOutcome.error,
       });
     }
   }
 
-  if (runOutcome.status === 'error' || hadError) {
+  let effectiveRunFailed = runOutcome.status === 'error' || hadError;
+  if (workerCompletionAccepted && effectiveRunFailed) {
+    logger.warn(
+      { group: group.name, runId: workerRun?.runId, error: runOutcome.error },
+      'Ignoring worker runtime error after accepted completion',
+    );
+    effectiveRunFailed = false;
+  }
+
+  if (effectiveRunFailed) {
     // If we already sent output to the user, don't roll back the cursor —
     // the user got their response and re-processing would send duplicates.
     if (outputSentToUser) {
@@ -1838,6 +2418,21 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       logger.warn(
         { group: group.name },
         'Agent error after output was sent, skipping cursor rollback to prevent duplicates',
+      );
+      return true;
+    }
+    if (
+      workerRun &&
+      !shouldRetryWorkerAgentFailure({
+        isWorkerRun: true,
+        error: runOutcome.error,
+      })
+    ) {
+      markBatchProcessed(chatJid, messagesToProcess, workerRun.runId);
+      commitInFlightCursor(chatJid);
+      logger.warn(
+        { group: group.name, runId: workerRun.runId, error: runOutcome.error },
+        'Worker agent error treated as terminal; skipping automatic retry',
       );
       return true;
     }
@@ -2056,6 +2651,7 @@ async function startMessageLoop(): Promise<void> {
     return;
   }
   messageLoopRunning = true;
+  setRouterState('host_message_loop_ready_at', new Date().toISOString());
 
   logger.info(`NanoClaw running (trigger: @${ASSISTANT_NAME})`);
   let lastWorkerSnapshotRefresh = 0;
@@ -2122,6 +2718,28 @@ async function startMessageLoop(): Promise<void> {
             if (!hasTrigger) continue;
           }
 
+          if (
+            channel &&
+            group.folder === ANDY_DEVELOPER_FOLDER &&
+            groupMessages.length > 0 &&
+            (await handleAndyFrontdeskMessages({
+              chatJid,
+              group,
+              messages: [groupMessages[groupMessages.length - 1]],
+              channel,
+              ackIntake: false,
+              runtime: {
+                markCursorInFlight: () => {},
+                clearInFlightCursor: () => {},
+                markBatchProcessed,
+                commitInFlightCursor: () => {},
+              },
+            }))
+          ) {
+            queue.enqueueMessageCheck(chatJid);
+            continue;
+          }
+
           if (channel) {
             await ackAndyIntakeMessages(chatJid, group, groupMessages, channel);
           }
@@ -2133,8 +2751,54 @@ async function startMessageLoop(): Promise<void> {
             getEffectiveAgentCursor(chatJid),
             ASSISTANT_NAME,
           );
-          const messagesToSend =
+          let messagesToSend =
             allPending.length > 0 ? allPending : groupMessages;
+          const alreadyProcessedForSend = getProcessedMessageIds(
+            chatJid,
+            messagesToSend.map((message) => message.id),
+          );
+          if (alreadyProcessedForSend.size > 0) {
+            messagesToSend = messagesToSend.filter(
+              (message) => !alreadyProcessedForSend.has(message.id),
+            );
+          }
+          if (messagesToSend.length === 0) {
+            continue;
+          }
+          if (group.folder === ANDY_DEVELOPER_FOLDER) {
+            const replayTimestamp = new Date().toISOString();
+            const selection = selectAndyMessageBatch(
+              messagesToSend,
+              replayTimestamp,
+            );
+            if (selection.deferredMessages.length > 0) {
+              markMessagesProcessed(
+                chatJid,
+                selection.deferredMessages.map(
+                  (message) => message.originalMessageId,
+                ),
+              );
+              storeChatMetadata(
+                chatJid,
+                replayTimestamp,
+                group.name,
+                'nanoclaw',
+                true,
+              );
+              for (const deferred of selection.deferredMessages) {
+                storeMessage(deferred.replayMessage);
+              }
+              logger.info(
+                {
+                  chatJid,
+                  activeRequestId: selection.activeRequestId,
+                  deferredMessageCount: selection.deferredMessages.length,
+                },
+                'Deferred older Andy request messages behind fresh coordinator intake',
+              );
+            }
+            messagesToSend = selection.selectedMessages;
+          }
           const andyRequestsToSend =
             group.folder === ANDY_DEVELOPER_FOLDER
               ? getAndyRequestsForMessages(messagesToSend)
@@ -2205,6 +2869,23 @@ async function startMessageLoop(): Promise<void> {
 
           if (isMainGroup && ENABLE_CONTROL_PLANE_SNAPSHOTS) {
             writeMainControlPlaneStatusSnapshot();
+          }
+
+          if (
+            group.folder === ANDY_DEVELOPER_FOLDER &&
+            shouldForceFreshAndySessionRun(andyRequestsToSend)
+          ) {
+            logger.info(
+              {
+                chatJid,
+                requestId: activeRequestForSend,
+                count: messagesToSend.length,
+              },
+              'Fresh Andy intake requires a new container session; closing active container instead of piping',
+            );
+            queue.closeStdin(chatJid, ANDY_BUSY_PREEMPT_MS);
+            queue.enqueueMessageCheck(chatJid);
+            continue;
           }
 
           if (queue.sendMessage(chatJid, formatted)) {
@@ -2428,6 +3109,8 @@ async function main(): Promise<void> {
     });
     queue.setProcessMessagesFn(processGroupMessages);
     recoverInterruptedWorkerDispatches({ registeredGroups, queue });
+    recoverAndyReviewStateFromStoredMessages({ registeredGroups });
+    recoverTerminalWorkerDispatchMessages({ registeredGroups });
     recoverPendingMessages({
       registeredGroups,
       lastAgentTimestamp,

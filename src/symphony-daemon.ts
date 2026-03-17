@@ -29,7 +29,9 @@ function pidIsAlive(pid: number | null): boolean {
   }
 }
 
-function readExitPayload(filePath: string): { code: number; finishedAt: string } | null {
+function readExitPayload(
+  filePath: string,
+): { code: number; finishedAt: string } | null {
   if (!fs.existsSync(filePath)) {
     return null;
   }
@@ -62,7 +64,9 @@ function cancellationComment(run: SymphonyRunRecord, reason: string): string {
   ].join('\n');
 }
 
-async function reconcileRun(run: SymphonyRunRecord): Promise<SymphonyRunRecord> {
+async function reconcileRun(
+  run: SymphonyRunRecord,
+): Promise<SymphonyRunRecord> {
   if (
     run.status !== 'planned' &&
     run.status !== 'dispatching' &&
@@ -247,7 +251,11 @@ export async function stopSymphonyRun(input: {
     resultSummary: 'Run canceled by operator.',
   });
 
-  await transitionIssueForRun(next, 'Blocked', cancellationComment(next, reason));
+  await transitionIssueForRun(
+    next,
+    'Blocked',
+    cancellationComment(next, reason),
+  );
 
   return {
     run: next,

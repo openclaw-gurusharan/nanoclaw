@@ -15,6 +15,20 @@ Run this workflow by default when any of the following are true:
 
 If trigger conditions are met, do not skip browser validation.
 
+## User-Flow Requirement
+
+Browser validation must cover the task-relevant user flow, not only static render checks.
+
+For the affected flow, exercise as many of these as apply:
+
+1. initial page load/readiness
+2. user interaction on the changed control/path
+3. expected state change or navigation
+4. success/error behavior relevant to the task
+5. console or network inspection when the task touches client behavior
+
+Generic smoke-only evidence is insufficient when the dispatched change affects an actual user flow.
+
 ## Runtime Requirements
 
 1. In-container Chromium runtime at `/usr/bin/chromium`
@@ -41,6 +55,7 @@ Run at least one task-relevant `chrome-devtools` MCP action after readiness:
 
 Use task-specific assertions, not generic smoke-only checks.
 Do not capture/analyze screenshots; use text outputs only.
+If required browser validation reveals a regression inside dispatched scope, fix it before returning completion.
 
 ## Evidence Required In Completion
 
@@ -48,9 +63,10 @@ Include a compact browser evidence block with:
 
 1. server start command + readiness probe result
 2. route(s) tested (127.0.0.1 URL)
-3. `chrome-devtools` tool calls executed (name + key output)
-4. pass/fail decision tied to expected behavior
-5. explicit confirmation that screenshot capture/analysis was not used
+3. flow steps exercised and expected behavior checked
+4. `chrome-devtools` tool calls executed (name + key output)
+5. pass/fail decision tied to expected behavior
+6. explicit confirmation that screenshot capture/analysis was not used
 
 No "browser pass" claims without MCP tool execution evidence.
 
@@ -61,3 +77,4 @@ If browser runtime/tooling is unavailable:
 1. report exact blocker with command output
 2. do not mark browser checks as passed
 3. escalate to Andy-Developer for rework/unblock
+4. if a browser-found issue remains unfixed, return it as a blocker instead of claiming completion

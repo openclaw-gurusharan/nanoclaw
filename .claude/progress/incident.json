@@ -1,5 +1,89 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-11T09:24:33Z",
-  "incidents": []
+  "updated_at": "2026-03-17T22:48:00+05:30",
+  "incidents": [
+    {
+      "id": "inc-20260316-worker-timeout-retry-loop",
+      "status": "resolved",
+      "summary": "Jarvis worker OpenCode stalls were failing host no-output timeout correctly but the same dispatch message was being automatically retried, causing repeat respawns of the same run_id instead of a terminal fail-loud outcome.",
+      "notes": [
+        "Confirmed live on run jarvis-nan-54-probe-1773664524945-378xt.",
+        "Host watchdog fix landed in src/container-runner.ts: synthetic worker-opencode-active heartbeats no longer re-arm no-output timeout.",
+        "Retry policy fix landed in src/index.ts with src/worker-agent-error-policy.ts: worker timeout errors are treated as terminal and should not be automatically retried.",
+        "Pending verification: timeout of the replayed run under the new runtime must stay terminal and avoid another respawn.",
+        "2026-03-17 deterministic recovery coverage now proves terminal timeout messages are drained instead of replayed, including deferred Andy replay messages in src/extensions/jarvis/runtime-recovery.test.ts.",
+        "2026-03-16 reliability hardening: andy-developer now defers older review backlog behind fresh intake, review requests force a fresh Andy session, and fresh-intake preemption escalates from close sentinel to bounded force-stop if the stale session does not yield.",
+        "2026-03-16 worker shutdown hardening: single-shot worker agent-runtime now writes a graceful _close sentinel first and only falls back to container stop after a grace window, reducing normal post-completion exit 137 dependence.",
+        "2026-03-16 worker confidence: live probes reached review_requested on both jarvis-worker-1 (probe-jarvis-worker-1-1773688332-4691) and jarvis-worker-2 (probe-jarvis-worker-2-1773687505-30281); verify-worker-connectivity now passes.",
+        "2026-03-16 ops signal cleanup: preflight/status now report recent successful worker evidence instead of misclassifying quiet lanes as inactive from chat message timestamps alone."
+      ]
+    },
+    {
+      "id": "inc-20260317-feature-catalog-missing-refs",
+      "status": "resolved",
+      "summary": "Feature catalog strict validation is failing because several legacy docs and launchd references in the seed catalog no longer exist, which weakens the feature-tracking gate for docs and workflow work.",
+      "notes": [
+        "Discovered while mapping the LaunchDeck proving-program docs under docs-topology-cleanup.",
+        "build-feature-catalog still generates output, but validate-feature-catalog fails with missing refs under docs-topology-cleanup, workflow-collaboration-surfaces, and autonomous-lane-control-plane.",
+        "2026-03-17 seed cleanup replaced dead legacy docs-discipline, launchd, and start-nightly references with current governance/optimization/runtime artifacts in .claude/catalog/feature-catalog.seed.json.",
+        "2026-03-17 strict validation now passes again after rebuilding the catalog: feature_count=29, missing_refs=0."
+      ]
+    },
+    {
+      "id": "inc-20260317-dispatch-without-worker-link",
+      "status": "resolved",
+      "summary": "Andy can emit a user-facing 'Dispatched' message for a request while the backing andy_requests row remains coordinator_active with no worker_run_id and no worker_runs row, creating a trust-breaking mismatch between visible status and actual execution state.",
+      "notes": [
+        "Discovered during the first live LaunchDeck proving run on request req-1773692784606-5274h0tr for NAN-57 / LD-01.",
+        "User-facing evidence: Andy sent a 'Dispatched: NAN-57 LD-01' message naming jarvis-worker-1 and a branch.",
+        "Database evidence after the dispatch message: andy_requests row stayed state=coordinator_active with worker_run_id empty, and worker_runs had no row for request_id=req-1773692784606-5274h0tr.",
+        "Follow-up status query repeated the coordinator_active state ('Coordinator is processing your request'), confirming the visible dispatch message did not correspond to a linked worker run.",
+        "2026-03-17 fix landed in src/extensions/jarvis/user-facing-output.ts and src/index.ts: Andy dispatch-like output now waits for persisted worker-run confirmation before rendering a user-facing 'Dispatched ...' sentence, otherwise it falls back to truthful coordination text.",
+        "2026-03-17 regression coverage added in src/extensions/jarvis/user-facing-output.test.ts for confirmed, delayed, and unconfirmed dispatch states.",
+        "2026-03-17 live validation after restart: request req-1773693466333-pprimary stayed coordinator_active on immediate status reply, then linked to worker_run_id=req-1773693466333-pprimary before the worker stage advanced. This reproducer no longer showed the premature dispatch claim.",
+        "2026-03-17 later live validation on token 1773727125503-8oz5v also linked worker_run_id=userflow-1773727125503-8oz5v on the first attempt before the worker entered review_requested, confirming the user-visible dispatch message now corresponds to a real linked run."
+      ]
+    },
+    {
+      "id": "inc-20260317-andy-frontdesk-restart-sla",
+      "status": "resolved",
+      "summary": "Andy frontdesk status/progress replies remain flaky around restart/recovery windows: natural-language progress queries can be misclassified as new work, and immediate status replies can miss the 8s SLA when stale pending messages are being recovered.",
+      "notes": [
+        "Discovered while running scripts/test-andy-full-user-journey-e2e.ts after the dispatch-truthfulness fix.",
+        "Live evidence on token 1773693464880-u8hef: '@Andy what is the current progress' created req-1773693529520-sstm8g7x instead of returning an immediate frontdesk progress reply.",
+        "Code hardening landed in src/extensions/jarvis/frontdesk-service.ts: frontdesk now handles pure greetings/status queries before intake ack, and the query matcher now recognizes 'what is the current progress' / 'what is the current status'.",
+        "Regression coverage added in src/extensions/jarvis/frontdesk-service.test.ts for the exact natural-language phrase that failed live.",
+        "A second live run immediately after service restart still missed the immediate status-reply SLA for req-1773693659172-pprimary; logs show recovery reopened stale pending Andy messages around startup, so restart/recovery interference is still unresolved.",
+        "2026-03-17 follow-up fix landed in src/index.ts: newly arrived Andy frontdesk queries are pre-handled before older pending work is merged, and already-processed messages are filtered out of the later allPending prompt batch.",
+        "2026-03-17 recover-path hardening landed in scripts/jarvis-recover.sh plus src/index.ts: recover now waits for a post-restart runtime-owner heartbeat and host_message_loop_ready_at signal instead of returning on launchctl kickstart alone.",
+        "2026-03-17 live verification on token 1773727125503-8oz5v after recovery shows intake ack in 493ms and immediate status in 380ms, restoring the restart-path frontdesk SLA."
+      ]
+    },
+    {
+      "id": "inc-20260317-andy-stale-message-bleed",
+      "status": "resolved",
+      "summary": "In multi-stage Andy journeys, stale control/retry messages from earlier requests can still bleed into later coordinator prompts, causing Andy to emit dispatch JSON for an older request while a newer request remains coordinator_active.",
+      "notes": [
+        "Observed during the live full-user-journey run for token 1773694440374-38luj when stage two request req-1773694551674-eprimary was active but Andy emitted a dispatch payload for req-1773694442351-pprimary instead.",
+        "The bleed is narrower after filtering already-processed messages from allPending, but a later run still showed Andy outputting raw JSON for older retry request req-1773694737377-reretry2 while fresh build request req-1773694747631-pprimary was active.",
+        "2026-03-17 replay identity is now preserved with <andy_request_replay> metadata, frontdesk no longer re-acks deferred coordinator messages as fresh intake, and recovery resolves terminal replay messages by request identity.",
+        "2026-03-17 live validation narrowed the remaining defect: token 1773727125503-8oz5v stage one now passes end-to-end, but stage two request req-1773727302976-eprimary still reported 'Coordinator picked up 3 pending message(s)' and failed to produce a fresh worker link inside the timeout window, so follow-up multi-stage batching is still not fully clean.",
+        "2026-03-17 fix tranche: processGroupMessages now applies the same Andy batch-selection/defer logic as the active-container path, replayed messages are parked instead of being replayed recursively, older review replays stay parked while a newer coordinator request is still active in the same chat, and mixed batches now prioritize non-replay coordinator requests ahead of replayed coordinator/review messages for frontdesk context and dispatch repair.",
+        "2026-03-17 live verification: full three-stage user journey token 1773732025501-6jh67 passed end-to-end after a clean UAT queue reset. Build App linked req-1773732026179-pprimary on attempt 1, Add Feature linked req-1773732211182-eprimary on attempt 1, and Customization linked req-1773732486520-nprimary on attempt 1; all three worker runs reached review_requested with immediate status/progress replies preserved."
+      ]
+    },
+    {
+      "id": "inc-20260317-pr68-tooling-governance-ci",
+      "status": "resolved",
+      "summary": "PR #68 CI failed at tooling governance because the lint still expected a deleted skills-vs-docs map file and the max allow-entry budget no longer matched the current governed tool surface on the branch.",
+      "notes": [
+        "Observed from GitHub Actions run 23185790699 on PR #68 with errors for missing docs/operations/skills-vs-docs-map.md and permissions.allow budget overflow (103 > 62).",
+        "2026-03-17 fix: scripts/check-tooling-governance.sh now validates MCP-routing policy against the canonical .claude/rules/docs-governance.md rule instead of the removed map file, matching the repo's docs-governance contract.",
+        "2026-03-17 fix: .claude/rules/docs-governance.md now carries the built-in-first MCP routing sentence plus the required token-efficient, chrome-devtools, context7, and deepwiki entries enforced by governance lint.",
+        "2026-03-17 fix: docs/operations/tooling-governance-budget.json max_allow_entries rebaselined to 110 to match the current Symphony/Notion/GitHub governed tool surface without relaxing wildcard budget.",
+        "2026-03-17 verification: bash scripts/check-workflow-contracts.sh, bash scripts/check-claude-codex-mirror.sh, bash scripts/check-tooling-governance.sh, npm run format:check, npm run typecheck, and npm test all pass locally after the governance and launcher test fixes.",
+        "2026-03-17 follow-up fix: start-platform-loop/start-autonomy-reliability launchers now honor source-root overrides in dry-run tests, and the paired Vitest cases provide a fake session runner plus a 15s timeout to avoid parallel-suite flake."
+      ]
+    }
+  ]
 }

@@ -69,12 +69,3 @@ web_search = "disabled"
 [profiles.gpt54_escalation]
 model = "gpt-5.4"
 model_reasoning_effort = "xhigh"
-
-[mcp_servers.symphony]
-command = "./scripts/workflow/start-symphony-mcp.sh"
-
-[mcp_servers.notion]
-command = "./scripts/workflow/start-notion-mcp.sh"
-
-[mcp_servers.linear]
-command = "./scripts/workflow/start-linear-mcp.sh"

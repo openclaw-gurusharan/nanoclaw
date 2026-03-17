@@ -149,21 +149,28 @@ echo "db: $DB_PATH"
 echo "window: last ${WINDOW_MINUTES}m"
 
 lane_rows="$(sqlite3 -separator '|' "$DB_PATH" "
-WITH window_runs AS (
+WITH worker_lanes AS (
+  SELECT folder
+  FROM registered_groups
+  WHERE folder LIKE 'jarvis-worker-%'
+),
+window_runs AS (
   SELECT *
   FROM worker_runs
   WHERE julianday(started_at) >= julianday('now', '-${WINDOW_MINUTES} minutes')
 )
 SELECT
-  group_folder,
-  SUM(CASE WHEN status IN ('review_requested', 'done') THEN 1 ELSE 0 END) AS pass_count,
-  SUM(CASE WHEN status IN ('failed_runtime', 'failed_timeout', 'failed_contract') THEN 1 ELSE 0 END) AS fail_count,
-  SUM(CASE WHEN status IN ('queued', 'provisioning', 'running', 'stopping') THEN 1 ELSE 0 END) AS active_count,
-  COUNT(*) AS total_count
-FROM window_runs
-WHERE group_folder LIKE 'jarvis-worker-%'
-GROUP BY group_folder
-ORDER BY group_folder;
+  wl.folder,
+  COALESCE(SUM(CASE WHEN wr.status IN ('review_requested', 'done') THEN 1 ELSE 0 END), 0) AS pass_count,
+  COALESCE(SUM(CASE WHEN wr.status IN ('failed_runtime', 'failed_timeout', 'failed_contract') THEN 1 ELSE 0 END), 0) AS fail_count,
+  COALESCE(SUM(CASE WHEN wr.status IN ('queued', 'provisioning', 'running', 'stopping') THEN 1 ELSE 0 END), 0) AS active_count,
+  COALESCE(COUNT(wr.run_id), 0) AS total_count,
+  COALESCE((SELECT wr2.status FROM worker_runs wr2 WHERE wr2.group_folder = wl.folder ORDER BY COALESCE(wr2.completed_at, wr2.started_at) DESC LIMIT 1), '') AS latest_status
+FROM worker_lanes wl
+LEFT JOIN window_runs wr
+  ON wr.group_folder = wl.folder
+GROUP BY wl.folder
+ORDER BY wl.folder;
 ")"
 
 echo
@@ -171,10 +178,14 @@ echo "Lane summary:"
 if [ -z "$lane_rows" ]; then
   warn "status.lane_window" "no worker runs in current window"
 else
-  pass "status.lane_window" "worker runs present in current window"
-  while IFS='|' read -r lane pass_count fail_count active total; do
+  pass "status.lane_window" "worker lane inventory loaded"
+  while IFS='|' read -r lane pass_count fail_count active total latest_status; do
     [ -z "$lane" ] && continue
-    echo "  - $lane: pass=$pass_count fail=$fail_count active=$active runs=$total"
+    if [ "$total" -eq 0 ]; then
+      echo "  - $lane: pass=0 fail=0 active=0 runs=0 latest=unknown-no-recent-evidence"
+    else
+      echo "  - $lane: pass=$pass_count fail=$fail_count active=$active runs=$total latest=${latest_status:-unknown}"
+    fi
   done <<<"$lane_rows"
 fi
 

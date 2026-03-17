@@ -104,6 +104,7 @@ Detect failure
 ## Browser Testing (Container Chromium)
 
 Required by default for UI-impacting changes.
+For any feature that changes user-visible behavior, validation must prove the affected flow, not only low-level tests.
 
 **REQUIREMENTS:**
 
@@ -121,6 +122,8 @@ Run readiness probe first, then execute at least one `chrome-devtools` MCP actio
 **Assertion execution:**
 
 Include tool names and key outputs in completion evidence.
+Exercise the changed user flow: load, interact, observe the expected state change, and verify relevant success or error behavior.
+If that required validation reveals a regression inside dispatched scope, fix it before returning completion.
 
 **If browser tooling is unavailable:**
 

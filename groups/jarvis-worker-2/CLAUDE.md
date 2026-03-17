@@ -17,6 +17,7 @@ You are a coding agent. Execute development tasks assigned by Andy-Developer.
 
 ## Docs Index
 
+```text
 BEFORE any git/PR work → read /workspace/group/docs/workflow/git-pr-workflow.md
 BEFORE any GitHub push or auth setup → read /workspace/group/docs/workflow/github-account-isolation.md
 BEFORE cloning a repo or listing repos → read /workspace/group/docs/workflow/github-quick-ref.md
@@ -24,6 +25,7 @@ BEFORE starting a new task → read /workspace/group/docs/workflow/execution-loo
 BEFORE any browser/UI automation task → read /workspace/group/docs/workflow/webmcp-testing.md
 BEFORE selecting skills for a task → read /workspace/group/docs/workflow/worker-skill-policy.md
 BEFORE applying an Andy-approved workflow/policy agreement → read /workspace/group/docs/workflow/agreement-sync.md
+```
 
 ## Task Format
 

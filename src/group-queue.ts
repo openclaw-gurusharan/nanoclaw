@@ -1,8 +1,9 @@
-import { ChildProcess } from 'child_process';
+import { ChildProcess, exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
 import { DATA_DIR, MAX_CONCURRENT_CONTAINERS } from './config.js';
+import { stopContainer } from './container-runtime.js';
 import { logger } from './logger.js';
 
 interface QueuedTask {
@@ -40,6 +41,7 @@ export interface GroupQueueStatusSnapshot {
 
 export class GroupQueue {
   private groups = new Map<string, GroupState>();
+  private forceCloseTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private activeCount = 0;
   private waitingGroups: string[] = [];
   private processMessagesFn: ((groupJid: string) => Promise<boolean>) | null =
@@ -205,7 +207,7 @@ export class GroupQueue {
   /**
    * Signal the active container to wind down by writing a close sentinel.
    */
-  closeStdin(groupJid: string): void {
+  closeStdin(groupJid: string, forceAfterMs = 0): void {
     const state = this.getGroup(groupJid);
     if (!state.active || !state.groupFolder) return;
 
@@ -216,6 +218,61 @@ export class GroupQueue {
     } catch {
       // ignore
     }
+
+    const existingTimer = this.forceCloseTimers.get(groupJid);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      this.forceCloseTimers.delete(groupJid);
+    }
+
+    if (forceAfterMs <= 0 || !state.process) return;
+
+    const expectedProcess = state.process;
+    const expectedContainerName = state.containerName;
+    const timer = setTimeout(() => {
+      const current = this.getGroup(groupJid);
+      if (
+        !current.active ||
+        current.process !== expectedProcess ||
+        current.containerName !== expectedContainerName
+      ) {
+        return;
+      }
+
+      logger.warn(
+        {
+          groupJid,
+          groupFolder: current.groupFolder,
+          containerName: expectedContainerName,
+          forceAfterMs,
+        },
+        'Force-stopping still-active container after close sentinel grace window',
+      );
+
+      try {
+        expectedProcess.kill('SIGTERM');
+      } catch {
+        // ignore
+      }
+
+      if (expectedContainerName) {
+        exec(stopContainer(expectedContainerName), { timeout: 15000 }, () => {
+          // best effort only
+        });
+      }
+
+      setTimeout(() => {
+        const latest = this.getGroup(groupJid);
+        if (latest.process !== expectedProcess) return;
+        try {
+          expectedProcess.kill('SIGKILL');
+        } catch {
+          // ignore
+        }
+      }, 5000);
+    }, forceAfterMs);
+
+    this.forceCloseTimers.set(groupJid, timer);
   }
 
   private async runForGroup(
@@ -247,6 +304,11 @@ export class GroupQueue {
       logger.error({ groupJid, err }, 'Error processing messages for group');
       this.scheduleRetry(groupJid, state);
     } finally {
+      const forceCloseTimer = this.forceCloseTimers.get(groupJid);
+      if (forceCloseTimer) {
+        clearTimeout(forceCloseTimer);
+        this.forceCloseTimers.delete(groupJid);
+      }
       state.active = false;
       state.process = null;
       state.containerName = null;

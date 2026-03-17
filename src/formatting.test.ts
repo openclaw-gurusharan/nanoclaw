@@ -121,6 +121,21 @@ describe('formatMessages', () => {
     expect(result).toContain('PM');
     expect(result).toContain('<context timezone="America/New_York" />');
   });
+
+  it('omits hidden Andy replay metadata from formatted prompts', () => {
+    const result = formatMessages(
+      [
+        makeMsg({
+          content:
+            '<andy_request_replay>{"request_id":"req-1","kind":"coordinator"}</andy_request_replay>\nhello',
+        }),
+      ],
+      TZ,
+    );
+
+    expect(result).toContain('>hello</message>');
+    expect(result).not.toContain('andy_request_replay');
+  });
 });
 
 // --- TRIGGER_PATTERN ---
@@ -184,6 +199,14 @@ describe('stripInternalTags', () => {
 
   it('returns empty string when text is only internal tags', () => {
     expect(stripInternalTags('<internal>only this</internal>')).toBe('');
+  });
+
+  it('strips Andy replay metadata tags', () => {
+    expect(
+      stripInternalTags(
+        '<andy_request_replay>{"request_id":"req-1","kind":"coordinator"}</andy_request_replay>hello',
+      ),
+    ).toBe('hello');
   });
 });
 

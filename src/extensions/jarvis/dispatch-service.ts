@@ -3,6 +3,7 @@ import {
   getAndyRequestById,
   getLatestReusableWorkerSession,
   getWorkerRun,
+  insertDispatchAttempt,
   insertWorkerRun,
   isNonRetryableWorkerStatus,
   type WorkerRunDispatchMetadata,
@@ -21,6 +22,7 @@ import {
   attachAndyRequestToWorkerRun,
   markAndyRequestDispatchBlocked,
   recordQueuedDispatchAttempt,
+  syncAndyRequestWithWorkerRun,
 } from './request-state-service.js';
 
 export interface DispatchBlockEvent {
@@ -59,6 +61,87 @@ export interface WorkerDispatchQueueDecision {
 export interface WorkerSessionSelection {
   selectedSessionId?: string;
   source: 'explicit' | 'auto_repo_branch' | 'new';
+}
+
+function mapWorkerRunStatusToAndyState(status: string): {
+  state:
+    | 'worker_queued'
+    | 'worker_running'
+    | 'worker_review_requested'
+    | 'completed';
+  summary: string;
+} | null {
+  switch (status) {
+    case 'queued':
+      return {
+        state: 'worker_queued',
+        summary: 'Duplicate dispatch reconciled to existing queued worker run.',
+      };
+    case 'running':
+      return {
+        state: 'worker_running',
+        summary:
+          'Duplicate dispatch reconciled to existing running worker run.',
+      };
+    case 'review_requested':
+      return {
+        state: 'worker_review_requested',
+        summary:
+          'Duplicate dispatch reconciled to existing worker run awaiting Andy review.',
+      };
+    case 'done':
+      return {
+        state: 'completed',
+        summary:
+          'Duplicate dispatch reconciled to an already completed worker run.',
+      };
+    default:
+      return null;
+  }
+}
+
+function reconcileDuplicateDispatchAttempt(
+  event: DispatchBlockEvent,
+  requestId: string | undefined,
+  sourceLaneId: string,
+  targetLaneId: string,
+): string | undefined {
+  if (!requestId || !event.run_id) return undefined;
+
+  const request = getAndyRequestById(requestId);
+  const existingRun = getWorkerRun(event.run_id);
+  const workerState = mapWorkerRunStatusToAndyState(existingRun?.status ?? '');
+
+  if (!request || !existingRun || !workerState) {
+    return undefined;
+  }
+
+  if (request.worker_run_id && request.worker_run_id !== event.run_id) {
+    return undefined;
+  }
+
+  attachAndyRequestToWorkerRun(
+    requestId,
+    event.run_id,
+    existingRun.group_folder,
+    workerState.state,
+  );
+  syncAndyRequestWithWorkerRun(
+    event.run_id,
+    workerState.state,
+    workerState.summary,
+  );
+
+  return insertDispatchAttempt({
+    request_id: requestId,
+    source_lane_id: sourceLaneId,
+    target_lane_id: targetLaneId,
+    run_id: event.run_id,
+    status: 'superseded',
+    reason_code: event.reason_code,
+    reason_text: event.reason_text,
+    session_strategy: 'duplicate',
+  });
 }
 
 export function buildDispatchBlockedMessage(event: DispatchBlockEvent): string {
@@ -443,6 +526,18 @@ export function recordBlockedDispatchAttempt(
   if (!targetLaneId) return undefined;
   const sourceLaneId =
     resolveLaneIdFromGroupFolder(event.source_group) ?? event.source_group;
+  const duplicateReconciliation =
+    event.reason_code === 'duplicate_run_id'
+      ? reconcileDuplicateDispatchAttempt(
+          event,
+          requestId,
+          sourceLaneId,
+          targetLaneId,
+        )
+      : undefined;
+  if (duplicateReconciliation) {
+    return duplicateReconciliation;
+  }
   return markAndyRequestDispatchBlocked({
     requestId,
     sourceLaneId,

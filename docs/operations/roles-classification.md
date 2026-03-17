@@ -61,16 +61,23 @@ Rules:
 1. `you` request work through WhatsApp
 2. `andy-developer` creates or updates project context and issue scope
 3. `andy-developer` approves `Ready`
-4. `jarvis-worker-*` or approved Symphony queue executes
+4. `jarvis-worker-*` or approved Symphony queue executes, validates the affected user-visible flow, and fixes issues found inside that dispatched scope before completion
 5. `andy-developer` reviews and resolves to approve, rework, or escalate
 
 ## Access Policy
 
 - `andy-developer` owns workflow governance, routing, and worker delegation authority
 - `codex` and `claude-code` own NanoClaw repo execution, not workflow governance by default
-- `jarvis-worker-*` focus on downstream repository implementation tasks
+- `jarvis-worker-*` focus on downstream repository implementation tasks plus task-relevant user-visible validation
 - `symphony` is optional and bounded to approved project issue queues
 - GitHub governance changes remain `andy-developer` owned
+
+## Validation Ownership
+
+- Every delivered feature must include validation at the user-visible behavior level before completion.
+- UI-impacting downstream work must include in-container browser flow validation, not only unit tests or DOM-only checks.
+- The implementing `jarvis-worker-*` lane owns remediation for issues found during required validation unless the fix exceeds dispatched scope and must be escalated.
+- `andy-developer` should reject completions that claim feature completion without task-relevant user-visible validation evidence.
 
 ## Related Map
 

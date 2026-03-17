@@ -42,6 +42,8 @@ If answers 2 or 4 are weak, extend existing doc instead.
 - **Docs** = source-of-truth contracts (what must remain true)
 - Load required docs first (invariants), then execute via matching skill.
 - Skills reference scripts, don't duplicate them.
+- Use MCP tools first when a built-in route already matches the task before adding bespoke shell or script paths.
+- Built-in MCP defaults that must stay routable in docs and prompts: `token-efficient` for large logs/data reduction, `chrome-devtools` for browser validation, `context7` for library docs, and `deepwiki` for repository architecture/Q&A.
 
 ## Trigger Line Rules
 

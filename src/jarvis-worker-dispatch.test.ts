@@ -64,6 +64,12 @@ describe('insertWorkerRun returns new/retry/duplicate', () => {
     expect(insertWorkerRun('run-006', 'jarvis-worker-1')).toBe('retry');
   });
 
+  it("returns 'duplicate' for run_id with status 'failed_timeout'", () => {
+    insertWorkerRun('run-006b', 'jarvis-worker-1');
+    completeWorkerRun('run-006b', 'failed_timeout', 'timed out');
+    expect(insertWorkerRun('run-006b', 'jarvis-worker-1')).toBe('duplicate');
+  });
+
   it('increments retry_count on retry', () => {
     insertWorkerRun('run-007', 'jarvis-worker-1');
     updateWorkerRunStatus('run-007', 'failed');
@@ -80,6 +86,14 @@ describe('insertWorkerRun returns new/retry/duplicate', () => {
     insertWorkerRun('run-008', 'jarvis-worker-1');
     const row = getWorkerRun('run-008');
     expect(row?.retry_count).toBe(2);
+  });
+
+  it('records failed_timeout as a terminal status', () => {
+    insertWorkerRun('run-008b', 'jarvis-worker-1');
+    completeWorkerRun('run-008b', 'failed_timeout', 'timed out');
+    const row = getWorkerRun('run-008b');
+    expect(row?.status).toBe('failed_timeout');
+    expect(row?.completed_at).not.toBeNull();
   });
 
   it('run_id is globally unique (same id on different group = duplicate)', () => {
@@ -954,8 +968,7 @@ describe('completion contract validation', () => {
     expect(missing).toContain('pr_url or pr_skipped_reason');
   });
 
-  it('accepts files_changed as number when pr_skipped_reason is present', () => {
-    // When pr_skipped_reason is present, files_changed type doesn't matter
+  it('fails when files_changed is invalid type even when pr_skipped_reason is present', () => {
     const { valid, missing } = validateCompletionContract({
       run_id: 'task-1',
       branch: 'jarvis-feat',
@@ -965,12 +978,11 @@ describe('completion contract validation', () => {
       test_result: 'blocked',
       risk: 'unknown',
     });
-    expect(valid).toBe(true);
-    expect(missing).toHaveLength(0);
+    expect(valid).toBe(false);
+    expect(missing).toContain('files_changed');
   });
 
-  it('accepts placeholder commit_sha when pr_skipped_reason is present', () => {
-    // When pr_skipped_reason is present, commit_sha format doesn't matter
+  it('fails for placeholder commit_sha when only pr_skipped_reason is present', () => {
     const { valid, missing } = validateCompletionContract({
       run_id: 'task-1',
       branch: 'jarvis-feat',
@@ -980,8 +992,8 @@ describe('completion contract validation', () => {
       test_result: 'blocked',
       risk: 'unknown',
     });
-    expect(valid).toBe(true);
-    expect(missing).toHaveLength(0);
+    expect(valid).toBe(false);
+    expect(missing).toContain('commit_sha format');
   });
 
   it('fails when files_changed is invalid type without pr_skipped_reason', () => {
@@ -1027,6 +1039,23 @@ describe('completion contract validation', () => {
     );
     expect(valid).toBe(true);
     expect(missing).toHaveLength(0);
+  });
+
+  it('fails empty files_changed for code-changing runs', () => {
+    const { valid, missing } = validateCompletionContract(
+      {
+        run_id: 'task-1',
+        branch: 'jarvis-feat',
+        commit_sha: 'abc1234',
+        files_changed: [],
+        pr_skipped_reason: 'no pr created',
+        test_result: 'pass',
+        risk: 'low',
+      },
+      { requireCodeChanges: true },
+    );
+    expect(valid).toBe(false);
+    expect(missing).toContain('files_changed');
   });
 
   it('fails when contract is null', () => {

@@ -30,7 +30,9 @@ function shellEscape(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-function commandTemplateEnvName(backend: 'codex' | 'claude-code' | 'opencode-worker'): string {
+function commandTemplateEnvName(
+  backend: 'codex' | 'claude-code' | 'opencode-worker',
+): string {
   switch (backend) {
     case 'codex':
       return 'NANOCLAW_SYMPHONY_CODEX_COMMAND';
@@ -54,7 +56,9 @@ function renderCommandTemplate(
   });
 }
 
-function commandForPlan(plan: ReturnType<typeof buildSymphonyLaunchPlan>): string {
+function commandForPlan(
+  plan: ReturnType<typeof buildSymphonyLaunchPlan>,
+): string {
   const envName = commandTemplateEnvName(plan.backend);
   const template = process.env[envName] || '';
   if (!template) {
@@ -73,7 +77,9 @@ function commandForPlan(plan: ReturnType<typeof buildSymphonyLaunchPlan>): strin
   });
 }
 
-function sortCandidates(issues: Awaited<ReturnType<typeof listReadyIssuesForProject>>) {
+function sortCandidates(
+  issues: Awaited<ReturnType<typeof listReadyIssuesForProject>>,
+) {
   return [...issues].sort((left, right) => {
     const priorityDelta = left.priority - right.priority;
     if (priorityDelta !== 0) return priorityDelta;
@@ -86,7 +92,12 @@ function prepareWorkspace(
   plan: ReturnType<typeof buildSymphonyLaunchPlan>,
   prompt: string,
   runId: string,
-): { promptFile: string; manifestFile: string; logFile: string; exitFile: string } {
+): {
+  promptFile: string;
+  manifestFile: string;
+  logFile: string;
+  exitFile: string;
+} {
   fs.mkdirSync(plan.workspacePath, { recursive: true });
   const promptFile = path.join(plan.workspacePath, 'PROMPT.md');
   const manifestFile = path.join(plan.workspacePath, 'RUN.json');
@@ -187,7 +198,9 @@ export async function dispatchOnceForProject(
   if (!selectedSummary) {
     return {
       action: 'noop' as const,
-      reason: options.issueIdentifier ? 'issue_not_found_or_not_ready' : 'no_ready_issue',
+      reason: options.issueIdentifier
+        ? 'issue_not_found_or_not_ready'
+        : 'no_ready_issue',
     };
   }
 

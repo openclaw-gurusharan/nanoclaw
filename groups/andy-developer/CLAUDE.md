@@ -98,6 +98,8 @@ Use `mcp__linear__linear_graphql` for all Linear reads and writes:
 - Browse project board, create/update issues, set state, assign to workers
 - Project keys follow `AND-<projectname>` pattern (e.g. `AND-brand360`)
 - Query the board by project before dispatching workers — check for existing/blocked issues
+- For any project-scoped issue you create, set the Linear `project` explicitly and then verify the created issue still reports the expected `project.name` before you claim success
+- If the created issue has `project = null` or the wrong project, fix it immediately; do not continue to worker dispatch or final handoff with an unscoped issue
 - Prefer narrow queries: `identifier, title, state { name }` only
 
 ## Project Bootstrap
@@ -115,6 +117,8 @@ Progressive loading pattern:
 - At task START: `notion_query_memory project_key=<key> type=decision limit=5`
 - At task END (gate): write only if a decision, constraint, or lesson was discovered
 - Scope: `project` for project-specific facts, `global` for cross-project patterns
+- For pipeline probes and user-journey validation runs, also create a Notion run-summary page with `notion_create_page`.
+- Pipeline probe completion is not satisfied by memory alone. The page title must be `Pipeline Probe <token>` and include token, issue, branch, commit, files changed, status, and risk.
 
 ## Memory Curation
 

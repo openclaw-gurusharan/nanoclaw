@@ -2,6 +2,18 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 import { GroupQueue } from './group-queue.js';
 
+vi.mock('child_process', () => ({
+  exec: vi.fn(
+    (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+      cb?.(null);
+    },
+  ),
+}));
+
+vi.mock('./container-runtime.js', () => ({
+  stopContainer: vi.fn((name: string) => `container stop ${name}`),
+}));
+
 // Mock config to control concurrency limit
 vi.mock('./config.js', () => ({
   DATA_DIR: '/tmp/nanoclaw-test-data',
@@ -514,6 +526,40 @@ describe('GroupQueue', () => {
       (call) => typeof call[0] === 'string' && call[0].endsWith('_close'),
     );
     expect(closeWrites).toHaveLength(1);
+
+    resolveProcess!();
+    await vi.advanceTimersByTimeAsync(10);
+  });
+
+  it('force-stops a still-active container after the close grace window', async () => {
+    const childProcess = await import('child_process');
+    let resolveProcess: () => void;
+
+    const proc = {
+      kill: vi.fn(),
+    } as any;
+
+    const processMessages = vi.fn(async () => {
+      await new Promise<void>((resolve) => {
+        resolveProcess = resolve;
+      });
+      return true;
+    });
+
+    queue.setProcessMessagesFn(processMessages);
+    queue.enqueueMessageCheck('group1@g.us');
+    await vi.advanceTimersByTimeAsync(10);
+    queue.registerProcess('group1@g.us', proc, 'container-1', 'test-group');
+
+    queue.closeStdin('group1@g.us', 1000);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(vi.mocked(childProcess.exec)).toHaveBeenCalledWith(
+      'container stop container-1',
+      { timeout: 15000 },
+      expect.any(Function),
+    );
 
     resolveProcess!();
     await vi.advanceTimersByTimeAsync(10);

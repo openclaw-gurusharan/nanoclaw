@@ -387,18 +387,34 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
   fi
 
   lane_rows="$(sqlite3 -separator '|' "$DB_PATH" "
-SELECT r.folder, r.name,
+SELECT
+  r.folder,
+  r.name,
   COALESCE((SELECT MAX(m.timestamp) FROM messages m WHERE m.chat_jid = r.jid), '') AS last_ts,
-  CAST((julianday('now') - julianday(COALESCE((SELECT MAX(m.timestamp) FROM messages m WHERE m.chat_jid = r.jid), '1970-01-01T00:00:00Z'))) * 24 * 60 AS INTEGER) AS age_minutes
+  CAST((julianday('now') - julianday(COALESCE((SELECT MAX(m.timestamp) FROM messages m WHERE m.chat_jid = r.jid), '1970-01-01T00:00:00Z'))) * 24 * 60 AS INTEGER) AS age_minutes,
+  COALESCE((SELECT wr.completed_at FROM worker_runs wr WHERE wr.group_folder = r.folder ORDER BY COALESCE(wr.completed_at, wr.started_at) DESC LIMIT 1), '') AS last_run_completed_at,
+  COALESCE((SELECT wr.status FROM worker_runs wr WHERE wr.group_folder = r.folder ORDER BY COALESCE(wr.completed_at, wr.started_at) DESC LIMIT 1), '') AS last_run_status,
+  CAST((julianday('now') - julianday(COALESCE((SELECT wr.completed_at FROM worker_runs wr WHERE wr.group_folder = r.folder AND wr.status IN ('review_requested','done') ORDER BY wr.completed_at DESC LIMIT 1), '1970-01-01T00:00:00Z'))) * 24 * 60 AS INTEGER) AS last_success_age_minutes
 FROM registered_groups r
 ORDER BY r.folder;
 " 2>/dev/null || true)"
 
   if [ -n "$lane_rows" ]; then
     echo "[INFO] lane heartbeat (last message):"
-    while IFS='|' read -r folder name last_ts age_minutes; do
+    while IFS='|' read -r folder name last_ts age_minutes last_run_completed_at last_run_status last_success_age_minutes; do
       [ -z "$folder" ] && continue
-      echo "  - $folder ($name): ${last_ts:-never}"
+      echo "  - $folder ($name): last_message=${last_ts:-never} latest_run=${last_run_completed_at:-never} latest_run_status=${last_run_status:-none}"
+      if [[ "$folder" == "main" ]]; then
+        continue
+      fi
+      if [[ "$folder" == jarvis-worker-* ]]; then
+        if [[ "$last_success_age_minutes" =~ ^-?[0-9]+$ ]] && [ "$last_success_age_minutes" -le "$LANE_INACTIVE_MINUTES" ]; then
+          pass "db.lane_recent_success.$folder" "lane $folder has recent successful run evidence (${last_success_age_minutes}m)"
+        elif [[ "$age_minutes" =~ ^-?[0-9]+$ ]] && [ "$age_minutes" -gt "$LANE_INACTIVE_MINUTES" ]; then
+          warn "db.lane_inactive.$folder" "lane $folder has no recent successful run evidence (${last_success_age_minutes}m); last message age ${age_minutes}m"
+        fi
+        continue
+      fi
       if [[ "$age_minutes" =~ ^-?[0-9]+$ ]] && [ "$age_minutes" -gt "$LANE_INACTIVE_MINUTES" ]; then
         warn "db.lane_inactive.$folder" "lane $folder inactive for ${age_minutes}m (threshold ${LANE_INACTIVE_MINUTES}m)"
       fi

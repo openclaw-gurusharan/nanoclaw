@@ -421,15 +421,15 @@ export function validateCompletionContract(
     requiredFields?: string[];
     browserEvidenceRequired?: boolean;
     allowNoCodeChanges?: boolean;
+    requireCodeChanges?: boolean;
   },
 ): {
   valid: boolean;
   missing: string[];
 } {
-  // Automatically allow no-code when pr_skipped_reason is present
   const hasPrSkippedReason = contract?.pr_skipped_reason?.trim();
-  const effectiveAllowNoCode =
-    options?.allowNoCodeChanges === true || !!hasPrSkippedReason;
+  const effectiveAllowNoCode = options?.allowNoCodeChanges === true;
+  const requireCodeChanges = options?.requireCodeChanges === true;
 
   if (!contract) return { valid: false, missing: ['completion block'] };
 
@@ -480,9 +480,8 @@ export function validateCompletionContract(
       /^(n\/a|na|none|no-commit)$/i.test(commitSha);
 
     if (!commitSha || (!isValidHex && !isAllowedPlaceholder && !isValidEmpty)) {
-      // If pr_skipped_reason is present, accept any commit_sha (including empty or non-standard)
-      if (hasPrSkippedReason || effectiveAllowNoCode) {
-        // pr_skipped_reason present or no-code allowed - commit_sha doesn't matter
+      if (effectiveAllowNoCode) {
+        // Explicit no-code runs can omit or placeholder commit SHAs.
       } else if (!isValidHex && !isAllowedPlaceholder) {
         missing.push('commit_sha format');
       }
@@ -492,16 +491,14 @@ export function validateCompletionContract(
   if (requireFilesChanged) {
     const filesChanged = contract.files_changed;
 
-    // Accept missing/null/undefined as empty array (no files changed)
     if (!Array.isArray(filesChanged)) {
-      // If pr_skipped_reason present or no-code allowed, default to empty array
-      if (hasPrSkippedReason || effectiveAllowNoCode) {
-        // Accept missing files_changed when there's a skip reason
-      } else {
+      if (!effectiveAllowNoCode) {
         missing.push('files_changed');
       }
     } else if (filesChanged.length === 0) {
-      // Empty array is valid - no files changed
+      if (requireCodeChanges && !effectiveAllowNoCode) {
+        missing.push('files_changed');
+      }
     } else if (
       filesChanged.some((item) => typeof item !== 'string' || !item.trim())
     ) {

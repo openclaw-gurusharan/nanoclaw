@@ -314,10 +314,10 @@ if (budget?.builtins) {
   }
 }
 
-const skillsDocsMap = readText("docs/operations/skills-vs-docs-map.md", "skills-vs-docs map");
-if (skillsDocsMap) {
-  if (!skillsDocsMap.includes("Use MCP tools first")) {
-    addError("skills-vs-docs map missing built-in-first MCP policy sentence");
+const docsGovernanceRule = readText(".claude/rules/docs-governance.md", "docs governance rule");
+if (docsGovernanceRule) {
+  if (!docsGovernanceRule.includes("Use MCP tools first")) {
+    addError("docs governance rule missing built-in-first MCP policy sentence");
   }
   if (budget?.builtins) {
     const requiredMcpEntries = Array.isArray(budget.builtins.required_mcp_router_entries)
@@ -325,8 +325,8 @@ if (skillsDocsMap) {
       : [];
     for (const mcpName of requiredMcpEntries) {
       const re = new RegExp("`" + escapeRegExp(mcpName) + "`");
-      if (!re.test(skillsDocsMap)) {
-        addError(`skills-vs-docs map missing required MCP router entry: ${mcpName}`);
+      if (!re.test(docsGovernanceRule)) {
+        addError(`docs governance rule missing required MCP router entry: ${mcpName}`);
       }
     }
   }

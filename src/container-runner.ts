@@ -5,6 +5,7 @@
 import { ChildProcess, exec, spawn } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import {
@@ -33,6 +34,7 @@ import {
   stopRunningContainersByPrefix,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
+import { readEnvFile } from './env.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { isJarvisWorkerFolder, RegisteredGroup } from './types.js';
 
@@ -42,6 +44,7 @@ const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
 
 // Must match AGENT_RUNNER_LOG_PREFIX in container/agent-runner/src/index.ts
 const AGENT_RUNNER_LOG_PREFIX = '[agent-runner]';
+const OPENCODE_HEARTBEAT_LOG = 'heartbeat worker-opencode-active';
 
 export interface ContainerInput {
   prompt: string;
@@ -56,6 +59,7 @@ export interface ContainerInput {
   schedulerEnabled?: boolean;
   workerSteeringEnabled?: boolean;
   dynamicGroupRegistrationEnabled?: boolean;
+  secrets?: Record<string, string>;
 }
 
 export interface ContainerOutput {
@@ -80,7 +84,142 @@ interface AgentRunnerSourceSyncMetadata {
   syncedAt: string;
 }
 
+function shouldTreatAgentRunnerStderrAsProgress(chunk: string): boolean {
+  return (
+    chunk.includes(AGENT_RUNNER_LOG_PREFIX) &&
+    !chunk.includes(OPENCODE_HEARTBEAT_LOG)
+  );
+}
+
 const AGENT_RUNNER_SYNC_METADATA_FILENAME = 'agent-runner-src.sync.json';
+const DEFAULT_MODEL_SECRET_KEYS = [
+  'MINIMAX_API_KEY',
+  'OPENROUTER_API_KEY',
+  'ANTHROPIC_API_KEY',
+] as const;
+
+type SessionMcpConfig = {
+  mcpServers?: Record<string, unknown>;
+};
+
+function readRuntimeConfigValue(name: string): string | undefined {
+  const fromProcess = process.env[name]?.trim();
+  if (fromProcess) return fromProcess;
+  const fromEnvFile = readEnvFile([name])[name]?.trim();
+  return fromEnvFile || undefined;
+}
+
+function readSecretValue(name: string): string | undefined {
+  return readRuntimeConfigValue(name);
+}
+
+function isTruthyEnvValue(value: string | undefined): boolean {
+  if (!value) return false;
+  return /^(true|1|yes|on)$/i.test(value.trim());
+}
+
+export function resolveWorkerRuntimeMode(): 'agent' | 'opencode' | 'auto' {
+  const configured = readRuntimeConfigValue(
+    'WORKER_RUNTIME_MODE',
+  )?.toLowerCase();
+  if (configured === 'agent' || configured === 'opencode') {
+    return configured;
+  }
+  return 'auto';
+}
+
+export function shouldUseAgentRuntimeForWorkers(): boolean {
+  const mode = resolveWorkerRuntimeMode();
+  if (mode === 'agent') return true;
+  if (mode === 'opencode') return false;
+
+  const apiFallbackEnabled = isTruthyEnvValue(
+    readRuntimeConfigValue('OAUTH_API_FALLBACK_ENABLED'),
+  );
+  const model = (
+    readRuntimeConfigValue('ANTHROPIC_DEFAULT_SONNET_MODEL') || ''
+  ).toLowerCase();
+
+  return apiFallbackEnabled && model.startsWith('minimax');
+}
+
+export function selectContainerImageForGroup(group: RegisteredGroup): string {
+  if (!isJarvisWorkerFolder(group.folder)) {
+    return CONTAINER_IMAGE;
+  }
+  return shouldUseAgentRuntimeForWorkers()
+    ? CONTAINER_IMAGE
+    : WORKER_CONTAINER_IMAGE;
+}
+
+export function shouldStopSingleShotWorkerAgentRuntime(input: {
+  groupFolder: string;
+  image: string;
+  result: ContainerOutput['result'];
+  stopRequestedAfterResult: boolean;
+}): boolean {
+  return (
+    isJarvisWorkerFolder(input.groupFolder) &&
+    input.image === CONTAINER_IMAGE &&
+    !!input.result &&
+    !input.stopRequestedAfterResult
+  );
+}
+
+const SINGLE_SHOT_WORKER_CLOSE_GRACE_MS = 15000;
+
+function requestGracefulContainerClose(groupFolder: string): void {
+  const inputDir = path.join(resolveGroupIpcPath(groupFolder), 'input');
+  fs.mkdirSync(inputDir, { recursive: true });
+  fs.writeFileSync(path.join(inputDir, '_close'), '');
+}
+
+function resolveGithubTokenForGroup(
+  group: RegisteredGroup,
+): string | undefined {
+  const candidateKeys =
+    group.folder === 'andy-developer'
+      ? ['GITHUB_TOKEN_ANDY_DEVELOPER', 'GITHUB_TOKEN', 'GH_TOKEN']
+      : group.folder === 'andy-bot'
+        ? ['GITHUB_TOKEN_ANDY_BOT', 'GITHUB_TOKEN', 'GH_TOKEN']
+        : isJarvisWorkerFolder(group.folder)
+          ? ['GITHUB_TOKEN_WORKER', 'GITHUB_TOKEN', 'GH_TOKEN']
+          : ['GITHUB_TOKEN', 'GH_TOKEN'];
+
+  for (const key of candidateKeys) {
+    const value = readSecretValue(key);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function resolveContainerSecrets(
+  group: RegisteredGroup,
+): Record<string, string> {
+  const resolved: Record<string, string> = {};
+
+  const githubToken = resolveGithubTokenForGroup(group);
+  if (githubToken) {
+    resolved.GITHUB_TOKEN = githubToken;
+    resolved.GH_TOKEN = githubToken;
+  }
+
+  for (const key of DEFAULT_MODEL_SECRET_KEYS) {
+    const value = readSecretValue(key);
+    if (value) {
+      resolved[key] = value;
+    }
+  }
+
+  for (const key of group.containerConfig?.secrets ?? []) {
+    const value = readSecretValue(key);
+    if (value) {
+      resolved[key] = value;
+    }
+  }
+
+  return resolved;
+}
 
 function isRetryableSkillSyncError(err: unknown): boolean {
   const code = (err as NodeJS.ErrnoException | undefined)?.code;
@@ -123,6 +262,20 @@ function syncContainerSkills(skillsSrc: string, skillsDst: string): void {
     if (entryName.startsWith('.')) continue;
 
     const srcPath = path.join(skillsSrc, entryName);
+    let isSymlink = false;
+    try {
+      isSymlink = fs.lstatSync(srcPath).isSymbolicLink();
+    } catch (err) {
+      logger.warn({ err, srcPath }, 'Failed to inspect skill source entry');
+      continue;
+    }
+    if (isSymlink && !fs.existsSync(srcPath)) {
+      logger.debug(
+        { srcPath },
+        'Skipping broken skill symlink during container skill sync',
+      );
+      continue;
+    }
 
     let isDirectory = false;
     try {
@@ -351,7 +504,9 @@ function buildVolumeMounts(
     // Shadow .env so the agent cannot read secrets from the mounted project root.
     // Credentials are injected by the credential proxy, never exposed to containers.
     const envFile = path.join(projectRoot, '.env');
-    if (fs.existsSync(envFile)) {
+    // Apple Container only supports directory bind mounts, so the /dev/null
+    // file-shadow workaround is limited to runtimes that support file mounts.
+    if (fs.existsSync(envFile) && CONTAINER_RUNTIME_BIN !== 'container') {
       mounts.push({
         hostPath: '/dev/null',
         containerPath: '/workspace/project/.env',
@@ -427,27 +582,92 @@ function buildVolumeMounts(
       (settings.hooks as Record<string, unknown> | undefined) ?? {};
     const existingPreToolUse =
       (existingHooks.PreToolUse as unknown[] | undefined) ?? [];
-    const validateHook = {
+    const validateDispatchHook = {
       matcher: 'mcp__nanoclaw__send_message',
       hooks: [
         {
           type: 'command',
           command: '/home/node/.claude/hooks/validate-dispatch.sh',
         },
+        {
+          type: 'command',
+          command: '/home/node/.claude/hooks/validate-review-state-update.sh',
+        },
       ],
     };
-    const alreadyPresent = existingPreToolUse.some(
-      (h) => JSON.stringify(h) === JSON.stringify(validateHook),
+    const validateLinearIssueHook = {
+      matcher: 'mcp__linear__save_issue',
+      hooks: [
+        {
+          type: 'command',
+          command: '/home/node/.claude/hooks/validate-linear-issue.sh',
+        },
+      ],
+    };
+    const validateLinearGraphqlHook = {
+      matcher: 'mcp__linear__linear_graphql',
+      hooks: [
+        {
+          type: 'command',
+          command: '/home/node/.claude/hooks/validate-linear-graphql.sh',
+        },
+      ],
+    };
+    const requiredHooks = [
+      validateDispatchHook,
+      validateLinearIssueHook,
+      validateLinearGraphqlHook,
+    ];
+    const missingHooks = requiredHooks.filter(
+      (hook) =>
+        !existingPreToolUse.some(
+          (existingHook) =>
+            JSON.stringify(existingHook) === JSON.stringify(hook),
+        ),
     );
     settings.hooks = {
       ...existingHooks,
-      PreToolUse: alreadyPresent
-        ? existingPreToolUse
-        : [...existingPreToolUse, validateHook],
+      PreToolUse:
+        missingHooks.length === 0
+          ? existingPreToolUse
+          : [...existingPreToolUse, ...missingHooks],
     };
   }
 
   writeFileAtomic(settingsFile, JSON.stringify(settings, null, 2) + '\n');
+
+  const mcpConfigFile = path.join(groupSessionsDir, '.mcp.json');
+  let mcpConfig: SessionMcpConfig = {};
+  if (fs.existsSync(mcpConfigFile)) {
+    try {
+      mcpConfig = JSON.parse(
+        fs.readFileSync(mcpConfigFile, 'utf8'),
+      ) as SessionMcpConfig;
+    } catch {
+      mcpConfig = {};
+    }
+  }
+  const existingMcpServers = mcpConfig.mcpServers ?? {};
+  mcpConfig.mcpServers = {
+    ...existingMcpServers,
+    notion: {
+      command: 'mcp-remote',
+      args: [
+        `http://${CONTAINER_HOST_GATEWAY}:7802/mcp`,
+        '--transport',
+        'streamable-http',
+      ],
+    },
+    linear: {
+      command: 'mcp-remote',
+      args: [
+        `http://${CONTAINER_HOST_GATEWAY}:7803/mcp`,
+        '--transport',
+        'streamable-http',
+      ],
+    },
+  };
+  writeFileAtomic(mcpConfigFile, JSON.stringify(mcpConfig, null, 2) + '\n');
 
   // Sync hooks from groups/<folder>/.claude/hooks/ into sessions/<folder>/.claude/hooks/
   // This runs on every container start so updated scripts are always current.
@@ -466,10 +686,14 @@ function buildVolumeMounts(
     }
   }
 
-  // Sync skills from container/skills/ into each group's .claude/skills/
-  const skillsSrc = path.join(process.cwd(), 'container', 'skills');
   const skillsDst = path.join(groupSessionsDir, 'skills');
-  syncContainerSkills(skillsSrc, skillsDst);
+  const skillSources = [
+    path.join(process.cwd(), 'container', 'skills'),
+    path.join(process.cwd(), '.claude', 'skills'),
+  ];
+  for (const skillsSrc of skillSources) {
+    syncContainerSkills(skillsSrc, skillsDst);
+  }
   mounts.push({
     hostPath: groupSessionsDir,
     containerPath: '/home/node/.claude',
@@ -492,6 +716,24 @@ function buildVolumeMounts(
     containerPath: '/workspace/ipc',
     readonly: false,
   });
+
+  // Worker images expect the local MCP server bundle at /workspace/mcp-servers.
+  // Mount it when present so OpenCode-backed lanes can start token-efficient
+  // and other local MCP tools declared in OPENCODE_CONFIG_CONTENT.
+  const mcpServersCandidates = [
+    path.join(projectRoot, 'mcp-servers'),
+    path.join(os.homedir(), 'Documents', 'remote-claude', 'mcp-servers'),
+  ];
+  const mcpServersDir = mcpServersCandidates.find((candidate) =>
+    fs.existsSync(candidate),
+  );
+  if (mcpServersDir) {
+    mounts.push({
+      hostPath: mcpServersDir,
+      containerPath: '/workspace/mcp-servers',
+      readonly: true,
+    });
+  }
 
   // Stage agent-runner source into a per-group writable location so agents can
   // customize it without affecting other groups. The staged copy is baseline-
@@ -553,7 +795,10 @@ function buildContainerArgs(
   // Forward model override so containers use the same model as the host.
   // Required when the upstream proxy (e.g. minimax) maps a specific model name.
   if (process.env.ANTHROPIC_DEFAULT_SONNET_MODEL) {
-    args.push('-e', `ANTHROPIC_DEFAULT_SONNET_MODEL=${process.env.ANTHROPIC_DEFAULT_SONNET_MODEL}`);
+    args.push(
+      '-e',
+      `ANTHROPIC_DEFAULT_SONNET_MODEL=${process.env.ANTHROPIC_DEFAULT_SONNET_MODEL}`,
+    );
   }
 
   // Expose the resolved host gateway IP so the agent-runner can build correct MCP URLs.
@@ -598,6 +843,11 @@ export async function runContainerAgent(
   onOutput?: (output: ContainerOutput) => Promise<void>,
 ): Promise<ContainerOutput> {
   const startTime = Date.now();
+  const injectedSecrets = resolveContainerSecrets(group);
+  const effectiveInput: ContainerInput =
+    Object.keys(injectedSecrets).length > 0
+      ? { ...input, secrets: injectedSecrets }
+      : input;
 
   const groupDir = resolveGroupFolderPath(group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
@@ -630,9 +880,9 @@ export async function runContainerAgent(
     );
   }
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const image = isJarvisWorkerFolder(group.folder)
-    ? WORKER_CONTAINER_IMAGE
-    : CONTAINER_IMAGE;
+  const image = selectContainerImageForGroup(group);
+  const singleShotWorkerAgentRuntime =
+    isJarvisWorkerFolder(group.folder) && image === CONTAINER_IMAGE;
   const containerArgs = buildContainerArgs(mounts, containerName, image);
 
   logger.debug(
@@ -673,7 +923,7 @@ export async function runContainerAgent(
     let stdoutTruncated = false;
     let stderrTruncated = false;
 
-    container.stdin.write(JSON.stringify(input));
+    container.stdin.write(JSON.stringify(effectiveInput));
     container.stdin.end();
 
     // Streaming output: parse OUTPUT_START/END marker pairs as they arrive
@@ -683,6 +933,8 @@ export async function runContainerAgent(
     let sessionResumeError: string | undefined;
     let outputChain = Promise.resolve();
     const parseBufferLimit = CONTAINER_PARSE_BUFFER_LIMIT || 1024 * 1024;
+    let stopRequestedAfterResult = false;
+    let singleShotStopFallback: ReturnType<typeof setTimeout> | null = null;
 
     container.stdout.on('data', (data) => {
       const chunk = data.toString();
@@ -753,6 +1005,51 @@ export async function runContainerAgent(
             // Call onOutput for all markers (including null results)
             // so idle timers start even for "silent" query completions.
             outputChain = outputChain.then(() => onOutput(parsed));
+            if (
+              shouldStopSingleShotWorkerAgentRuntime({
+                groupFolder: group.folder,
+                image,
+                result: parsed.result,
+                stopRequestedAfterResult,
+              })
+            ) {
+              stopRequestedAfterResult = true;
+              outputChain = outputChain.then(
+                () =>
+                  new Promise<void>((stopResolved) => {
+                    logger.info(
+                      { group: group.name, containerName },
+                      'Gracefully closing single-shot worker agent runtime after first result',
+                    );
+                    try {
+                      requestGracefulContainerClose(group.folder);
+                    } catch (err) {
+                      logger.warn(
+                        { group: group.name, containerName, err },
+                        'Failed to write close sentinel for single-shot worker runtime',
+                      );
+                    }
+                    if (singleShotStopFallback) {
+                      clearTimeout(singleShotStopFallback);
+                    }
+                    singleShotStopFallback = setTimeout(() => {
+                      exec(
+                        stopContainer(containerName),
+                        { timeout: 15000 },
+                        (err) => {
+                          if (err) {
+                            logger.warn(
+                              { group: group.name, containerName, err },
+                              'Failed to stop single-shot worker agent runtime after grace window',
+                            );
+                          }
+                        },
+                      );
+                    }, SINGLE_SHOT_WORKER_CLOSE_GRACE_MS);
+                    stopResolved();
+                  }),
+              );
+            }
           } catch (err) {
             logger.warn(
               { group: group.name, error: err },
@@ -771,7 +1068,7 @@ export async function runContainerAgent(
       }
       // Re-arm no_output_timeout on our own [agent-runner] instrumentation lines
       // (heartbeats, status logs) but NOT on SDK debug spam.
-      if (noOutputTimeout && chunk.includes(AGENT_RUNNER_LOG_PREFIX)) {
+      if (noOutputTimeout && shouldTreatAgentRunnerStderrAsProgress(chunk)) {
         clearTimeout(noOutputTimeout);
         noOutputTimeout = setTimeout(
           () => stopForTimeout('no_output_timeout'),
@@ -855,6 +1152,10 @@ export async function runContainerAgent(
     }
 
     container.on('close', (code) => {
+      if (singleShotStopFallback) {
+        clearTimeout(singleShotStopFallback);
+        singleShotStopFallback = null;
+      }
       clearTimeout(hardTimeout);
       if (noOutputTimeout) clearTimeout(noOutputTimeout);
       const duration = Date.now() - startTime;

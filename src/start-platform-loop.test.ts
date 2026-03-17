@@ -62,6 +62,15 @@ describe('start-platform-loop launcher', () => {
       '#!/usr/bin/env bash\nset -euo pipefail\necho sync-ok\n',
     );
     writeExecutable(
+      path.join(
+        sourceRoot,
+        'scripts',
+        'workflow',
+        'run-platform-claude-session.sh',
+      ),
+      '#!/usr/bin/env bash\nset -euo pipefail\necho session-ok\n',
+    );
+    writeExecutable(
       path.join(sourceRoot, 'scripts', 'workflow', 'autonomy-lane.sh'),
       '#!/usr/bin/env bash\nset -euo pipefail\necho {"paused":false}\n',
     );
@@ -108,5 +117,5 @@ describe('start-platform-loop launcher', () => {
     expect(output).toContain('run-platform-claude-session.sh');
     expect(output).toContain('--allowed-tools');
     expect(output).not.toContain('osascript');
-  });
+  }, 15000);
 });

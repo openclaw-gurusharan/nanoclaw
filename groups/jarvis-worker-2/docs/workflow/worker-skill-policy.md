@@ -23,10 +23,12 @@ Worker tasks must come from Andy-developer dispatch contract, not direct Andy-bo
 1. Parse task contract (`run_id`, objective, repo, branch, scope, verification).
 2. Select only required skills from the routing table below.
 3. Execute in bounded scope.
-4. If task is UI-impacting, apply `/workspace/group/docs/workflow/webmcp-testing.md` by default.
-5. Run required verification commands.
-6. For Andy-approved workflow/policy agreements, run `/workspace/group/docs/workflow/agreement-sync.md`.
-7. Return the completion contract.
+4. If task changes user-visible behavior, run task-relevant validation before completion.
+5. If task is UI-impacting, apply `/workspace/group/docs/workflow/webmcp-testing.md` by default.
+6. Fix issues found during required validation before completion unless they are escalated as out-of-scope blockers.
+7. Run required verification commands.
+8. For Andy-approved workflow/policy agreements, run `/workspace/group/docs/workflow/agreement-sync.md`.
+9. Return the completion contract.
 
 ## Skill Routing (Task Mode)
 
@@ -40,6 +42,7 @@ Worker tasks must come from Andy-developer dispatch contract, not direct Andy-bo
 
 For `test` and `ui-browser` tasks, apply `/workspace/group/docs/workflow/webmcp-testing.md` first.
 For `code` / `fix` / `refactor`, apply it when diffs are UI-impacting.
+For any task that changes user-visible behavior, do not stop at unit or build checks alone; include task-relevant acceptance evidence.
 
 ## Skills Available But Not Default
 
@@ -95,3 +98,4 @@ Use `pr_skipped_reason` when no PR is opened.
 - Prefer deterministic verification over prose claims.
 - Do not silently downgrade required browser validation to DOM-only scraping.
 - Do not skip `chrome-devtools` evidence on UI-impacting changes unless fallback is explicitly approved.
+- Do not return completion while a regression found in required validation remains unfixed inside dispatched scope.

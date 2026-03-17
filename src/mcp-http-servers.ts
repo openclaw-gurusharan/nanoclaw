@@ -14,6 +14,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 
+import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import {
   notionCreateMemory,
@@ -23,15 +24,6 @@ import {
   notionSearch,
 } from './symphony-notion.js';
 import { linearGraphql } from './symphony-linear.js';
-
-function readBody(req: import('http').IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
-}
 
 function startServer(
   port: number,
@@ -54,10 +46,12 @@ function startServer(
 
       const server = new McpServer({ name: label, version: '1.0.0' });
       registerTools(server);
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+      });
       try {
         await server.connect(transport);
-        await transport.handleRequest(req, res, await readBody(req));
+        await transport.handleRequest(req, res);
       } catch (err) {
         logger.error({ err, label }, 'MCP HTTP request error');
         if (!res.headersSent) {
@@ -69,7 +63,10 @@ function startServer(
 
     httpServer.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        logger.warn({ port, label }, `MCP HTTP server port in use — skipping (another instance may be running)`);
+        logger.warn(
+          { port, label },
+          `MCP HTTP server port in use — skipping (another instance may be running)`,
+        );
         resolve(httpServer);
       } else {
         reject(err);
@@ -84,11 +81,20 @@ function startServer(
 }
 
 function registerNotionTools(server: McpServer): void {
-  const databaseId = process.env.NOTION_AGENT_MEMORY_DATABASE_ID || '';
+  const databaseId =
+    process.env.NOTION_AGENT_MEMORY_DATABASE_ID ||
+    readEnvFile(['NOTION_AGENT_MEMORY_DATABASE_ID'])
+      .NOTION_AGENT_MEMORY_DATABASE_ID ||
+    '';
 
   function resultWithJson(summary: string, payload: unknown) {
     return {
-      content: [{ type: 'text' as const, text: `${summary}\n\n${JSON.stringify(payload, null, 2)}` }],
+      content: [
+        {
+          type: 'text' as const,
+          text: `${summary}\n\n${JSON.stringify(payload, null, 2)}`,
+        },
+      ],
     };
   }
 
@@ -97,11 +103,20 @@ function registerNotionTools(server: McpServer): void {
     'Search the Notion workspace by keyword. Returns [{id, title, url, lastEditedTime}] — lean metadata only, no page content.',
     {
       query: z.string().describe('Search keyword or phrase.'),
-      limit: z.number().int().min(1).max(20).optional().describe('Max results. Defaults to 5.'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .optional()
+        .describe('Max results. Defaults to 5.'),
     },
     async (args) => {
       const results = await notionSearch(args.query, args.limit);
-      return resultWithJson(`${results.length} Notion page(s) matched "${args.query}".`, results);
+      return resultWithJson(
+        `${results.length} Notion page(s) matched "${args.query}".`,
+        results,
+      );
     },
   );
 
@@ -114,7 +129,11 @@ function registerNotionTools(server: McpServer): void {
       markdown_body: z.string().describe('Markdown content. Max 100 blocks.'),
     },
     async (args) => {
-      const result = await notionCreatePage(args.parent_page_id, args.title, args.markdown_body);
+      const result = await notionCreatePage(
+        args.parent_page_id,
+        args.title,
+        args.markdown_body,
+      );
       return resultWithJson(`Created Notion page "${args.title}".`, result);
     },
   );
@@ -135,16 +154,36 @@ function registerNotionTools(server: McpServer): void {
     'notion_query_memory',
     'Query the agent memory database for prior context. Always filter by type.',
     {
-      project_key: z.string().describe('Project key (e.g. NAN, AND-myproject).'),
+      project_key: z
+        .string()
+        .describe('Project key (e.g. NAN, AND-myproject).'),
       type: z
-        .enum(['decision', 'architecture', 'constraint', 'lesson', 'run-summary'])
+        .enum([
+          'decision',
+          'architecture',
+          'constraint',
+          'lesson',
+          'run-summary',
+        ])
         .optional()
         .describe('Filter by memory type.'),
-      limit: z.number().int().min(1).max(10).optional().describe('Max entries. Defaults to 5.'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe('Max entries. Defaults to 5.'),
     },
     async (args) => {
-      if (!databaseId) throw new Error('Missing NOTION_AGENT_MEMORY_DATABASE_ID env var.');
-      const entries = await notionQueryMemory(databaseId, args.project_key, args.type, args.limit);
+      if (!databaseId)
+        throw new Error('Missing NOTION_AGENT_MEMORY_DATABASE_ID env var.');
+      const entries = await notionQueryMemory(
+        databaseId,
+        args.project_key,
+        args.type,
+        args.limit,
+      );
       return resultWithJson(
         `${entries.length} memory entry(ies) for project ${args.project_key}${args.type ? ` (type: ${args.type})` : ''}.`,
         entries,
@@ -156,15 +195,30 @@ function registerNotionTools(server: McpServer): void {
     'notion_create_memory',
     'Write a finding to the agent memory database. Call at task END only if something new was learned.',
     {
-      project_key: z.string().describe('Project key (e.g. NAN, AND-myproject).'),
-      type: z.enum(['decision', 'architecture', 'constraint', 'lesson', 'run-summary']).describe('Memory type.'),
+      project_key: z
+        .string()
+        .describe('Project key (e.g. NAN, AND-myproject).'),
+      type: z
+        .enum([
+          'decision',
+          'architecture',
+          'constraint',
+          'lesson',
+          'run-summary',
+        ])
+        .describe('Memory type.'),
       content: z.string().max(2000).describe('Concise fact. Max 2000 chars.'),
-      scope: z.enum(['global', 'project', 'agent']).optional().describe('Scope. Defaults to project.'),
+      scope: z
+        .enum(['global', 'project', 'agent'])
+        .optional()
+        .describe('Scope. Defaults to project.'),
       memory_id: z.string().optional().describe('Optional stable ID.'),
     },
     async (args) => {
-      if (!databaseId) throw new Error('Missing NOTION_AGENT_MEMORY_DATABASE_ID env var.');
-      const memoryId = args.memory_id || `${args.project_key}-${args.type}-${Date.now()}`;
+      if (!databaseId)
+        throw new Error('Missing NOTION_AGENT_MEMORY_DATABASE_ID env var.');
+      const memoryId =
+        args.memory_id || `${args.project_key}-${args.type}-${Date.now()}`;
       const result = await notionCreateMemory(databaseId, {
         memoryId,
         type: args.type,
@@ -172,7 +226,14 @@ function registerNotionTools(server: McpServer): void {
         projectKey: args.project_key,
         content: args.content,
       });
-      return { content: [{ type: 'text' as const, text: `Memory entry "${memoryId}" created.\n\n${JSON.stringify(result, null, 2)}` }] };
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Memory entry "${memoryId}" created.\n\n${JSON.stringify(result, null, 2)}`,
+          },
+        ],
+      };
     },
   );
 }
@@ -184,13 +245,23 @@ function registerLinearTools(server: McpServer): void {
       description:
         'Execute a raw Linear GraphQL query or mutation. Returns only the fields you request — keep queries narrow.',
       inputSchema: {
-        query: z.string().describe('GraphQL query or mutation document string.'),
-        variables: z.string().optional().describe('Optional JSON-encoded variables object.'),
+        query: z
+          .string()
+          .describe('GraphQL query or mutation document string.'),
+        variables: z
+          .string()
+          .optional()
+          .describe('Optional JSON-encoded variables object.'),
       },
     },
     async (args) => {
-      const variables = args.variables ? (JSON.parse(args.variables) as Record<string, unknown>) : {};
-      const data = await linearGraphql<Record<string, unknown>>(args.query, variables);
+      const variables = args.variables
+        ? (JSON.parse(args.variables) as Record<string, unknown>)
+        : {};
+      const data = await linearGraphql<Record<string, unknown>>(
+        args.query,
+        variables,
+      );
       return {
         content: [{ type: 'text', text: JSON.stringify(data) }],
         structuredContent: data,

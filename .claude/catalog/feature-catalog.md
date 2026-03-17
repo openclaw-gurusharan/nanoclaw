@@ -1,6 +1,6 @@
 # NanoClaw Feature Catalog
 
-Generated: 2026-03-11T08:37:09.967Z
+Generated: 2026-03-17T05:44:32.333Z
 Project: nanoclaw
 
 ## Features
@@ -359,22 +359,23 @@ Project: nanoclaw
 ### docs-topology-cleanup - Docs Topology Cleanup
 - Risk: medium
 - Summary: Physical docs reorganization, canonical ownership cleanup, and reference migration across root docs, group mirrors, and workflow checks.
-- Keywords: docs cleanup, workflow subfolders, reference migration, doc topology, docs governance, mission runtime profiles, archive cleanup
-- Files (52):
+- Keywords: docs cleanup, workflow subfolders, reference migration, doc topology, docs governance, mission runtime profiles, docs cleanup
+- Files (49):
   - .claude/catalog/feature-catalog.seed.json
   - .claude/hooks/posttool-workflow-sync-check.sh
+  - .claude/rules/agent-compression.md
+  - .claude/rules/docs-governance.md
   - AGENTS.md
   - CLAUDE.md
   - DOCS.md
+  - docs/architecture/agent-compression.md
   - docs/architecture/mission-runtime-profiles.md
-  - docs/archives/debug-known-issues-2026-02.md
-  - docs/archives/pre-linear-github-first-collaboration-loop.md
-  - docs/archives/worker-dispatch-root-cause-2026-02-24.md
-  - docs/operations/skills-vs-docs-map.md
+  - docs/operations/claude-codex-adapter-matrix.md
+  - docs/operations/roles-classification.md
+  - docs/operations/subagent-catalog.md
   - docs/operations/subagent-routing.md
   - docs/operations/update-requirements-matrix.md
   - docs/operations/upstream-sync-policy.md
-  - docs/operations/workflow-setup-responsibility-map.md
   - docs/README.md
   - docs/troubleshooting/DEBUG_CHECKLIST.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
@@ -383,11 +384,6 @@ Project: nanoclaw
   - docs/workflow/delivery/nanoclaw-development-loop.md
   - docs/workflow/delivery/nanoclaw-jarvis-acceptance-checklist.md
   - docs/workflow/delivery/unified-codex-claude-loop.md
-  - docs/workflow/docs-discipline/andy-compression-loop.md
-  - docs/workflow/docs-discipline/doc-creation-contract.md
-  - docs/workflow/docs-discipline/docs-pruning-loop.md
-  - docs/workflow/docs-discipline/nanoclaw-root-claude-compression.md
-  - docs/workflow/docs-discipline/skill-routing-preflight.md
   - docs/workflow/github/github-delivery-governance.md
   - docs/workflow/github/github-offload-boundary-loop.md
   - docs/workflow/runtime/jarvis-dispatch-contract-discipline.md
@@ -396,7 +392,8 @@ Project: nanoclaw
   - docs/workflow/runtime/nanoclaw-jarvis-dispatch-contract.md
   - docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md
   - docs/workflow/runtime/session-recall.md
-  - docs/workflow/strategy/weekly-slop-optimization-loop.md
+  - docs/workflow/strategy/launchdeck-ld01-execution-pack.md
+  - docs/workflow/strategy/launchdeck-proving-program.md
   - docs/workflow/strategy/workflow-optimization-loop.md
   - groups/andy-developer/docs/review-handoff.md
   - groups/jarvis-worker-1/AGENTS.md
@@ -420,7 +417,7 @@ Project: nanoclaw
   - AGENTS.md
   - CLAUDE.md
   - DOCS.md
-  - docs/operations/workflow-setup-responsibility-map.md
+  - docs/operations/roles-classification.md
   - docs/README.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
   - docs/workflow/delivery/nanoclaw-andy-user-happiness-gate.md
@@ -429,6 +426,7 @@ Project: nanoclaw
   - docs/workflow/runtime/nanoclaw-jarvis-debug-loop.md
   - docs/workflow/runtime/nanoclaw-jarvis-dispatch-contract.md
   - docs/workflow/runtime/session-recall.md
+  - docs/workflow/strategy/workflow-optimization-loop.md
   - scripts/check-workflow-contracts.sh
 - Suggested Verify:
   - npm run typecheck
@@ -634,7 +632,7 @@ Project: nanoclaw
 - Risk: high
 - Summary: Linear execution control, Notion shared context, and GitHub delivery governance for Claude/Codex collaboration.
 - Keywords: linear, notion, control plane, collaboration, workflow, delivery governance
-- Files (33):
+- Files (32):
   - .claude/agents/nightly-improvement-researcher.md
   - .claude/catalog/feature-catalog.seed.json
   - .claude/commands/nightly-improvement-eval.md
@@ -643,21 +641,20 @@ Project: nanoclaw
   - AGENTS.md
   - CLAUDE.md
   - DOCS.md
-  - docs/operations/workflow-setup-responsibility-map.md
+  - docs/operations/roles-classification.md
   - docs/README.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
   - docs/workflow/control-plane/session-work-sweep.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
   - docs/workflow/github/github-delivery-governance.md
-  - docs/workflow/strategy/nightly-evaluation-loop.md
+  - docs/workflow/strategy/workflow-optimization-loop.md
   - groups/andy-developer/docs/workflow-control-admin.md
-  - launchd/com.nanoclaw-nightly-improvement.plist
-  - launchd/com.nanoclaw-platform-loop.plist
   - scripts/workflow/check-platform-loop.sh
   - scripts/workflow/linear-work-sweep.js
   - scripts/workflow/nightly-improvement.js
   - scripts/workflow/platform-loop-sync.sh
   - scripts/workflow/platform-loop.js
+  - scripts/workflow/render-launchd-schedule.py
   - scripts/workflow/run-platform-claude-session.sh
   - scripts/workflow/start-nightly-improvement.sh
   - scripts/workflow/start-platform-loop.sh
@@ -667,53 +664,51 @@ Project: nanoclaw
   - src/nightly-improvement.test.ts
   - src/platform-loop-sync.test.ts
   - src/platform-loop.test.ts
-  - src/start-nightly-improvement.test.ts
+  - src/run-platform-claude-session.test.ts
 - Tests (4):
   - src/nightly-improvement.test.ts
   - src/platform-loop-sync.test.ts
   - src/platform-loop.test.ts
-  - src/start-nightly-improvement.test.ts
+  - src/run-platform-claude-session.test.ts
 - Shared Files:
   - .claude/catalog/feature-catalog.seed.json
   - .claude/commands/platform-pickup.md
   - AGENTS.md
   - CLAUDE.md
   - DOCS.md
-  - docs/operations/workflow-setup-responsibility-map.md
+  - docs/operations/roles-classification.md
   - docs/README.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
   - docs/workflow/github/github-delivery-governance.md
-  - docs/workflow/strategy/nightly-evaluation-loop.md
-  - launchd/com.nanoclaw-platform-loop.plist
+  - docs/workflow/strategy/workflow-optimization-loop.md
   - scripts/workflow/check-platform-loop.sh
   - scripts/workflow/platform-loop-sync.sh
   - scripts/workflow/platform-loop.js
+  - scripts/workflow/render-launchd-schedule.py
   - scripts/workflow/run-platform-claude-session.sh
   - scripts/workflow/start-platform-loop.sh
   - scripts/workflow/trigger-platform-pickup-now.sh
 - Suggested Verify:
   - npm run typecheck
-  - npx vitest run src/nightly-improvement.test.ts src/platform-loop-sync.test.ts src/platform-loop.test.ts src/start-nightly-improvement.test.ts
+  - npx vitest run src/nightly-improvement.test.ts src/platform-loop-sync.test.ts src/platform-loop.test.ts src/run-platform-claude-session.test.ts
 
 ### autonomous-lane-control-plane - Autonomous Lane Control Plane
 - Risk: high
 - Summary: Durable Codex and Claude execution lanes for readiness, implementation pickup, PR repair, reliability pause control, and merge handoff.
 - Keywords: autonomy, platform loop, pr guardian, reliability lane, pause sentinel, merge handoff
-- Files (27):
+- Files (25):
   - .claude/catalog/feature-catalog.seed.json
   - .claude/commands/platform-pickup.md
   - .codex/agents/morning-prep.toml
   - .codex/agents/pr-guardian.toml
   - .codex/config.toml
   - .github/labels.json
-  - docs/operations/workflow-setup-responsibility-map.md
+  - docs/operations/roles-classification.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
   - docs/workflow/github/github-delivery-governance.md
-  - docs/workflow/strategy/nightly-evaluation-loop.md
-  - launchd/com.nanoclaw-morning-codex-prep.plist
-  - launchd/com.nanoclaw-platform-loop.plist
+  - docs/workflow/strategy/workflow-optimization-loop.md
   - launchd/com.nanoclaw-pr-guardian.plist
   - launchd/com.nanoclaw-reliability-loop.plist
   - scripts/workflow/autonomy-lane.sh
@@ -730,30 +725,30 @@ Project: nanoclaw
   - scripts/workflow/trigger-platform-pickup-now.sh
 - Tests (7):
   - src/platform-loop-sync.test.ts
+  - src/platform-loop-worktree-hygiene.test.ts
   - src/platform-loop.test.ts
   - src/run-platform-claude-session.test.ts
   - src/start-autonomy-reliability.test.ts
-  - src/start-nightly-improvement.test.ts
   - src/start-platform-loop.test.ts
   - src/start-pr-guardian.test.ts
 - Shared Files:
   - .claude/catalog/feature-catalog.seed.json
   - .claude/commands/platform-pickup.md
-  - docs/operations/workflow-setup-responsibility-map.md
+  - docs/operations/roles-classification.md
   - docs/workflow/control-plane/collaboration-surface-contract.md
   - docs/workflow/delivery/platform-claude-pickup-lane.md
   - docs/workflow/github/github-delivery-governance.md
-  - docs/workflow/strategy/nightly-evaluation-loop.md
-  - launchd/com.nanoclaw-platform-loop.plist
+  - docs/workflow/strategy/workflow-optimization-loop.md
   - scripts/workflow/check-platform-loop.sh
   - scripts/workflow/platform-loop-sync.sh
   - scripts/workflow/platform-loop.js
+  - scripts/workflow/render-launchd-schedule.py
   - scripts/workflow/run-platform-claude-session.sh
   - scripts/workflow/start-platform-loop.sh
   - scripts/workflow/trigger-platform-pickup-now.sh
 - Suggested Verify:
   - npm run typecheck
-  - npx vitest run src/platform-loop-sync.test.ts src/platform-loop.test.ts src/run-platform-claude-session.test.ts src/start-autonomy-reliability.test.ts src/start-nightly-improvement.test.ts src/start-platform-loop.test.ts src/start-pr-guardian.test.ts
+  - npx vitest run src/platform-loop-sync.test.ts src/platform-loop-worktree-hygiene.test.ts src/platform-loop.test.ts src/run-platform-claude-session.test.ts src/start-autonomy-reliability.test.ts src/start-platform-loop.test.ts src/start-pr-guardian.test.ts
 
 ### channel-extension-skills - Channel and Integration Extension Skills
 - Risk: medium

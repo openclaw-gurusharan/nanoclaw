@@ -43,6 +43,7 @@ vi.mock('fs', async () => {
       existsSync: vi.fn(() => false),
       mkdirSync: vi.fn(),
       writeFileSync: vi.fn(),
+      renameSync: vi.fn(),
       readFileSync: vi.fn(() => ''),
       readdirSync: vi.fn(() => []),
       statSync: vi.fn(() => ({ isDirectory: () => false })),
@@ -97,13 +98,26 @@ vi.mock('child_process', async () => {
   };
 });
 
-import { runContainerAgent, ContainerOutput } from './container-runner.js';
+import {
+  runContainerAgent,
+  ContainerOutput,
+  selectContainerImageForGroup,
+  shouldStopSingleShotWorkerAgentRuntime,
+  shouldUseAgentRuntimeForWorkers,
+} from './container-runner.js';
 import { exec, spawn } from 'child_process';
 import type { RegisteredGroup } from './types.js';
 
 const testGroup: RegisteredGroup = {
   name: 'Test Group',
   folder: 'test-group',
+  trigger: '@Andy',
+  added_at: new Date().toISOString(),
+};
+
+const workerGroup: RegisteredGroup = {
+  name: 'Jarvis Worker 1',
+  folder: 'jarvis-worker-1',
   trigger: '@Andy',
   added_at: new Date().toISOString(),
 };
@@ -120,7 +134,10 @@ function emitOutputMarker(
   output: ContainerOutput,
 ) {
   const json = JSON.stringify(output);
-  proc.stdout.push(`${OUTPUT_START_MARKER}\n${json}\n${OUTPUT_END_MARKER}\n`);
+  proc.stdout.emit(
+    'data',
+    `${OUTPUT_START_MARKER}\n${json}\n${OUTPUT_END_MARKER}\n`,
+  );
 }
 
 describe('container-runner timeout behavior', () => {
@@ -221,7 +238,7 @@ describe('container-runner timeout behavior', () => {
     expect(result.newSessionId).toBe('session-456');
   });
 
-  it('worker heartbeat resets no-output timeout watchdog', async () => {
+  it('worker heartbeat does not reset no-output timeout watchdog', async () => {
     const onOutput = vi.fn(async () => {});
     const workerLikeGroup: RegisteredGroup = {
       ...testGroup,
@@ -245,9 +262,6 @@ describe('container-runner timeout behavior', () => {
     fakeProc.stderr.push(
       '[agent-runner] heartbeat worker-opencode-active model=opencode/minimax-m2.5-free\n',
     );
-    await vi.advanceTimersByTimeAsync(119000);
-    expect(exec).not.toHaveBeenCalled();
-
     await vi.advanceTimersByTimeAsync(2000);
     expect(exec).toHaveBeenCalledTimes(1);
 
@@ -333,5 +347,158 @@ describe('container-runner timeout behavior', () => {
       | undefined;
     expect(spawnArgs).toBeDefined();
     expect(spawnArgs).not.toContain('--user');
+  });
+
+  it('stops only worker agent-runtime runs after the first real result', () => {
+    expect(
+      shouldStopSingleShotWorkerAgentRuntime({
+        groupFolder: 'jarvis-worker-1',
+        image: 'nanoclaw-agent:latest',
+        result: '<completion>{"run_id":"jarvis-test"}</completion>',
+        stopRequestedAfterResult: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldStopSingleShotWorkerAgentRuntime({
+        groupFolder: 'jarvis-worker-1',
+        image: 'nanoclaw-agent:latest',
+        result: null,
+        stopRequestedAfterResult: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldStopSingleShotWorkerAgentRuntime({
+        groupFolder: 'jarvis-worker-1',
+        image: 'nanoclaw-worker:latest',
+        result: '<completion>{"run_id":"jarvis-test"}</completion>',
+        stopRequestedAfterResult: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldStopSingleShotWorkerAgentRuntime({
+        groupFolder: 'andy-developer',
+        image: 'nanoclaw-agent:latest',
+        result: '<completion>{"run_id":"jarvis-test"}</completion>',
+        stopRequestedAfterResult: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldStopSingleShotWorkerAgentRuntime({
+        groupFolder: 'jarvis-worker-1',
+        image: 'nanoclaw-agent:latest',
+        result: '<completion>{"run_id":"jarvis-test"}</completion>',
+        stopRequestedAfterResult: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('writes a close sentinel instead of forcing an immediate stop after a worker result', async () => {
+    const previousFallbackEnabled = process.env.OAUTH_API_FALLBACK_ENABLED;
+    const previousDefaultModel = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+    process.env.OAUTH_API_FALLBACK_ENABLED = 'true';
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.5';
+
+    const workerLikeInput = {
+      ...testInput,
+      groupFolder: 'jarvis-worker-1',
+    };
+
+    const resultPromise = runContainerAgent(
+      workerGroup,
+      workerLikeInput,
+      () => {},
+      async () => {},
+    );
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: '<completion>{"run_id":"jarvis-test"}</completion>',
+      newSessionId: 'worker-session-1',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+
+    const writeFileSync = vi.mocked(fs.writeFileSync);
+    const closeWrites = writeFileSync.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].endsWith('_close'),
+    );
+    expect(closeWrites).toHaveLength(1);
+    expect(exec).not.toHaveBeenCalled();
+
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    const result = await resultPromise;
+    expect(result.status).toBe('success');
+
+    if (previousFallbackEnabled === undefined) {
+      delete process.env.OAUTH_API_FALLBACK_ENABLED;
+    } else {
+      process.env.OAUTH_API_FALLBACK_ENABLED = previousFallbackEnabled;
+    }
+    if (previousDefaultModel === undefined) {
+      delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+    } else {
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = previousDefaultModel;
+    }
+  });
+});
+
+describe('worker runtime image selection', () => {
+  const originalWorkerRuntimeMode = process.env.WORKER_RUNTIME_MODE;
+  const originalFallbackEnabled = process.env.OAUTH_API_FALLBACK_ENABLED;
+  const originalDefaultModel = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+
+  afterEach(() => {
+    if (originalWorkerRuntimeMode === undefined) {
+      delete process.env.WORKER_RUNTIME_MODE;
+    } else {
+      process.env.WORKER_RUNTIME_MODE = originalWorkerRuntimeMode;
+    }
+
+    if (originalFallbackEnabled === undefined) {
+      delete process.env.OAUTH_API_FALLBACK_ENABLED;
+    } else {
+      process.env.OAUTH_API_FALLBACK_ENABLED = originalFallbackEnabled;
+    }
+
+    if (originalDefaultModel === undefined) {
+      delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+    } else {
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = originalDefaultModel;
+    }
+  });
+
+  it('prefers agent runtime for workers in MiniMax API fallback mode', () => {
+    delete process.env.WORKER_RUNTIME_MODE;
+    process.env.OAUTH_API_FALLBACK_ENABLED = 'true';
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.5';
+
+    expect(shouldUseAgentRuntimeForWorkers()).toBe(true);
+    expect(selectContainerImageForGroup(workerGroup)).toBe(
+      'nanoclaw-agent:latest',
+    );
+  });
+
+  it('allows forcing the OpenCode worker runtime explicitly', () => {
+    process.env.WORKER_RUNTIME_MODE = 'opencode';
+    process.env.OAUTH_API_FALLBACK_ENABLED = 'true';
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.5';
+
+    expect(shouldUseAgentRuntimeForWorkers()).toBe(false);
+    expect(selectContainerImageForGroup(workerGroup)).toBe(
+      'nanoclaw-worker:latest',
+    );
+  });
+
+  it('keeps non-worker groups on the agent image', () => {
+    process.env.WORKER_RUNTIME_MODE = 'opencode';
+
+    expect(selectContainerImageForGroup(testGroup)).toBe(
+      'nanoclaw-agent:latest',
+    );
   });
 });

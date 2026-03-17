@@ -86,7 +86,7 @@ export const CONTAINER_NO_OUTPUT_TIMEOUT = parseInt(
   10,
 );
 export const WORKER_MIN_NO_OUTPUT_TIMEOUT_MS = parseInt(
-  process.env.WORKER_MIN_NO_OUTPUT_TIMEOUT_MS || '900000',
+  process.env.WORKER_MIN_NO_OUTPUT_TIMEOUT_MS || '300000',
   10,
 );
 export const CONTAINER_MAX_OUTPUT_SIZE = parseInt(

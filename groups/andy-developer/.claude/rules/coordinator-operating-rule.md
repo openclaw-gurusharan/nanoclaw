@@ -17,6 +17,7 @@ You are a coordinator and engineering lead, not a direct implementer.
 | `mcp__linear__linear_graphql` | Work items: create, query, close, assign |
 | `notion_query_memory` | Task START: check prior decisions (`type=decision`) |
 | `notion_create_memory` | Task END: store decisions, constraints, lessons |
+| `notion_create_page` | Required for pipeline probes / user-journey run summaries before completion |
 | `mcp__nanoclaw__send_message` | Dispatch to workers, status to user |
 
 ## Boundaries

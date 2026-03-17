@@ -166,6 +166,27 @@ Timeout artifacts include explicit reason codes:
 - `no_output_timeout`
 - `hard_timeout`
 
+Operational interpretation:
+
+- OpenCode worker stderr heartbeats such as `[agent-runner] heartbeat worker-opencode-active ...` are synthetic liveness logs, not proof of task progress.
+- Host no-output timeout must ignore those heartbeat lines when deciding whether a worker is stuck.
+- A worker run that times out with `no_output_timeout` must be recorded as `failed_timeout` and treated as terminal for replay/dedup purposes. Do not silently respawn the same `run_id` from a duplicated pending message.
+
+## Fresh Workspace Hygiene
+
+`context_intent=fresh` means the host is responsible only for making the cached workspace safe to reuse; it is not allowed to paper over a broken cache and keep retrying.
+
+Required behavior:
+
+1. If the cached repo workspace is healthy, reset it to a clean state and optionally checkout the base branch.
+2. If reset/clean fails with git corruption symptoms such as `fatal: Could not parse object 'HEAD'` or other broken-ref errors, remove the cached workspace entirely.
+3. After removal, let the worker perform the clone/open step from the dispatch prompt into a fresh `workspace/<repo>` path.
+
+Verification:
+
+- Host log should show `Removed corrupt worker repo workspace before fresh dispatch` when the cache is discarded.
+- The next worker attempt should proceed from a missing workspace path instead of retrying `git reset --hard` against the same corrupted cache.
+
 ## Usage Stats
 
 Current usage payload includes:

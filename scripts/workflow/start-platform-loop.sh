@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="${NANOCLAW_PLATFORM_LOOP_SOURCE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 STATE_DIR="$ROOT_DIR/.nanoclaw/platform-loop"
 STATE_FILE="$STATE_DIR/launch-state.json"
 RUNS_DIR="$STATE_DIR/runs"
@@ -62,7 +62,7 @@ build_prompt() {
 Run the NanoClaw autonomous Claude implementation pickup lane.
 
 Rules:
-1. Never reprioritize work. Only implement issues that `andy-developer` already approved as \`Ready\`.
+1. Never reprioritize work. Only implement issues that \`andy-developer\` already approved as \`Ready\`.
 2. Never continue if \`bash scripts/workflow/autonomy-lane.sh pause-status\` reports \`"paused": true\`.
 3. Never continue if \`node scripts/workflow/platform-loop.js next\` returns \`noop\`.
 4. Never merge.

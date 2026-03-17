@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+DB_PATH="${NANOCLAW_DB_PATH:-$ROOT_DIR/store/messages.db}"
+RUNTIME_READY_TIMEOUT_SEC="${NANOCLAW_RECOVER_READY_TIMEOUT_SEC:-45}"
 RESTART_NANOCLAW=1
 RUN_PREFLIGHT=1
 error_count=0
@@ -53,6 +55,44 @@ step() {
   fi
 }
 
+wait_for_nanoclaw_ready() {
+  local restart_started_at="$1"
+
+  if ! command -v sqlite3 >/dev/null 2>&1; then
+    echo "[WARN] sqlite3 not available; skipping runtime readiness wait"
+    return 0
+  fi
+
+  if [ ! -f "$DB_PATH" ]; then
+    echo "[WARN] sqlite DB missing; skipping runtime readiness wait ($DB_PATH)"
+    return 0
+  fi
+
+  local deadline=$((SECONDS + RUNTIME_READY_TIMEOUT_SEC))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    local owner_row
+    owner_row="$(sqlite3 -separator '|' "$DB_PATH" \
+      "SELECT pid, heartbeat_at FROM runtime_owners WHERE owner_name = 'host' AND heartbeat_at >= '$restart_started_at' LIMIT 1;" \
+      2>/dev/null || true)"
+    local loop_ready_at
+    loop_ready_at="$(sqlite3 "$DB_PATH" \
+      "SELECT value FROM router_state WHERE key = 'host_message_loop_ready_at' AND value >= '$restart_started_at' LIMIT 1;" \
+      2>/dev/null || true)"
+    if [ -n "$owner_row" ]; then
+      local runtime_pid runtime_heartbeat
+      IFS='|' read -r runtime_pid runtime_heartbeat <<<"$owner_row"
+      if [[ "$runtime_pid" =~ ^[0-9]+$ ]] && kill -0 "$runtime_pid" 2>/dev/null && [ -n "$loop_ready_at" ]; then
+        echo "[PASS] runtime ready (pid=$runtime_pid heartbeat=$runtime_heartbeat loop_ready=$loop_ready_at)"
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+
+  echo "[WARN] runtime readiness wait timed out after ${RUNTIME_READY_TIMEOUT_SEC}s"
+  return 1
+}
+
 echo "== Jarvis Recovery =="
 
 if command -v launchctl >/dev/null 2>&1; then
@@ -77,7 +117,9 @@ fi
 if [ "$RESTART_NANOCLAW" -eq 1 ]; then
   if command -v launchctl >/dev/null 2>&1; then
     UID_VALUE="$(id -u)"
+    restart_started_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     step "restart com.nanoclaw service" launchctl kickstart -k "gui/$UID_VALUE/com.nanoclaw"
+    step "wait for com.nanoclaw runtime readiness" wait_for_nanoclaw_ready "$restart_started_at"
   else
     echo "[WARN] launchctl not available; cannot restart com.nanoclaw"
     error_count=$((error_count + 1))
@@ -98,4 +140,3 @@ else
     exit 1
   fi
 fi
-

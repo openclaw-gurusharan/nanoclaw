@@ -441,13 +441,19 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   data.text,
                 );
                 const outboundText = normalizedDispatch.text;
+                const workerToWorkerMessageBlocked =
+                  isJarvisWorkerFolder(sourceGroup) &&
+                  !!targetGroup &&
+                  isJarvisWorkerFolder(targetGroup.folder);
                 const dispatchValidation = validateAndyWorkerDispatchMessage(
                   sourceGroup,
                   targetGroup,
                   outboundText,
                 );
                 const queueDecision =
-                  canAccessTarget && dispatchValidation.valid
+                  canAccessTarget &&
+                  !workerToWorkerMessageBlocked &&
+                  dispatchValidation.valid
                     ? queueAndyWorkerDispatchRun(
                         sourceGroup,
                         targetGroup,
@@ -457,6 +463,7 @@ export function startIpcWatcher(deps: IpcDeps): void {
 
                 if (
                   canAccessTarget &&
+                  !workerToWorkerMessageBlocked &&
                   dispatchValidation.valid &&
                   queueDecision.allowSend
                 ) {
@@ -489,9 +496,11 @@ export function startIpcWatcher(deps: IpcDeps): void {
                 } else {
                   const reason = !canAccessTarget
                     ? 'target authorization failed'
-                    : !dispatchValidation.valid
-                      ? dispatchValidation.reason
-                      : queueDecision.reason;
+                    : workerToWorkerMessageBlocked
+                      ? 'worker lanes may not send chat messages to worker chats'
+                      : !dispatchValidation.valid
+                        ? dispatchValidation.reason
+                        : queueDecision.reason;
                   const isDuplicateRunId = (reason || '').startsWith(
                     'duplicate run_id blocked:',
                   );
@@ -509,15 +518,17 @@ export function startIpcWatcher(deps: IpcDeps): void {
                     const reasonCode: DispatchBlockEvent['reason_code'] =
                       !canAccessTarget
                         ? 'target_authorization_failed'
-                        : isDuplicateRunId
-                          ? 'duplicate_run_id'
-                          : !dispatchValidation.valid
-                            ? dispatchValidation.reason?.includes(
-                                'only andy-developer',
-                              )
-                              ? 'unauthorized_source_lane'
-                              : 'invalid_dispatch_payload'
-                            : 'duplicate_run_id';
+                        : workerToWorkerMessageBlocked
+                          ? 'unauthorized_source_lane'
+                          : isDuplicateRunId
+                            ? 'duplicate_run_id'
+                            : !dispatchValidation.valid
+                              ? dispatchValidation.reason?.includes(
+                                  'only andy-developer',
+                                )
+                                ? 'unauthorized_source_lane'
+                                : 'invalid_dispatch_payload'
+                              : 'duplicate_run_id';
 
                     await notifyDispatchBlocked(
                       deps,

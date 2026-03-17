@@ -65,6 +65,8 @@ Consolidated into `.claude/rules/docs-governance.md` (auto-loaded rule).
 
 - `docs/workflow/strategy/workflow-optimization-loop.md`: research-to-pilot workflow optimization process and decision gates
 - `docs/workflow/strategy/code-execution-mcp-pattern.md`: distilled code-execution-with-MCP research and tool selection guide
+- `docs/workflow/strategy/launchdeck-proving-program.md`: LaunchDeck dogfooding plan for proving WhatsApp-first product delivery quality and trust
+- `docs/workflow/strategy/launchdeck-ld01-execution-pack.md`: dispatch/review/scorecard pack for the first LaunchDeck proving slice
 
 ## `docs/operations/`
 

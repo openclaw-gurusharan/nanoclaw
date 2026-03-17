@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="${NANOCLAW_RELIABILITY_SOURCE_ROOT:-${NANOCLAW_PLATFORM_LOOP_SOURCE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}}"
 STATE_DIR="$ROOT_DIR/.nanoclaw/reliability-loop"
 RUNS_DIR="$STATE_DIR/runs"
 STATE_FILE="$STATE_DIR/launch-state.json"
