@@ -61,8 +61,6 @@ groups/**/.claude/settings.local.json
 groups/**/logs/
 groups/**/logs/**
 groups/**/memory/**
-!groups/**/memory/
-!groups/**/memory/**/*.md
 groups/**/.smoke-*.txt
 groups/**/smoke-*.txt
 
