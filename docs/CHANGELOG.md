@@ -11,6 +11,13 @@ Owner for:
 Should not contain:
 - policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
 
+## [Unreleased]
+
+### Bug Fixes
+
+- fix(container): bootstrap OneCLI placeholder env vars at container startup
+  - Motivation: Skills pre-flight checks (`[ -z "$COLOSSEUM_COPILOT_PAT" ]`) failed because secret vars were unset, even though OneCLI proxy injects real values at HTTPS intercept time. The new `onecli-secrets-manifest.sh` exports `VAR=placeholder` for each known secret at startup so checks pass. See `docs/credentials.md` for the full placeholder pattern.
+
 ## 2026-03-04
 
 - Synced from: `upstream/main` into `andy-autonomous`
