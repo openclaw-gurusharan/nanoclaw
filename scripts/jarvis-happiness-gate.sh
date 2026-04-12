@@ -69,8 +69,8 @@ if [ "$run_status" = true ]; then
   echo
 fi
 
-NODE_NO_WARNINGS=1 node --experimental-transform-types scripts/test-andy-user-e2e.ts "${forward_args[@]}"
-NODE_NO_WARNINGS=1 node --experimental-transform-types scripts/test-main-lane-status-e2e.ts
+NODE_NO_WARNINGS=1 bash scripts/with-service-node.sh npx tsx scripts/test-andy-user-e2e.ts "${forward_args[@]}"
+NODE_NO_WARNINGS=1 bash scripts/with-service-node.sh npx tsx scripts/test-main-lane-status-e2e.ts
 echo
 echo "Manual User POV runbook confirmed:"
 echo "  $user_confirmation"

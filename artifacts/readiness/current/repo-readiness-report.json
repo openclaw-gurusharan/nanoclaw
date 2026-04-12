@@ -1,0 +1,831 @@
+{
+  "repo": "/Users/gurusharan/Documents/remote-claude/active/apps/nanoclaw",
+  "stacks": [
+    "node"
+  ],
+  "repo_class": "service",
+  "web_facing": false,
+  "overall": "degraded",
+  "can_agent_proceed_now": "with_limits",
+  "strongest_verification_command": "./scripts/jarvis-smoke.sh",
+  "strongest_runtime_proof_lane": "curl -fsS http://127.0.0.1:${port}/health",
+  "browser_proof_status": "not_applicable",
+  "execution_plan": {
+    "sequential": [
+      "environment_start",
+      "runtime_evidence"
+    ],
+    "parallel": [
+      "repo_contract",
+      "verification",
+      "integrations",
+      "guardrails",
+      "dx_primitives"
+    ]
+  },
+  "repo_relevant_integrations": [
+    "github",
+    "gmail",
+    "linear",
+    "notion"
+  ],
+  "commands": [
+    {
+      "lane": "runtime_evidence",
+      "label": "./scripts/jarvis-auth-health.sh",
+      "command": "./scripts/jarvis-auth-health.sh",
+      "source": "./scripts/jarvis-auth-health.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "./scripts/jarvis-smoke.sh",
+      "command": "./scripts/jarvis-smoke.sh",
+      "source": "./scripts/jarvis-smoke.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "runtime_evidence",
+      "label": "./scripts/jarvis-verify-worker-connectivity.sh",
+      "command": "./scripts/jarvis-verify-worker-connectivity.sh",
+      "source": "./scripts/jarvis-verify-worker-connectivity.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/session-start.sh",
+      "command": "./scripts/workflow/session-start.sh",
+      "source": "./scripts/workflow/session-start.sh",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-autonomy-reliability.sh",
+      "command": "./scripts/workflow/start-autonomy-reliability.sh",
+      "source": "./scripts/workflow/start-autonomy-reliability.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-linear-mcp.sh",
+      "command": "./scripts/workflow/start-linear-mcp.sh",
+      "source": "./scripts/workflow/start-linear-mcp.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-morning-codex-prep.sh",
+      "command": "./scripts/workflow/start-morning-codex-prep.sh",
+      "source": "./scripts/workflow/start-morning-codex-prep.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-nightly-improvement.sh",
+      "command": "./scripts/workflow/start-nightly-improvement.sh",
+      "source": "./scripts/workflow/start-nightly-improvement.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-notion-mcp.sh",
+      "command": "./scripts/workflow/start-notion-mcp.sh",
+      "source": "./scripts/workflow/start-notion-mcp.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-platform-loop.sh",
+      "command": "./scripts/workflow/start-platform-loop.sh",
+      "source": "./scripts/workflow/start-platform-loop.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-pr-guardian.sh",
+      "command": "./scripts/workflow/start-pr-guardian.sh",
+      "source": "./scripts/workflow/start-pr-guardian.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-session-pattern-analysis.sh",
+      "command": "./scripts/workflow/start-session-pattern-analysis.sh",
+      "source": "./scripts/workflow/start-session-pattern-analysis.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "./scripts/workflow/start-symphony-mcp.sh",
+      "command": "./scripts/workflow/start-symphony-mcp.sh",
+      "source": "./scripts/workflow/start-symphony-mcp.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "runtime_evidence",
+      "label": "./scripts/workflow/verify.sh",
+      "command": "./scripts/workflow/verify.sh",
+      "source": "./scripts/workflow/verify.sh",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "agent-runner:build",
+      "command": "npm --prefix .nanoclaw/base/container/agent-runner run build",
+      "source": "./.nanoclaw/base/container/agent-runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "agent-runner:start",
+      "command": "npm --prefix .nanoclaw/base/container/agent-runner run start",
+      "source": "./.nanoclaw/base/container/agent-runner/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "base:test",
+      "command": "npm --prefix .nanoclaw/base run test",
+      "source": "./.nanoclaw/base/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "base:build",
+      "command": "npm --prefix .nanoclaw/base run build",
+      "source": "./.nanoclaw/base/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "base:typecheck",
+      "command": "npm --prefix .nanoclaw/base run typecheck",
+      "source": "./.nanoclaw/base/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "guardrails",
+      "label": "base:lint",
+      "command": "npm --prefix .nanoclaw/base run lint",
+      "source": "./.nanoclaw/base/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "base:dev",
+      "command": "npm --prefix .nanoclaw/base run dev",
+      "source": "./.nanoclaw/base/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "base:start",
+      "command": "npm --prefix .nanoclaw/base run start",
+      "source": "./.nanoclaw/base/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "agent-runner:build",
+      "command": "npm --prefix container/agent-runner run build",
+      "source": "./container/agent-runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "agent-runner:start",
+      "command": "npm --prefix container/agent-runner run start",
+      "source": "./container/agent-runner/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "agent-runner:build",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base/container/agent-runner run build",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/container/agent-runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "agent-runner:start",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base/container/agent-runner run start",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/container/agent-runner/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "base:test",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base run test",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "base:build",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base run build",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "base:typecheck",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base run typecheck",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "guardrails",
+      "label": "base:lint",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base run lint",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "base:dev",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base run dev",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "base:start",
+      "command": "npm --prefix data/sessions/main/project-readonly/.nanoclaw/base run start",
+      "source": "./data/sessions/main/project-readonly/.nanoclaw/base/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "agent-runner:build",
+      "command": "npm --prefix data/sessions/main/project-readonly/container/agent-runner run build",
+      "source": "./data/sessions/main/project-readonly/container/agent-runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "agent-runner:start",
+      "command": "npm --prefix data/sessions/main/project-readonly/container/agent-runner run start",
+      "source": "./data/sessions/main/project-readonly/container/agent-runner/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "agent-runner:build",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner run build",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "agent-runner:start",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner run start",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "runner:build",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/container/worker/runner run build",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/container/worker/runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:test",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw run test",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:build",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw run build",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:typecheck",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw run typecheck",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "nanoclaw:dev",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw run dev",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "nanoclaw:start",
+      "command": "npm --prefix data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw run start",
+      "source": "./data/sessions/main/project-readonly/groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "project-readonly:test",
+      "command": "npm --prefix data/sessions/main/project-readonly run test",
+      "source": "./data/sessions/main/project-readonly/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "project-readonly:build",
+      "command": "npm --prefix data/sessions/main/project-readonly run build",
+      "source": "./data/sessions/main/project-readonly/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "project-readonly:typecheck",
+      "command": "npm --prefix data/sessions/main/project-readonly run typecheck",
+      "source": "./data/sessions/main/project-readonly/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "guardrails",
+      "label": "project-readonly:lint",
+      "command": "npm --prefix data/sessions/main/project-readonly run lint",
+      "source": "./data/sessions/main/project-readonly/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "project-readonly:dev",
+      "command": "npm --prefix data/sessions/main/project-readonly run dev",
+      "source": "./data/sessions/main/project-readonly/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "project-readonly:start",
+      "command": "npm --prefix data/sessions/main/project-readonly run start",
+      "source": "./data/sessions/main/project-readonly/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "agent-runner:build",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner run build",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "agent-runner:start",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner run start",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/container/agent-runner/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "runner:build",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw/container/worker/runner run build",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/container/worker/runner/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:test",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw run test",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:build",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw run build",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:typecheck",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw run typecheck",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "nanoclaw:dev",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw run dev",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "nanoclaw:start",
+      "command": "npm --prefix groups/jarvis-worker-1/workspace/nanoclaw run start",
+      "source": "./groups/jarvis-worker-1/workspace/nanoclaw/package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:test",
+      "command": "npm run test",
+      "source": "./package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:build",
+      "command": "npm run build",
+      "source": "./package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "verification",
+      "label": "nanoclaw:typecheck",
+      "command": "npm run typecheck",
+      "source": "./package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "guardrails",
+      "label": "nanoclaw:lint",
+      "command": "npm run lint",
+      "source": "./package.json",
+      "strength": "medium",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "nanoclaw:dev",
+      "command": "npm run dev",
+      "source": "./package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "environment_start",
+      "label": "nanoclaw:start",
+      "command": "npm run start",
+      "source": "./package.json",
+      "strength": "strong",
+      "scope": "repo"
+    },
+    {
+      "lane": "guardrails",
+      "label": "python-compile",
+      "command": "python -m py_compile $(find . -name '*.py' -not -path '*/.*')",
+      "source": "requirements/pyproject",
+      "strength": "baseline",
+      "scope": "repo"
+    }
+  ],
+  "runtime_markers": {
+    "start_command": "npm --prefix .nanoclaw/base run dev",
+    "proof_command": "./scripts/jarvis-auth-health.sh",
+    "health_endpoints": [
+      "health",
+      "Health",
+      "HEALTH",
+      "http://127.0.0.1:${port}/health"
+    ]
+  },
+  "lanes": [
+    {
+      "lane_id": "repo_contract",
+      "title": "Repo Contract",
+      "phase": "parallel_discovery",
+      "applicable": true,
+      "required": true,
+      "status": "ready",
+      "confidence": "high",
+      "detected": true,
+      "configured": true,
+      "executed": true,
+      "verified": true,
+      "evidence": [
+        "/Users/gurusharan/Documents/remote-claude/active/apps/nanoclaw/AGENTS.md"
+      ],
+      "blocker": null,
+      "next_action": "none",
+      "validation_command": null,
+      "done_when": "Repo-local contract remains present and current.",
+      "owner_surface": "repo",
+      "questions": [
+        "Is there a repo-local contract that tells agents what good and bad look like?",
+        "Can the agent find the canonical entry surfaces without tribal knowledge?"
+      ],
+      "details": {}
+    },
+    {
+      "lane_id": "verification",
+      "title": "Verification",
+      "phase": "parallel_discovery",
+      "applicable": true,
+      "required": true,
+      "status": "degraded",
+      "confidence": "high",
+      "detected": true,
+      "configured": true,
+      "executed": false,
+      "verified": false,
+      "evidence": [
+        "./scripts/jarvis-smoke.sh (./scripts/jarvis-smoke.sh)"
+      ],
+      "blocker": null,
+      "next_action": "Run `./scripts/jarvis-smoke.sh` and capture pass/fail output before claiming readiness.",
+      "validation_command": "./scripts/jarvis-smoke.sh",
+      "done_when": "The strongest verification command executes successfully and the output is intelligible.",
+      "owner_surface": "repo",
+      "questions": [
+        "Does the command actually run?",
+        "Does the output provide enough signal to debug failures?"
+      ],
+      "details": {
+        "source": "./scripts/jarvis-smoke.sh",
+        "strength": "strong"
+      }
+    },
+    {
+      "lane_id": "environment_start",
+      "title": "Environment Start",
+      "phase": "sequential_proof",
+      "applicable": true,
+      "required": true,
+      "status": "degraded",
+      "confidence": "high",
+      "detected": true,
+      "configured": true,
+      "executed": false,
+      "verified": false,
+      "evidence": [
+        "npm --prefix .nanoclaw/base run dev (./.nanoclaw/base/package.json)"
+      ],
+      "blocker": null,
+      "next_action": "Start the environment with `npm --prefix .nanoclaw/base run dev` before running runtime or browser proof.",
+      "validation_command": "npm --prefix .nanoclaw/base run dev",
+      "done_when": "The canonical start command launches the intended environment without manual tribal steps.",
+      "owner_surface": "repo",
+      "questions": [
+        "Does the start command boot the intended runtime?",
+        "Can later proof lanes reuse the same started environment?"
+      ],
+      "details": {
+        "source": "./.nanoclaw/base/package.json",
+        "strength": "strong"
+      }
+    },
+    {
+      "lane_id": "runtime_evidence",
+      "title": "Runtime Evidence",
+      "phase": "sequential_proof",
+      "applicable": true,
+      "required": true,
+      "status": "degraded",
+      "confidence": "high",
+      "detected": true,
+      "configured": true,
+      "executed": false,
+      "verified": false,
+      "evidence": [
+        "endpoint: http://127.0.0.1:${port}/health",
+        "./scripts/jarvis-auth-health.sh (./scripts/jarvis-auth-health.sh)",
+        "endpoint: health",
+        "endpoint: Health",
+        "endpoint: HEALTH"
+      ],
+      "blocker": null,
+      "next_action": "Run the runtime proof lane after startup and record the observed health or livez output.",
+      "validation_command": "curl -fsS http://127.0.0.1:${port}/health",
+      "done_when": "The runtime truth surface responds successfully on the intended environment.",
+      "owner_surface": "repo",
+      "questions": [
+        "Can the agent hit the real runtime proof lane?",
+        "Does the proof lane reflect the intended backend or service identity?"
+      ],
+      "details": {
+        "health_endpoints": [
+          "health",
+          "Health",
+          "HEALTH",
+          "http://127.0.0.1:${port}/health"
+        ]
+      }
+    },
+    {
+      "lane_id": "browser_proof",
+      "title": "Browser Proof",
+      "phase": "sequential_proof",
+      "applicable": false,
+      "required": false,
+      "status": "not_applicable",
+      "confidence": "high",
+      "detected": false,
+      "configured": false,
+      "executed": false,
+      "verified": false,
+      "evidence": [
+        "No web-facing runtime detected."
+      ],
+      "blocker": null,
+      "next_action": "none",
+      "validation_command": null,
+      "done_when": "No browser proof lane is required for this repo class.",
+      "owner_surface": "repo",
+      "questions": [],
+      "details": {}
+    },
+    {
+      "lane_id": "integrations",
+      "title": "Integrations",
+      "phase": "parallel_discovery",
+      "applicable": true,
+      "required": false,
+      "status": "degraded",
+      "confidence": "medium",
+      "detected": true,
+      "configured": true,
+      "executed": false,
+      "verified": false,
+      "evidence": [
+        "workflow CLI",
+        "github: github@openai-curated",
+        "gmail: gmail@openai-curated",
+        "linear: linear",
+        "notion: notion, notion@openai-curated"
+      ],
+      "blocker": null,
+      "next_action": "Run non-destructive auth or reachability probes for repo-relevant integrations.",
+      "validation_command": "best-effort non-destructive integration probes",
+      "done_when": "Repo-relevant systems are both configured and non-destructively reachable.",
+      "owner_surface": "integration",
+      "questions": [
+        "Which external systems are required, not optional?",
+        "Are the configured integrations usable rather than merely present in config?"
+      ],
+      "details": {
+        "repo_relevant_systems": [
+          "github",
+          "gmail",
+          "linear",
+          "notion"
+        ],
+        "configured_systems": [
+          "github",
+          "gmail",
+          "google-drive",
+          "linear",
+          "notion",
+          "vercel",
+          "workflow"
+        ]
+      }
+    },
+    {
+      "lane_id": "guardrails",
+      "title": "Guardrails",
+      "phase": "parallel_discovery",
+      "applicable": true,
+      "required": false,
+      "status": "degraded",
+      "confidence": "medium",
+      "detected": true,
+      "configured": true,
+      "executed": false,
+      "verified": false,
+      "evidence": [
+        "github_actions: present"
+      ],
+      "blocker": null,
+      "next_action": "Strengthen deterministic guardrails with repo-owned checks, hooks, or CI policies.",
+      "validation_command": "npm --prefix .nanoclaw/base run lint",
+      "done_when": "Deterministic checks exist and are routinely executable on the primary path.",
+      "owner_surface": "repo",
+      "questions": [
+        "What prevents bad changes locally or in CI?",
+        "Which protections are real enforcement instead of prose only?"
+      ],
+      "details": {
+        "github_actions": true,
+        "pre_commit": false,
+        "ruff": false,
+        "eslint": false,
+        "deterministic_scripts": false
+      }
+    },
+    {
+      "lane_id": "dx_primitives",
+      "title": "DX Primitives",
+      "phase": "parallel_discovery",
+      "applicable": true,
+      "required": false,
+      "status": "degraded",
+      "confidence": "medium",
+      "detected": true,
+      "configured": true,
+      "executed": false,
+      "verified": false,
+      "evidence": [
+        "readme: present",
+        "docs: present",
+        "scripts: present",
+        "repo_contract: present"
+      ],
+      "blocker": null,
+      "next_action": "Keep scripts, docs, and examples repo-owned and close to the workflows they describe.",
+      "validation_command": null,
+      "done_when": "An unfamiliar agent can discover start, verify, and debug paths without tribal knowledge.",
+      "owner_surface": "repo",
+      "questions": [
+        "Can an agent discover how to start, test, and debug without asking a human?",
+        "Are the workflow primitives close to the code they govern?"
+      ],
+      "details": {
+        "readme": true,
+        "docs": true,
+        "scripts": true,
+        "examples": false,
+        "repo_contract": true
+      }
+    }
+  ],
+  "next_actions": [
+    "Run `./scripts/jarvis-smoke.sh` and capture pass/fail output before claiming readiness.",
+    "Start the environment with `npm --prefix .nanoclaw/base run dev` before running runtime or browser proof.",
+    "Run the runtime proof lane after startup and record the observed health or livez output.",
+    "Keep scripts, docs, and examples repo-owned and close to the workflows they describe.",
+    "Strengthen deterministic guardrails with repo-owned checks, hooks, or CI policies.",
+    "Run non-destructive auth or reachability probes for repo-relevant integrations."
+  ],
+  "artifacts": {
+    "output_dir": "/Users/gurusharan/Documents/remote-claude/active/apps/nanoclaw/artifacts/readiness/current",
+    "markdown": "/Users/gurusharan/Documents/remote-claude/active/apps/nanoclaw/artifacts/readiness/current/repo-readiness-report.md",
+    "json": "/Users/gurusharan/Documents/remote-claude/active/apps/nanoclaw/artifacts/readiness/current/repo-readiness-report.json",
+    "html": "/Users/gurusharan/Documents/remote-claude/active/apps/nanoclaw/artifacts/readiness/current/index.html"
+  },
+  "served": {
+    "host": "127.0.0.1",
+    "port": 8769,
+    "pid": 58357,
+    "url": "http://127.0.0.1:8769/index.html",
+    "staged_dir": "/tmp/repo-readiness-bootstrap-served/current-3feffec0",
+    "pid_file": "/tmp/repo-readiness-bootstrap-served/current-3feffec0/http-server.pid",
+    "log": "/tmp/repo-readiness-bootstrap-served/current-3feffec0/http-server.log"
+  },
+  "served_url": "http://127.0.0.1:8769/index.html"
+}

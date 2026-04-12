@@ -89,11 +89,13 @@ Andy-bot rules include:
 
 ## Secrets and Identity
 
-- Worker receives `GITHUB_TOKEN_WORKER` (fallback: `GITHUB_TOKEN`).
-- Worker sets `GH_TOKEN = GITHUB_TOKEN` for CLI compatibility.
-- `andy-developer` receives `GITHUB_TOKEN_ANDY_DEVELOPER` (fallback: `GITHUB_TOKEN`).
-- `andy-bot` receives `GITHUB_TOKEN_ANDY_BOT` (fallback: `GITHUB_TOKEN`).
-- Resolved token is exposed in-container as `GITHUB_TOKEN`/`GH_TOKEN` for CLI compatibility.
+- Anthropic auth stays host-provided through NanoClaw's local credential proxy.
+- GitHub and other lane-scoped credentials come from OneCLI, not repo-local keychains or raw env files.
+- OneCLI lane mapping is:
+  - `main` chat container -> `andy-bot`
+  - `andy-developer` -> `andy-developer`
+  - `jarvis-worker-*` -> same identifier as the group folder
+- Containers may expose placeholder `GH_TOKEN` / `GITHUB_TOKEN` values only to trigger authenticated GitHub client flows; the OneCLI gateway injects the real secret at request time.
 - `andy-bot` GitHub usage scope: research, repository inspection, and reporting (not worker dispatch control).
 - Git identity defaults:
   - `WORKER_GIT_NAME=Andy (openclaw-gurusharan)`

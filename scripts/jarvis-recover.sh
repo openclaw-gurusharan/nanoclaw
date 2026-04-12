@@ -8,6 +8,7 @@ DB_PATH="${NANOCLAW_DB_PATH:-$ROOT_DIR/store/messages.db}"
 RUNTIME_READY_TIMEOUT_SEC="${NANOCLAW_RECOVER_READY_TIMEOUT_SEC:-45}"
 RESTART_NANOCLAW=1
 RUN_PREFLIGHT=1
+RUN_MAIN_LANE_SMOKE=1
 error_count=0
 
 usage() {
@@ -17,6 +18,7 @@ Usage: scripts/jarvis-recover.sh [options]
 Options:
   --no-restart-nanoclaw  Do not restart com.nanoclaw service.
   --no-preflight         Skip final preflight validation.
+  --no-main-lane-smoke   Skip the main lane response smoke after restart.
   -h, --help             Show this help.
 EOF
 }
@@ -29,6 +31,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --no-preflight)
       RUN_PREFLIGHT=0
+      shift
+      ;;
+    --no-main-lane-smoke)
+      RUN_MAIN_LANE_SMOKE=0
       shift
       ;;
     -h|--help)
@@ -139,4 +145,17 @@ else
   if [ "$error_count" -gt 0 ]; then
     exit 1
   fi
+fi
+
+if [ "$RESTART_NANOCLAW" -eq 1 ] && [ "$RUN_MAIN_LANE_SMOKE" -eq 1 ]; then
+  echo "[STEP] run main lane response smoke"
+  if bash "$ROOT_DIR/scripts/with-service-node.sh" npx tsx \
+    "$ROOT_DIR/scripts/test-main-lane-status-e2e.ts"; then
+    echo "[PASS] run main lane response smoke"
+  else
+    echo "[FAIL] run main lane response smoke"
+    exit 1
+  fi
+else
+  echo "[INFO] main lane response smoke skipped"
 fi

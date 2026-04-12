@@ -8,6 +8,7 @@ import {
   BASE_INCLUDES,
   NANOCLAW_DIR,
 } from './constants.js';
+import { copyPathPreservingLinks } from './fs-utils.js';
 import { isGitRepo } from './merge.js';
 import { writeState } from './state.js';
 import { SkillState } from './types.js';
@@ -49,8 +50,7 @@ export function initNanoclawDir(): void {
     if (stat.isDirectory()) {
       copyDirFiltered(srcPath, destPath, BASE_EXCLUDES);
     } else {
-      fs.mkdirSync(path.dirname(destPath), { recursive: true });
-      fs.copyFileSync(srcPath, destPath);
+      copyPathPreservingLinks(srcPath, destPath);
     }
   }
 
@@ -85,7 +85,7 @@ function copyDirFiltered(src: string, dest: string, excludes: string[]): void {
     if (entry.isDirectory()) {
       copyDirFiltered(srcPath, destPath, excludes);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      copyPathPreservingLinks(srcPath, destPath);
     }
   }
 }

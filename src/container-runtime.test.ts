@@ -25,27 +25,6 @@ import {
 } from './container-runtime.js';
 import { logger } from './logger.js';
 
-const IS_APPLE_CONTAINER_RUNTIME = /(^|\/)container$/.test(
-  CONTAINER_RUNTIME_BIN,
-);
-const EXPECTED_HEALTH_CMD = IS_APPLE_CONTAINER_RUNTIME
-  ? `${CONTAINER_RUNTIME_BIN} system status`
-  : `${CONTAINER_RUNTIME_BIN} info`;
-const EXPECTED_LIST_CMD = IS_APPLE_CONTAINER_RUNTIME
-  ? `${CONTAINER_RUNTIME_BIN} ls -a`
-  : `${CONTAINER_RUNTIME_BIN} ps --filter name=nanoclaw- --format '{{.Names}}'`;
-
-function listOutput(names: string[]): string {
-  if (IS_APPLE_CONTAINER_RUNTIME) {
-    const header = 'CONTAINER IMAGE OS ARCH STATE ADDR';
-    const rows = names.map(
-      (name) => `${name} nanoclaw-worker:latest linux arm64 stopped`,
-    );
-    return [header, ...rows].join('\n');
-  }
-  return names.join('\n');
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -53,24 +32,33 @@ beforeEach(() => {
 // --- Pure functions ---
 
 describe('readonlyMountArgs', () => {
-  it('returns runtime-appropriate readonly mount args', () => {
+  it('returns --mount with readonly flag (Apple Container runtime)', () => {
     const args = readonlyMountArgs('/host/path', '/container/path');
-    if (IS_APPLE_CONTAINER_RUNTIME) {
-      expect(args).toEqual([
-        '--mount',
-        'type=bind,source=/host/path,target=/container/path,readonly',
-      ]);
-      return;
-    }
-    expect(args).toEqual(['-v', '/host/path:/container/path:ro']);
+    expect(args).toEqual([
+      '--mount',
+      'type=bind,source=/host/path,target=/container/path,readonly',
+    ]);
   });
 });
 
 describe('stopContainer', () => {
-  it('returns stop command using CONTAINER_RUNTIME_BIN', () => {
-    expect(stopContainer('nanoclaw-test-123')).toBe(
-      `${CONTAINER_RUNTIME_BIN} stop nanoclaw-test-123`,
+  it('executes stop for valid container names', () => {
+    stopContainer('nanoclaw-test-123');
+    expect(mockExecSync).toHaveBeenCalledWith(
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-test-123`,
+      { stdio: 'pipe' },
     );
+  });
+
+  it('rejects names with shell metacharacters', () => {
+    expect(() => stopContainer('foo; rm -rf /')).toThrow(
+      'Invalid container name',
+    );
+    expect(() => stopContainer('foo$(whoami)')).toThrow(
+      'Invalid container name',
+    );
+    expect(() => stopContainer('foo`id`')).toThrow('Invalid container name');
+    expect(mockExecSync).not.toHaveBeenCalled();
   });
 });
 
@@ -83,18 +71,18 @@ describe('ensureContainerRuntimeRunning', () => {
     ensureContainerRuntimeRunning();
 
     expect(mockExecSync).toHaveBeenCalledTimes(1);
-    expect(mockExecSync).toHaveBeenCalledWith(EXPECTED_HEALTH_CMD, {
-      stdio: 'pipe',
-      timeout: 10000,
-    });
+    expect(mockExecSync).toHaveBeenCalledWith(
+      `${CONTAINER_RUNTIME_BIN} system status`,
+      { stdio: 'pipe', timeout: 10000 },
+    );
     expect(logger.debug).toHaveBeenCalledWith(
       'Container runtime already running',
     );
   });
 
-  it('throws when runtime health check fails', () => {
+  it('throws when docker info fails', () => {
     mockExecSync.mockImplementationOnce(() => {
-      throw new Error('runtime unavailable');
+      throw new Error('Cannot connect to the Docker daemon');
     });
 
     expect(() => ensureContainerRuntimeRunning()).toThrow(
@@ -109,32 +97,31 @@ describe('ensureContainerRuntimeRunning', () => {
 describe('cleanupOrphans', () => {
   it('stops orphaned nanoclaw containers', () => {
     mockExecSync.mockReturnValueOnce(
-      listOutput([
-        'nanoclaw-group1-111',
-        'nanoclaw-group2-222',
-        'unrelated-container',
+      JSON.stringify([
+        { name: 'nanoclaw-group1-111', state: 'running' },
+        { name: 'nanoclaw-group2-222', state: 'running' },
       ]),
     );
-    // stop calls succeed
-    mockExecSync.mockReturnValue('');
+    mockExecSync
+      .mockReturnValueOnce('')
+      .mockReturnValueOnce(
+        JSON.stringify([{ name: 'nanoclaw-group2-222', state: 'running' }]),
+      )
+      .mockReturnValueOnce('')
+      .mockReturnValueOnce(JSON.stringify([]));
 
     cleanupOrphans();
 
-    // ps + 2 stop calls
-    expect(mockExecSync).toHaveBeenCalledTimes(3);
-    expect(mockExecSync).toHaveBeenNthCalledWith(1, EXPECTED_LIST_CMD, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      encoding: 'utf-8',
-    });
+    expect(mockExecSync).toHaveBeenCalledTimes(5);
     expect(mockExecSync).toHaveBeenNthCalledWith(
       2,
-      `${CONTAINER_RUNTIME_BIN} stop nanoclaw-group1-111`,
-      { stdio: 'pipe' },
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-group1-111`,
+      { stdio: 'pipe', timeout: 10000 },
     );
     expect(mockExecSync).toHaveBeenNthCalledWith(
-      3,
-      `${CONTAINER_RUNTIME_BIN} stop nanoclaw-group2-222`,
-      { stdio: 'pipe' },
+      4,
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-group2-222`,
+      { stdio: 'pipe', timeout: 10000 },
     );
     expect(logger.info).toHaveBeenCalledWith(
       { count: 2, names: ['nanoclaw-group1-111', 'nanoclaw-group2-222'] },
@@ -142,8 +129,37 @@ describe('cleanupOrphans', () => {
     );
   });
 
+  it('ignores stopped nanoclaw containers', () => {
+    mockExecSync.mockReturnValueOnce(
+      JSON.stringify([
+        { name: 'nanoclaw-stopped-111', state: 'stopped' },
+        { name: 'nanoclaw-running-222', state: 'running' },
+      ]),
+    );
+    mockExecSync
+      .mockReturnValueOnce('')
+      .mockReturnValueOnce(JSON.stringify([]));
+
+    cleanupOrphans();
+
+    expect(mockExecSync).toHaveBeenCalledTimes(3);
+    expect(mockExecSync).toHaveBeenNthCalledWith(
+      2,
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-running-222`,
+      { stdio: 'pipe', timeout: 10000 },
+    );
+    expect(mockExecSync).not.toHaveBeenCalledWith(
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-stopped-111`,
+      expect.anything(),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      { count: 1, names: ['nanoclaw-running-222'] },
+      'Stopped orphaned containers',
+    );
+  });
+
   it('does nothing when no orphans exist', () => {
-    mockExecSync.mockReturnValueOnce(listOutput(['unrelated-container']));
+    mockExecSync.mockReturnValueOnce(JSON.stringify([]));
 
     cleanupOrphans();
 
@@ -153,7 +169,7 @@ describe('cleanupOrphans', () => {
 
   it('warns and continues when ps fails', () => {
     mockExecSync.mockImplementationOnce(() => {
-      throw new Error('runtime not available');
+      throw new Error('docker not available');
     });
 
     cleanupOrphans(); // should not throw
@@ -165,21 +181,41 @@ describe('cleanupOrphans', () => {
   });
 
   it('continues stopping remaining containers when one stop fails', () => {
-    mockExecSync.mockReturnValueOnce(
-      listOutput(['nanoclaw-a-1', 'nanoclaw-b-2']),
-    );
-    // First stop fails
-    mockExecSync.mockImplementationOnce(() => {
-      throw new Error('already stopped');
+    let listCount = 0;
+    mockExecSync.mockImplementation((cmd: string) => {
+      if (cmd === `${CONTAINER_RUNTIME_BIN} ls --format json`) {
+        listCount += 1;
+        if (listCount === 1) {
+          return JSON.stringify([
+            { name: 'nanoclaw-a-1', state: 'running' },
+            { name: 'nanoclaw-b-2', state: 'running' },
+          ]);
+        }
+        if (listCount <= 4) {
+          return JSON.stringify([
+            { name: 'nanoclaw-a-1', state: 'running' },
+            { name: 'nanoclaw-b-2', state: 'running' },
+          ]);
+        }
+        return JSON.stringify([{ name: 'nanoclaw-a-1', state: 'running' }]);
+      }
+
+      if (cmd.includes('nanoclaw-a-1')) {
+        throw new Error('stop failed');
+      }
+
+      return '';
     });
-    // Second stop succeeds
-    mockExecSync.mockReturnValueOnce('');
 
-    cleanupOrphans(); // should not throw
+    cleanupOrphans();
 
-    expect(mockExecSync).toHaveBeenCalledTimes(3);
+    expect(mockExecSync).toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'nanoclaw-a-1' }),
+      'Failed to stop orphaned container',
+    );
     expect(logger.info).toHaveBeenCalledWith(
-      { count: 2, names: ['nanoclaw-a-1', 'nanoclaw-b-2'] },
+      { count: 1, names: ['nanoclaw-b-2'] },
       'Stopped orphaned containers',
     );
   });

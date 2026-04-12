@@ -2,6 +2,14 @@
 
 Mission anchor: `docs/MISSION.md`
 
+## Control Owner
+
+Owner for:
+- `docs/research/WEEKLY-SLOP-OPTIMIZATION-2026-03-04.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Scope
 
 Weekly slop optimization loop run for docs/scripts/config/code inventory and verification gates.

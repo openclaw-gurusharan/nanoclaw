@@ -1,30 +1,35 @@
 # Token-Efficient MCP Usage
 
-## Purpose
+## Routing Purpose
 
 Provide the canonical routing guide for when and how to use the token-efficient MCP server to preserve Codex context.
 
-## Doc Type
+## Routing Doc Type
 
 `map`
 
-## Canonical Owner
+## Control Owner
 
-This doc owns token-efficient MCP usage guidance for Codex work in this repo. It must not duplicate the strategy rationale in `docs/workflow/strategy/code-execution-mcp-pattern.md`.
+Owner for:
+- token-efficient MCP usage guidance for Codex work in this repo
 
-## Use When
+Should not contain:
+- strategic rationale that belongs in `docs/workflow/strategy/code-execution-mcp-pattern.md`
+- general docs-governance policy that belongs in `.claude/rules/docs-governance.md`
+
+## Token-Efficient Use When
 
 - Choosing between token-efficient MCP, raw shell output, or other built-in tools.
 - Handling logs, CSV data, or scripts that would otherwise emit large stdout into chat context.
 - Teaching or reviewing Codex workflows where context preservation matters.
 
-## Do Not Use When
+## Token-Efficient Do Not Use When
 
 - Defining general MCP routing policy. See `.claude/rules/docs-governance.md`.
 - Recording why the code-execution MCP pattern is strategically valid. Use `docs/workflow/strategy/code-execution-mcp-pattern.md`.
 - Describing core product/runtime architecture. Use `docs/ARCHITECTURE.md` or `docs/reference/SPEC.md`.
 
-## Verification
+## Token-Efficient Verification
 
 - Live MCP interface checks in Codex:
   - `mcp__token-efficient__execute_code`
@@ -38,7 +43,7 @@ This doc owns token-efficient MCP usage guidance for Codex work in this repo. It
   - `bash scripts/check-tooling-governance.sh`
   - `bash scripts/check-docs-hygiene.sh`
 
-## Related Docs
+## Token-Efficient Related Docs
 
 - `docs/workflow/strategy/code-execution-mcp-pattern.md`
 - `.claude/rules/docs-governance.md`
@@ -81,7 +86,7 @@ Request only the fields you will actually read. Each extra field on 50 issues co
 | Search code or markdown files by filename/content | `rg`, `Glob`, or repo-native search tools | File search is not a data-reduction problem | `execute_code` running `find` or `grep` |
 | Read small config or source files | targeted file reads | Small direct reads are cheaper and clearer | wrapping tiny reads in MCP for no reason |
 
-## Ownership
+## Tool Ownership
 
 | Surface | Canonical owner |
 |--------|------------------|
@@ -153,7 +158,7 @@ Request only the fields you will actually read. Each extra field on 50 issues co
   - add `working_dir`
   - use `spill_to_file=true` for verbose runs
 
-## Exit Criteria
+## Token-Efficient Exit Criteria
 
 - The chosen tool returns only the minimum result the model needs.
 - Raw logs, large tables, and verbose stdout stay out of chat history unless explicitly required.

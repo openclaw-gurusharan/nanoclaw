@@ -14,14 +14,15 @@
  *   Final marker after loop ends signals completion.
  */
 
-import { spawnSync } from 'child_process';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
-import { query, HookCallback, PreCompactHookInput, PreToolUseHookInput, SubagentStartHookInput } from '@anthropic-ai/claude-agent-sdk';
+import { execFile } from 'child_process';
+import {
+  query,
+  HookCallback,
+  PreCompactHookInput,
+} from '@anthropic-ai/claude-agent-sdk';
 import { fileURLToPath } from 'url';
-
-import { buildNoResultEventFailureOutput } from './output-contract.js';
 
 interface ContainerInput {
   prompt: string;
@@ -31,7 +32,7 @@ interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
-  secrets?: Record<string, string>;
+  script?: string;
 }
 
 interface ContainerOutput {
@@ -39,8 +40,6 @@ interface ContainerOutput {
   result: string | null;
   newSessionId?: string;
   error?: string;
-  agentId?: string;
-  agentType?: string;
 }
 
 interface SessionEntry {
@@ -95,7 +94,9 @@ class MessageStream {
         yield this.queue.shift()!;
       }
       if (this.done) return;
-      await new Promise<void>(r => { this.waiting = r; });
+      await new Promise<void>((r) => {
+        this.waiting = r;
+      });
       this.waiting = null;
     }
   }
@@ -105,7 +106,9 @@ async function readStdin(): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = '';
     process.stdin.setEncoding('utf8');
-    process.stdin.on('data', chunk => { data += chunk; });
+    process.stdin.on('data', (chunk) => {
+      data += chunk;
+    });
     process.stdin.on('end', () => resolve(data));
     process.stdin.on('error', reject);
   });
@@ -113,6 +116,41 @@ async function readStdin(): Promise<string> {
 
 const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
+
+function configureCredentialProxyBypass(
+  env: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const baseUrl = env.ANTHROPIC_BASE_URL;
+  if (!baseUrl) return env;
+
+  let proxyHost: string;
+  try {
+    proxyHost = new URL(baseUrl).hostname;
+  } catch {
+    return env;
+  }
+
+  const merged = new Set<string>();
+  for (const key of ['NO_PROXY', 'no_proxy'] as const) {
+    const value = env[key];
+    if (!value) continue;
+    for (const entry of value.split(',')) {
+      const trimmed = entry.trim();
+      if (trimmed) merged.add(trimmed);
+    }
+  }
+
+  for (const host of ['127.0.0.1', 'localhost', 'host.docker.internal', proxyHost]) {
+    merged.add(host);
+  }
+
+  const noProxyValue = Array.from(merged).join(',');
+  return {
+    ...env,
+    NO_PROXY: noProxyValue,
+    no_proxy: noProxyValue,
+  };
+}
 
 function writeOutput(output: ContainerOutput): void {
   console.log(OUTPUT_START_MARKER);
@@ -124,73 +162,10 @@ function log(message: string): void {
   console.error(`[agent-runner] ${message}`);
 }
 
-function configureGitIdentity(): void {
-  const gitEmail = process.env.WORKER_GIT_EMAIL || 'openclaw-gurusharan@users.noreply.github.com';
-  const gitName = process.env.WORKER_GIT_NAME || 'Andy (openclaw-gurusharan)';
-  const setEmail = spawnSync('git', ['config', '--global', 'user.email', gitEmail], { stdio: 'ignore' });
-  const setName = spawnSync('git', ['config', '--global', 'user.name', gitName], { stdio: 'ignore' });
-  if (setEmail.status !== 0 || setName.status !== 0) {
-    throw new Error('failed to configure git identity');
-  }
-}
-
-function configureGitHubCredentials(): void {
-  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
-  if (!token) return;
-
-  const homeDir = os.homedir();
-  const gitCredentialsPath = path.join(homeDir, '.git-credentials');
-  const credentialLine = `https://openclaw-gurusharan:${encodeURIComponent(token)}@github.com\n`;
-
-  fs.writeFileSync(gitCredentialsPath, credentialLine, { mode: 0o600 });
-
-  const setHelper = spawnSync('git', ['config', '--global', 'credential.helper', 'store'], { stdio: 'ignore' });
-  const setUser = spawnSync(
-    'git',
-    ['config', '--global', 'url.https://openclaw-gurusharan@github.com/.insteadOf', 'https://github.com/'],
-    { stdio: 'ignore' },
-  );
-
-  if (setHelper.status !== 0 || setUser.status !== 0) {
-    throw new Error('failed to configure github credentials');
-  }
-}
-
-function injectSecrets(input: ContainerInput): void {
-  if (!input.secrets) return;
-
-  const secretKeys = [
-    'GITHUB_TOKEN',
-    'GH_TOKEN',
-    'ANTHROPIC_API_KEY',
-    'OPENROUTER_API_KEY',
-    'MINIMAX_API_KEY',
-  ];
-
-  for (const key of secretKeys) {
-    if (input.secrets[key]) {
-      process.env[key] = input.secrets[key];
-    }
-  }
-
-  if (input.secrets.GITHUB_TOKEN && !input.secrets.GH_TOKEN) {
-    process.env.GH_TOKEN = input.secrets.GITHUB_TOKEN;
-  }
-  if (input.secrets.GH_TOKEN && !input.secrets.GITHUB_TOKEN) {
-    process.env.GITHUB_TOKEN = input.secrets.GH_TOKEN;
-  }
-
-  if (process.env.GITHUB_TOKEN || process.env.GH_TOKEN) {
-    try {
-      configureGitIdentity();
-      configureGitHubCredentials();
-    } catch {
-      log('Failed to configure git identity/credentials from injected secrets');
-    }
-  }
-}
-
-function getSessionSummary(sessionId: string, transcriptPath: string): string | null {
+function getSessionSummary(
+  sessionId: string,
+  transcriptPath: string,
+): string | null {
   const projectDir = path.dirname(transcriptPath);
   const indexPath = path.join(projectDir, 'sessions-index.json');
 
@@ -200,13 +175,17 @@ function getSessionSummary(sessionId: string, transcriptPath: string): string | 
   }
 
   try {
-    const index: SessionsIndex = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
-    const entry = index.entries.find(e => e.sessionId === sessionId);
+    const index: SessionsIndex = JSON.parse(
+      fs.readFileSync(indexPath, 'utf-8'),
+    );
+    const entry = index.entries.find((e) => e.sessionId === sessionId);
     if (entry?.summary) {
       return entry.summary;
     }
   } catch (err) {
-    log(`Failed to read sessions index: ${err instanceof Error ? err.message : String(err)}`);
+    log(
+      `Failed to read sessions index: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   return null;
@@ -245,65 +224,24 @@ function createPreCompactHook(assistantName?: string): HookCallback {
       const filename = `${date}-${name}.md`;
       const filePath = path.join(conversationsDir, filename);
 
-      const markdown = formatTranscriptMarkdown(messages, summary, assistantName);
+      const markdown = formatTranscriptMarkdown(
+        messages,
+        summary,
+        assistantName,
+      );
       fs.writeFileSync(filePath, markdown);
 
       log(`Archived conversation to ${filePath}`);
     } catch (err) {
-      log(`Failed to archive transcript: ${err instanceof Error ? err.message : String(err)}`);
+      log(
+        `Failed to archive transcript: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     return {};
   };
 }
 
-// Agent attribution captured from SDK SubagentStart hooks across all queries in this run.
-let capturedAgentId: string | undefined;
-let capturedAgentType: string | undefined;
-
-function createAttributionHook(): HookCallback {
-  return async (input, _toolUseId, _context) => {
-    const subagentInput = input as SubagentStartHookInput;
-    if (!capturedAgentId && (subagentInput.agent_id || subagentInput.agent_type)) {
-      // Always forward whatever fields are present so the host can see and
-      // validate the full payload. The host's updateWorkerRunAttribution call
-      // will throw for partial inputs, making the failure explicit and
-      // deterministic rather than silently dropped here.
-      capturedAgentId = subagentInput.agent_id;
-      capturedAgentType = subagentInput.agent_type;
-      if (capturedAgentId && capturedAgentType) {
-        log(`Attribution captured: agent_id=${capturedAgentId} agent_type=${capturedAgentType}`);
-      } else {
-        log(`Attribution partial: SubagentStart payload missing ${!capturedAgentId ? 'agent_id' : 'agent_type'} (agent_id=${JSON.stringify(capturedAgentId)} agent_type=${JSON.stringify(capturedAgentType)})`);
-      }
-    }
-    return {};
-  };
-}
-
-// Secrets to strip from Bash tool subprocess environments.
-// These are needed by claude-code for API auth but should never
-// be visible to commands Kit runs.
-const SECRET_ENV_VARS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
-
-function createSanitizeBashHook(): HookCallback {
-  return async (input, _toolUseId, _context) => {
-    const preInput = input as PreToolUseHookInput;
-    const command = (preInput.tool_input as { command?: string })?.command;
-    if (!command) return {};
-
-    const unsetPrefix = `unset ${SECRET_ENV_VARS.join(' ')} 2>/dev/null; `;
-    return {
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        updatedInput: {
-          ...(preInput.tool_input as Record<string, unknown>),
-          command: unsetPrefix + command,
-        },
-      },
-    };
-  };
-}
 function sanitizeFilename(summary: string): string {
   return summary
     .toLowerCase()
@@ -330,9 +268,12 @@ function parseTranscript(content: string): ParsedMessage[] {
     try {
       const entry = JSON.parse(line);
       if (entry.type === 'user' && entry.message?.content) {
-        const text = typeof entry.message.content === 'string'
-          ? entry.message.content
-          : entry.message.content.map((c: { text?: string }) => c.text || '').join('');
+        const text =
+          typeof entry.message.content === 'string'
+            ? entry.message.content
+            : entry.message.content
+                .map((c: { text?: string }) => c.text || '')
+                .join('');
         if (text) messages.push({ role: 'user', content: text });
       } else if (entry.type === 'assistant' && entry.message?.content) {
         const textParts = entry.message.content
@@ -341,22 +282,26 @@ function parseTranscript(content: string): ParsedMessage[] {
         const text = textParts.join('');
         if (text) messages.push({ role: 'assistant', content: text });
       }
-    } catch {
-    }
+    } catch {}
   }
 
   return messages;
 }
 
-function formatTranscriptMarkdown(messages: ParsedMessage[], title?: string | null, assistantName?: string): string {
+function formatTranscriptMarkdown(
+  messages: ParsedMessage[],
+  title?: string | null,
+  assistantName?: string,
+): string {
   const now = new Date();
-  const formatDateTime = (d: Date) => d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
+  const formatDateTime = (d: Date) =>
+    d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
 
   const lines: string[] = [];
   lines.push(`# ${title || 'Conversation'}`);
@@ -367,10 +312,11 @@ function formatTranscriptMarkdown(messages: ParsedMessage[], title?: string | nu
   lines.push('');
 
   for (const msg of messages) {
-    const sender = msg.role === 'user' ? 'User' : (assistantName || 'Assistant');
-    const content = msg.content.length > 2000
-      ? msg.content.slice(0, 2000) + '...'
-      : msg.content;
+    const sender = msg.role === 'user' ? 'User' : assistantName || 'Assistant';
+    const content =
+      msg.content.length > 2000
+        ? msg.content.slice(0, 2000) + '...'
+        : msg.content;
     lines.push(`**${sender}**: ${content}`);
     lines.push('');
   }
@@ -383,7 +329,11 @@ function formatTranscriptMarkdown(messages: ParsedMessage[], title?: string | nu
  */
 function shouldClose(): boolean {
   if (fs.existsSync(IPC_INPUT_CLOSE_SENTINEL)) {
-    try { fs.unlinkSync(IPC_INPUT_CLOSE_SENTINEL); } catch { /* ignore */ }
+    try {
+      fs.unlinkSync(IPC_INPUT_CLOSE_SENTINEL);
+    } catch {
+      /* ignore */
+    }
     return true;
   }
   return false;
@@ -396,8 +346,9 @@ function shouldClose(): boolean {
 function drainIpcInput(): string[] {
   try {
     fs.mkdirSync(IPC_INPUT_DIR, { recursive: true });
-    const files = fs.readdirSync(IPC_INPUT_DIR)
-      .filter(f => f.endsWith('.json'))
+    const files = fs
+      .readdirSync(IPC_INPUT_DIR)
+      .filter((f) => f.endsWith('.json'))
       .sort();
 
     const messages: string[] = [];
@@ -410,8 +361,14 @@ function drainIpcInput(): string[] {
           messages.push(data.text);
         }
       } catch (err) {
-        log(`Failed to process input file ${file}: ${err instanceof Error ? err.message : String(err)}`);
-        try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+        log(
+          `Failed to process input file ${file}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          /* ignore */
+        }
       }
     }
     return messages;
@@ -456,7 +413,11 @@ async function runQuery(
   containerInput: ContainerInput,
   sdkEnv: Record<string, string | undefined>,
   resumeAt?: string,
-): Promise<{ newSessionId?: string; lastAssistantUuid?: string; closedDuringQuery: boolean }> {
+): Promise<{
+  newSessionId?: string;
+  lastAssistantUuid?: string;
+  closedDuringQuery: boolean;
+}> {
   const stream = new MessageStream();
   stream.push(prompt);
 
@@ -483,23 +444,8 @@ async function runQuery(
 
   let newSessionId: string | undefined;
   let lastAssistantUuid: string | undefined;
-  let lastAssistantText: string | null = null;
   let messageCount = 0;
   let resultCount = 0;
-
-  // InstructionsLoaded: validate group CLAUDE.md is present and non-empty
-  // before calling query(). Fail explicitly rather than silently proceeding
-  // with an empty or missing instruction surface.
-  const groupClaudeMdPath = '/workspace/group/CLAUDE.md';
-  let groupClaudeMd: string;
-  try {
-    groupClaudeMd = fs.readFileSync(groupClaudeMdPath, 'utf-8');
-  } catch {
-    throw new Error(`InstructionsLoaded: ${groupClaudeMdPath} is missing or unreadable`);
-  }
-  if (!groupClaudeMd.trim()) {
-    throw new Error(`InstructionsLoaded: ${groupClaudeMdPath} is empty`);
-  }
 
   // Load global CLAUDE.md as additional system context (shared across all groups)
   const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
@@ -532,77 +478,64 @@ async function runQuery(
       resume: sessionId,
       resumeSessionAt: resumeAt,
       systemPrompt: globalClaudeMd
-        ? { type: 'preset' as const, preset: 'claude_code' as const, append: globalClaudeMd }
+        ? {
+            type: 'preset' as const,
+            preset: 'claude_code' as const,
+            append: globalClaudeMd,
+          }
         : undefined,
       allowedTools: [
         'Bash',
-        'Read', 'Write', 'Edit', 'Glob', 'Grep',
-        'WebSearch', 'WebFetch',
-        'Task', 'TaskOutput', 'TaskStop',
-        'TeamCreate', 'TeamDelete', 'SendMessage',
-        'TodoWrite', 'ToolSearch', 'Skill',
+        'Read',
+        'Write',
+        'Edit',
+        'Glob',
+        'Grep',
+        'WebSearch',
+        'WebFetch',
+        'Task',
+        'TaskOutput',
+        'TaskStop',
+        'TeamCreate',
+        'TeamDelete',
+        'SendMessage',
+        'TodoWrite',
+        'ToolSearch',
+        'Skill',
         'NotebookEdit',
-        'mcp__nanoclaw__send_message',
-        'mcp__nanoclaw__get_lane_status',
-        'mcp__nanoclaw__schedule_task',
-        'mcp__nanoclaw__list_tasks',
-        'mcp__nanoclaw__pause_task',
-        'mcp__nanoclaw__resume_task',
-        'mcp__nanoclaw__cancel_task',
-        'mcp__nanoclaw__update_task',
-        'mcp__nanoclaw__register_group',
         'mcp__nanoclaw__*',
-        'mcp__notion__*',
-        'mcp__linear__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       settingSources: ['project', 'user'],
-      mcpServers: (() => {
-        const servers = {
-          nanoclaw: {
-            command: 'node',
-            args: [mcpServerPath],
-            env: {
-              NANOCLAW_CHAT_JID: containerInput.chatJid,
-              NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
-              NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
-            },
+      mcpServers: {
+        nanoclaw: {
+          command: 'node',
+          args: [mcpServerPath],
+          env: {
+            NANOCLAW_CHAT_JID: containerInput.chatJid,
+            NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
+            NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
-        };
-        // Add Notion and Linear HTTP MCPs via host gateway.
-        // Servers run on the host; CONTAINER_HOST_GATEWAY is injected by container-runner.ts
-        // pointing to the reachable host IP (bridge IP for Apple Container, host.docker.internal for Docker).
-        const hostGateway = process.env.CONTAINER_HOST_GATEWAY || 'host.docker.internal';
-        (servers as Record<string, unknown>).notion = { type: 'http', url: `http://${hostGateway}:7802/mcp` };
-        (servers as Record<string, unknown>).linear = { type: 'http', url: `http://${hostGateway}:7803/mcp` };
-        log('Notion and Linear HTTP MCPs configured via host gateway');
-        return servers as typeof servers & Record<string, { type: 'http'; url: string }>;
-      })(),
-      hooks: {
-        PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],
-        PreToolUse: [{ matcher: 'Bash', hooks: [createSanitizeBashHook()] }],
-        SubagentStart: [{ hooks: [createAttributionHook()] }],
+        },
       },
-    }
+      hooks: {
+        PreCompact: [
+          { hooks: [createPreCompactHook(containerInput.assistantName)] },
+        ],
+      },
+    },
   })) {
     messageCount++;
-    const msgType = message.type === 'system' ? `system/${(message as { subtype?: string }).subtype}` : message.type;
+    const msgType =
+      message.type === 'system'
+        ? `system/${(message as { subtype?: string }).subtype}`
+        : message.type;
     log(`[msg #${messageCount}] type=${msgType}`);
 
     if (message.type === 'assistant' && 'uuid' in message) {
       lastAssistantUuid = (message as { uuid: string }).uuid;
-      const assistantMessage = message as {
-        message?: { content?: Array<{ type?: string; text?: string }> };
-      };
-      const text = (assistantMessage.message?.content || [])
-        .filter((part) => part.type === 'text' && typeof part.text === 'string')
-        .map((part) => part.text || '')
-        .join('');
-      if (text.trim()) {
-        lastAssistantText = text;
-      }
     }
 
     if (message.type === 'system' && message.subtype === 'init') {
@@ -610,41 +543,96 @@ async function runQuery(
       log(`Session initialized: ${newSessionId}`);
     }
 
-    if (message.type === 'system' && (message as { subtype?: string }).subtype === 'task_notification') {
-      const tn = message as { task_id: string; status: string; summary: string };
-      log(`Task notification: task=${tn.task_id} status=${tn.status} summary=${tn.summary}`);
+    if (
+      message.type === 'system' &&
+      (message as { subtype?: string }).subtype === 'task_notification'
+    ) {
+      const tn = message as {
+        task_id: string;
+        status: string;
+        summary: string;
+      };
+      log(
+        `Task notification: task=${tn.task_id} status=${tn.status} summary=${tn.summary}`,
+      );
     }
 
     if (message.type === 'result') {
       resultCount++;
-      const textResult = 'result' in message ? (message as { result?: string }).result : null;
-      log(`Result #${resultCount}: subtype=${message.subtype}${textResult ? ` text=${textResult.slice(0, 200)}` : ''}`);
+      const textResult =
+        'result' in message ? (message as { result?: string }).result : null;
+      log(
+        `Result #${resultCount}: subtype=${message.subtype}${textResult ? ` text=${textResult.slice(0, 200)}` : ''}`,
+      );
       writeOutput({
         status: 'success',
         result: textResult || null,
         newSessionId,
-        agentId: capturedAgentId,
-        agentType: capturedAgentType,
       });
     }
   }
 
   ipcPolling = false;
-  const noResultFailureOutput = buildNoResultEventFailureOutput({
-    resultCount,
-    lastAssistantText,
-    newSessionId,
-    agentId: capturedAgentId,
-    agentType: capturedAgentType,
-  });
-  if (noResultFailureOutput) {
-    log(
-      `No result message emitted; returning explicit error instead of fallback output (${noResultFailureOutput.error})`,
-    );
-    writeOutput(noResultFailureOutput);
-  }
-  log(`Query done. Messages: ${messageCount}, results: ${resultCount}, lastAssistantUuid: ${lastAssistantUuid || 'none'}, closedDuringQuery: ${closedDuringQuery}`);
+  log(
+    `Query done. Messages: ${messageCount}, results: ${resultCount}, lastAssistantUuid: ${lastAssistantUuid || 'none'}, closedDuringQuery: ${closedDuringQuery}`,
+  );
   return { newSessionId, lastAssistantUuid, closedDuringQuery };
+}
+
+interface ScriptResult {
+  wakeAgent: boolean;
+  data?: unknown;
+}
+
+const SCRIPT_TIMEOUT_MS = 30_000;
+
+async function runScript(script: string): Promise<ScriptResult | null> {
+  const scriptPath = '/tmp/task-script.sh';
+  fs.writeFileSync(scriptPath, script, { mode: 0o755 });
+
+  return new Promise((resolve) => {
+    execFile(
+      'bash',
+      [scriptPath],
+      {
+        timeout: SCRIPT_TIMEOUT_MS,
+        maxBuffer: 1024 * 1024,
+        env: process.env,
+      },
+      (error, stdout, stderr) => {
+        if (stderr) {
+          log(`Script stderr: ${stderr.slice(0, 500)}`);
+        }
+
+        if (error) {
+          log(`Script error: ${error.message}`);
+          return resolve(null);
+        }
+
+        // Parse last non-empty line of stdout as JSON
+        const lines = stdout.trim().split('\n');
+        const lastLine = lines[lines.length - 1];
+        if (!lastLine) {
+          log('Script produced no output');
+          return resolve(null);
+        }
+
+        try {
+          const result = JSON.parse(lastLine);
+          if (typeof result.wakeAgent !== 'boolean') {
+            log(
+              `Script output missing wakeAgent boolean: ${lastLine.slice(0, 200)}`,
+            );
+            return resolve(null);
+          }
+          resolve(result as ScriptResult);
+        } catch {
+          log(`Script output is not valid JSON: ${lastLine.slice(0, 200)}`);
+          resolve(null);
+        }
+      },
+    );
+  });
 }
 
 async function main(): Promise<void> {
@@ -653,22 +641,27 @@ async function main(): Promise<void> {
   try {
     const stdinData = await readStdin();
     containerInput = JSON.parse(stdinData);
-    try { fs.unlinkSync('/tmp/input.json'); } catch { /* may not exist */ }
+    try {
+      fs.unlinkSync('/tmp/input.json');
+    } catch {
+      /* may not exist */
+    }
     log(`Received input for group: ${containerInput.groupFolder}`);
   } catch (err) {
     writeOutput({
       status: 'error',
       result: null,
-      error: `Failed to parse input: ${err instanceof Error ? err.message : String(err)}`
+      error: `Failed to parse input: ${err instanceof Error ? err.message : String(err)}`,
     });
     process.exit(1);
   }
 
-  injectSecrets(containerInput);
-
   // Credentials are injected by the host's credential proxy via ANTHROPIC_BASE_URL.
   // No real secrets exist in the container environment.
-  const sdkEnv: Record<string, string | undefined> = { ...process.env };
+  const sdkEnv = configureCredentialProxyBypass({
+    ...process.env,
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW: '165000',
+  });
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const mcpServerPath = path.join(__dirname, 'ipc-mcp-stdio.js');
@@ -677,7 +670,11 @@ async function main(): Promise<void> {
   fs.mkdirSync(IPC_INPUT_DIR, { recursive: true });
 
   // Clean up stale _close sentinel from previous container runs
-  try { fs.unlinkSync(IPC_INPUT_CLOSE_SENTINEL); } catch { /* ignore */ }
+  try {
+    fs.unlinkSync(IPC_INPUT_CLOSE_SENTINEL);
+  } catch {
+    /* ignore */
+  }
 
   // Build initial prompt (drain any pending IPC messages too)
   let prompt = containerInput.prompt;
@@ -690,13 +687,44 @@ async function main(): Promise<void> {
     prompt += '\n' + pending.join('\n');
   }
 
+  // Script phase: run script before waking agent
+  if (containerInput.script && containerInput.isScheduledTask) {
+    log('Running task script...');
+    const scriptResult = await runScript(containerInput.script);
+
+    if (!scriptResult || !scriptResult.wakeAgent) {
+      const reason = scriptResult
+        ? 'wakeAgent=false'
+        : 'script error/no output';
+      log(`Script decided not to wake agent: ${reason}`);
+      writeOutput({
+        status: 'success',
+        result: null,
+      });
+      return;
+    }
+
+    // Script says wake agent — enrich prompt with script data
+    log(`Script wakeAgent=true, enriching prompt with data`);
+    prompt = `[SCHEDULED TASK]\n\nScript output:\n${JSON.stringify(scriptResult.data, null, 2)}\n\nInstructions:\n${containerInput.prompt}`;
+  }
+
   // Query loop: run query → wait for IPC message → run new query → repeat
   let resumeAt: string | undefined;
   try {
     while (true) {
-      log(`Starting query (session: ${sessionId || 'new'}, resumeAt: ${resumeAt || 'latest'})...`);
+      log(
+        `Starting query (session: ${sessionId || 'new'}, resumeAt: ${resumeAt || 'latest'})...`,
+      );
 
-      const queryResult = await runQuery(prompt, sessionId, mcpServerPath, containerInput, sdkEnv, resumeAt);
+      const queryResult = await runQuery(
+        prompt,
+        sessionId,
+        mcpServerPath,
+        containerInput,
+        sdkEnv,
+        resumeAt,
+      );
       if (queryResult.newSessionId) {
         sessionId = queryResult.newSessionId;
       }
@@ -734,7 +762,7 @@ async function main(): Promise<void> {
       status: 'error',
       result: null,
       newSessionId: sessionId,
-      error: errorMessage
+      error: errorMessage,
     });
     process.exit(1);
   }

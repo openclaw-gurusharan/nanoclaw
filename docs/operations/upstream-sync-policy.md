@@ -1,12 +1,22 @@
 # Upstream Sync Policy
 
-This policy defines how to sync from `upstream/main` while preserving local branch behavior.
+Decision: sync from `upstream/main` using an upstream-first merge strategy, preserve required local behavior with the minimum compatibility delta, and never push to `upstream`.
+
+Use this policy as the authority for remote boundaries, sync cadence, validation, and fork-auth workflow. If a sync requires behavior that contradicts this document, stop and update the policy before proceeding.
 
 Remote boundary for this repo:
 
 - `origin` = `https://github.com/ingpoc/nanoclaw.git` and is the only allowed push/PR target.
 - `upstream` = `https://github.com/qwibitai/nanoclaw.git` and is fetch-only.
 - Never push to `upstream`.
+
+## Control Owner
+
+Owner for:
+- `docs/operations/upstream-sync-policy.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
 
 ## Required Cadence
 
@@ -42,7 +52,7 @@ After each daily sync:
 - `Docs/Infra`
 - Conflict notes and local compatibility decisions
 
-## Authority
+## Sync Authority
 
 - `CLAUDE.md` keeps only trigger/reference lines.
 - This file contains the full sync policy details.

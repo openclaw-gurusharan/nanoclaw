@@ -14,7 +14,7 @@ export const CONTAINER_RUNTIME_BIN =
   process.env.CONTAINER_RUNTIME ||
   'container';
 
-const IS_APPLE_CONTAINER_RUNTIME = /(^|\/)container$/.test(
+export const IS_APPLE_CONTAINER_RUNTIME = /(^|\/)container$/.test(
   CONTAINER_RUNTIME_BIN,
 );
 
@@ -105,9 +105,14 @@ export function readonlyMountArgs(
   return ['-v', `${hostPath}:${containerPath}:ro`];
 }
 
-/** Returns the shell command to stop a container by name. */
-export function stopContainer(name: string): string {
-  return `${CONTAINER_RUNTIME_BIN} stop ${name}`;
+const SAFE_CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
+
+/** Stop a container by name. Throws on invalid names to prevent command injection. */
+export function stopContainer(name: string): void {
+  if (!SAFE_CONTAINER_NAME.test(name)) {
+    throw new Error(`Invalid container name: ${name}`);
+  }
+  execSync(`${CONTAINER_RUNTIME_BIN} stop -t 1 ${name}`, { stdio: 'pipe' });
 }
 
 function parseContainersFromJson(output: string): RuntimeContainer[] {
@@ -264,7 +269,7 @@ export function stopContainerWithVerification(
 ): StopContainerResult {
   const attempts: string[] = [];
   const commands = [
-    stopContainer(name),
+    `${CONTAINER_RUNTIME_BIN} stop -t 1 ${name}`,
     `${CONTAINER_RUNTIME_BIN} stop -s SIGKILL -t 1 ${name}`,
     `${CONTAINER_RUNTIME_BIN} kill ${name}`,
   ];
@@ -331,25 +336,23 @@ export function ensureContainerRuntimeRunning(): void {
 /** Kill orphaned NanoClaw containers from previous runs. */
 export function cleanupOrphans(): void {
   try {
-    const output = execSync(runtimeListContainersCommand(), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      encoding: 'utf-8',
-    });
-    const orphans = parseNanoclawContainers(output);
-    if (orphans.length === 0) return;
+    const { matched, stopped, failures } =
+      stopRunningContainersByPrefix('nanoclaw-');
+    if (matched.length === 0) return;
 
-    for (const name of orphans) {
-      try {
-        execSync(stopContainer(name), { stdio: 'pipe' });
-      } catch (err) {
-        logger.warn({ err, name }, 'Failed to stop orphaned container');
-      }
+    for (const failure of failures) {
+      logger.warn(
+        { name: failure.name, attempts: failure.attempts },
+        'Failed to stop orphaned container',
+      );
     }
 
-    logger.info(
-      { count: orphans.length, names: orphans },
-      'Stopped orphaned containers',
-    );
+    if (stopped.length > 0) {
+      logger.info(
+        { count: stopped.length, names: stopped },
+        'Stopped orphaned containers',
+      );
+    }
   } catch (err) {
     logger.warn({ err }, 'Failed to clean up orphaned containers');
   }

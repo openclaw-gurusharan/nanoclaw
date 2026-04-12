@@ -40,7 +40,6 @@
       "Bash(pip3 install:*)",
       "Bash(qmd status:*)",
       "Bash(~/.zshrc:*)",
-      "Bash(./container/worker/build.sh:*)",
       "Bash(container exec:*)",
       "Bash(opencode run:*)",
       "Bash(gh api:*)",

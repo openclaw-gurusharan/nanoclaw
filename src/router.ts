@@ -16,8 +16,14 @@ export function formatMessages(
 ): string {
   const lines = messages.map((m) => {
     const displayTime = formatLocalTime(m.timestamp, timezone);
-    const content = stripInternalTags(m.content);
-    return `<message sender="${escapeXml(m.sender_name)}" time="${escapeXml(displayTime)}">${escapeXml(content)}</message>`;
+    const replyAttr = m.reply_to_message_id
+      ? ` reply_to="${escapeXml(m.reply_to_message_id)}"`
+      : '';
+    const replySnippet =
+      m.reply_to_message_content && m.reply_to_sender_name
+        ? `\n  <quoted_message from="${escapeXml(m.reply_to_sender_name)}">${escapeXml(m.reply_to_message_content)}</quoted_message>`
+        : '';
+    return `<message sender="${escapeXml(m.sender_name)}" time="${escapeXml(displayTime)}"${replyAttr}>${replySnippet}${escapeXml(m.content)}</message>`;
   });
 
   const header = `<context timezone="${escapeXml(timezone)}" />\n`;
@@ -26,10 +32,7 @@ export function formatMessages(
 }
 
 export function stripInternalTags(text: string): string {
-  return text
-    .replace(/<internal>[\s\S]*?<\/internal>/g, '')
-    .replace(/<andy_request_replay>[\s\S]*?<\/andy_request_replay>/g, '')
-    .trim();
+  return text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
 }
 
 export function formatOutbound(rawText: string): string {

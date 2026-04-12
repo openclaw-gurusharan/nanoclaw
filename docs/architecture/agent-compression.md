@@ -12,6 +12,14 @@ Below is a **single unified rule** you can adapt (e.g. `AGENTS-CODEX.md` or bake
 
 This rule applies when editing `AGENTS.md` for a repository driven by the Codex harness (CLI, IDEs, App Server).
 
+## Control Owner
+
+Owner for:
+- `docs/architecture/agent-compression.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## One Rule: Map, Not Manual
 
 `AGENTS.md` is a **map into the harness-readable repo**, not an encyclopedia.

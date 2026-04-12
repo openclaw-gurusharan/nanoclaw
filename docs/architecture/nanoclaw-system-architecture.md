@@ -4,6 +4,14 @@ Canonical architecture view for this NanoClaw codebase (including Jarvis extensi
 
 Boundary ownership lives in [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md). This file describes topology, not what layer owns each change.
 
+## Control Owner
+
+Owner for:
+- `docs/architecture/nanoclaw-system-architecture.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## What the System Does
 
 You message Andy on WhatsApp → Andy plans and delegates → Jarvis workers build your projects autonomously → results tracked in Linear + Notion.

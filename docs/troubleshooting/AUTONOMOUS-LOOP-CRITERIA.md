@@ -2,6 +2,14 @@
 
 Template for evaluating whether a workflow failure should become autonomous.
 
+## Control Owner
+
+Owner for:
+- `docs/troubleshooting/AUTONOMOUS-LOOP-CRITERIA.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Main Agent Responsibility: Be Smart
 
 The main agent using this criteria must be smart about **when** to apply autonomous loops:

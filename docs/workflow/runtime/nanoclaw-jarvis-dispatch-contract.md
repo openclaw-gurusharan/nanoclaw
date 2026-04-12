@@ -1,13 +1,19 @@
 # NanoClaw Jarvis Dispatch Contract
 
-Canonical contract for `jarvis-worker-*` dispatch and completion validation for downstream project work.
+Canonical contract for `jarvis-worker-*` dispatch and completion validation for downstream project work. This contract does not apply to NanoClaw repo execution by `codex` or `claude-code`.
 
-This contract does not apply to NanoClaw repo execution by `codex` or `claude-code`.
+## Control Owner
+
+Owner for:
+- `jarvis-worker-*` dispatch and completion validation rules for downstream project work
+
+Should not contain:
+- worker runtime internals that belong in `docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md`
+- execution-lane routing that belongs in `docs/workflow/control-plane/execution-lane-routing-contract.md`
 
 ## Dispatch Requirements
 
-Worker dispatch must be a JSON object (plain text is rejected).
-Screenshot capture/analysis is prohibited in worker dispatch and completion evidence.
+Worker dispatch must be a JSON object; plain text and screenshot capture/analysis are prohibited in dispatch and completion evidence.
 
 ```json
 {

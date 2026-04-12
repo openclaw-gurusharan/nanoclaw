@@ -9,6 +9,14 @@ Operational pack for the first LaunchDeck proving slice:
 
 Use this with `docs/workflow/strategy/launchdeck-proving-program.md`.
 
+## Control Owner
+
+Owner for:
+- `docs/workflow/strategy/launchdeck-ld01-execution-pack.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Slice Objective
 
 Deliver the first meaningful LaunchDeck workflow:

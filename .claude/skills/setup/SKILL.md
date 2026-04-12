@@ -166,6 +166,12 @@ Replace `USERNAME` with the actual username (from `whoami`). Run the two `sudo` 
 - Linux: check `systemctl --user status nanoclaw`.
 - Re-run the service step after fixing.
 
+**If macOS service restart leaves `state=spawnscheduled` or `bootstrap`/`load` returns `Input/output error`:**
+
+- Clear the stale launchd job first: `launchctl bootout gui/$(id -u)/com.nanoclaw`
+- Re-register: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nanoclaw.plist`
+- Then read `logs/nanoclaw.error.log` for the real startup failure before retrying again.
+
 ## 11. Verify
 
 Run `npx tsx setup/index.ts --step verify` and parse the status block.
@@ -178,6 +184,20 @@ Run `npx tsx setup/index.ts --step verify` and parse the status block.
 - WHATSAPP_AUTH=not_found → re-run step 5
 - REGISTERED_GROUPS=0 → re-run steps 7-8
 - MOUNT_ALLOWLIST=missing → `npx tsx setup/index.ts --step mounts -- --empty`
+
+**If macOS error log shows `better_sqlite3.node` ABI mismatch after any `npm install`:**
+
+```bash
+SERVICE_NODE="$(launchctl print gui/$(id -u)/com.nanoclaw | awk '/program = /{print $3; exit}')"
+export PATH="$(dirname "$SERVICE_NODE"):$PATH"
+(cd node_modules/better-sqlite3 && npm run build-release)
+launchctl kickstart -k gui/$(id -u)/com.nanoclaw
+```
+
+**If verify fails only on `runtime owner row missing` and `worker_runs missing columns: run_generation stop_reason`:**
+
+- Treat that as a known stale verification warning for this checkout.
+- Confirm actual health with `launchctl print gui/$(id -u)/com.nanoclaw` and `tail -n 40 logs/nanoclaw.log`.
 
 Tell user to test: send a message in their registered chat. Show: `tail -f logs/nanoclaw.log`
 

@@ -6,7 +6,7 @@
  * generic "no visibility" fallback.
  *
  * Run with:
- *   node --experimental-transform-types scripts/test-main-lane-status-e2e.ts
+ *   bash scripts/with-service-node.sh npx tsx scripts/test-main-lane-status-e2e.ts
  */
 import Database from 'better-sqlite3';
 

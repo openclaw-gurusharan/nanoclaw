@@ -2,19 +2,24 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import {
   _initTestDatabase,
+  acceptWorkerRunCompletion,
   createTask,
   deleteTask,
   getAllChats,
   getAllRegisteredGroups,
+  getLastBotMessageTimestamp,
   getMessagesSince,
   getNewMessages,
-  getStoredMessage,
   getTaskById,
+  getWorkerRun,
+  insertWorkerRun,
   setRegisteredGroup,
   storeChatMetadata,
   storeMessage,
+  updateWorkerRunStatus,
   updateTask,
 } from './db.js';
+import { formatMessages } from './router.js';
 
 beforeEach(() => {
   _initTestDatabase();
@@ -139,23 +144,129 @@ describe('storeMessage', () => {
     expect(messages).toHaveLength(1);
     expect(messages[0].content).toBe('updated');
   });
+});
 
-  it('retrieves a stored message by chat and id', () => {
+// --- reply context persistence ---
+
+describe('reply context', () => {
+  it('stores and retrieves reply_to fields', () => {
+    storeChatMetadata('group@g.us', '2024-01-01T00:00:00.000Z');
+
+    storeMessage({
+      id: 'reply-1',
+      chat_jid: 'group@g.us',
+      sender: '123',
+      sender_name: 'Alice',
+      content: 'Yes, on my way!',
+      timestamp: '2024-01-01T00:00:01.000Z',
+      reply_to_message_id: '42',
+      reply_to_message_content: 'Are you coming tonight?',
+      reply_to_sender_name: 'Bob',
+    });
+
+    const messages = getMessagesSince(
+      'group@g.us',
+      '2024-01-01T00:00:00.000Z',
+      'Andy',
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0].reply_to_message_id).toBe('42');
+    expect(messages[0].reply_to_message_content).toBe(
+      'Are you coming tonight?',
+    );
+    expect(messages[0].reply_to_sender_name).toBe('Bob');
+  });
+
+  it('returns null for messages without reply context', () => {
     storeChatMetadata('group@g.us', '2024-01-01T00:00:00.000Z');
 
     store({
-      id: 'msg-direct-lookup',
+      id: 'no-reply',
       chat_jid: 'group@g.us',
-      sender: '123@s.whatsapp.net',
+      sender: '123',
       sender_name: 'Alice',
-      content: 'lookup me',
-      timestamp: '2024-01-01T00:00:06.000Z',
+      content: 'Just a normal message',
+      timestamp: '2024-01-01T00:00:01.000Z',
     });
 
-    const message = getStoredMessage('group@g.us', 'msg-direct-lookup');
+    const messages = getMessagesSince(
+      'group@g.us',
+      '2024-01-01T00:00:00.000Z',
+      'Andy',
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0].reply_to_message_id).toBeNull();
+    expect(messages[0].reply_to_message_content).toBeNull();
+    expect(messages[0].reply_to_sender_name).toBeNull();
+  });
 
-    expect(message?.content).toBe('lookup me');
-    expect(message?.sender_name).toBe('Alice');
+  it('retrieves reply context via getNewMessages', () => {
+    storeChatMetadata('group@g.us', '2024-01-01T00:00:00.000Z');
+
+    storeMessage({
+      id: 'reply-2',
+      chat_jid: 'group@g.us',
+      sender: '456',
+      sender_name: 'Carol',
+      content: 'Agreed',
+      timestamp: '2024-01-01T00:00:01.000Z',
+      reply_to_message_id: '99',
+      reply_to_message_content: 'We should meet',
+      reply_to_sender_name: 'Dave',
+    });
+
+    const { messages } = getNewMessages(
+      ['group@g.us'],
+      '2024-01-01T00:00:00.000Z',
+      'Andy',
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0].reply_to_message_id).toBe('99');
+    expect(messages[0].reply_to_sender_name).toBe('Dave');
+  });
+});
+
+describe('worker run helpers', () => {
+  it('inserts and updates a worker run lifecycle', () => {
+    expect(
+      insertWorkerRun('probe-jarvis-worker-1-1', 'jarvis-worker-1', {
+        lane_id: 'jarvis-worker-1@nanoclaw',
+        dispatch_repo: 'openclaw-gurusharan/nanoclaw',
+        dispatch_branch: 'jarvis-probe-1',
+        request_id: 'req-1',
+      }),
+    ).toBe('inserted');
+
+    updateWorkerRunStatus('probe-jarvis-worker-1-1', 'running', {
+      phase: 'executing',
+      active_container_name: 'nanoclaw-jarvis-worker-1-123',
+    });
+
+    const running = getWorkerRun('probe-jarvis-worker-1-1');
+    expect(running?.status).toBe('running');
+    expect(running?.phase).toBe('executing');
+    expect(running?.active_container_name).toBe('nanoclaw-jarvis-worker-1-123');
+
+    const accepted = acceptWorkerRunCompletion('probe-jarvis-worker-1-1', {
+      branch_name: 'jarvis-probe-1',
+      commit_sha: 'deadbeef',
+      files_changed: ['proof.txt'],
+      test_summary: 'probe passed',
+      risk_summary: 'low',
+      pr_url: 'https://example.test/pr/1',
+    });
+    expect(accepted.ok).toBe(true);
+
+    const completed = getWorkerRun('probe-jarvis-worker-1-1');
+    expect(completed?.status).toBe('review_requested');
+    expect(completed?.branch_name).toBe('jarvis-probe-1');
+    expect(completed?.commit_sha).toBe('deadbeef');
+    expect(completed?.pr_url).toBe('https://example.test/pr/1');
+  });
+
+  it('returns duplicate for an existing run id', () => {
+    expect(insertWorkerRun('probe-dup', 'jarvis-worker-1')).toBe('inserted');
+    expect(insertWorkerRun('probe-dup', 'jarvis-worker-1')).toBe('duplicate');
   });
 });
 
@@ -225,6 +336,92 @@ describe('getMessagesSince', () => {
     const msgs = getMessagesSince('group@g.us', '', 'Andy');
     // 3 user messages (bot message excluded)
     expect(msgs).toHaveLength(3);
+  });
+
+  it('recovers cursor from last bot reply when lastAgentTimestamp is missing', () => {
+    // beforeEach already inserts m3 (bot reply at 00:00:03) and m4 (user at 00:00:04)
+    // Add more old history before the bot reply
+    for (let i = 1; i <= 50; i++) {
+      store({
+        id: `history-${i}`,
+        chat_jid: 'group@g.us',
+        sender: 'user@s.whatsapp.net',
+        sender_name: 'User',
+        content: `old message ${i}`,
+        timestamp: `2023-06-${String(i).padStart(2, '0')}T12:00:00.000Z`,
+      });
+    }
+
+    // New message after the bot reply (m3 at 00:00:03)
+    store({
+      id: 'new-1',
+      chat_jid: 'group@g.us',
+      sender: 'user@s.whatsapp.net',
+      sender_name: 'User',
+      content: 'new message after bot reply',
+      timestamp: '2024-01-02T00:00:00.000Z',
+    });
+
+    // Recover cursor from the last bot message (m3 from beforeEach)
+    const recovered = getLastBotMessageTimestamp('group@g.us', 'Andy');
+    expect(recovered).toBe('2024-01-01T00:00:03.000Z');
+
+    // Using recovered cursor: only gets messages after the bot reply
+    const msgs = getMessagesSince('group@g.us', recovered!, 'Andy', 10);
+    // m4 (third, 00:00:04) + new-1 — skips all 50 old messages and m1/m2
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].content).toBe('third');
+    expect(msgs[1].content).toBe('new message after bot reply');
+  });
+
+  it('caps messages to configured limit even with recovered cursor', () => {
+    // beforeEach inserts m3 (bot at 00:00:03). Add 30 messages after it.
+    for (let i = 1; i <= 30; i++) {
+      store({
+        id: `pending-${i}`,
+        chat_jid: 'group@g.us',
+        sender: 'user@s.whatsapp.net',
+        sender_name: 'User',
+        content: `pending message ${i}`,
+        timestamp: `2024-02-${String(i).padStart(2, '0')}T12:00:00.000Z`,
+      });
+    }
+
+    const recovered = getLastBotMessageTimestamp('group@g.us', 'Andy');
+    expect(recovered).toBe('2024-01-01T00:00:03.000Z');
+
+    // With limit=10, only the 10 most recent are returned
+    const msgs = getMessagesSince('group@g.us', recovered!, 'Andy', 10);
+    expect(msgs).toHaveLength(10);
+    // Most recent 10: pending-21 through pending-30
+    expect(msgs[0].content).toBe('pending message 21');
+    expect(msgs[9].content).toBe('pending message 30');
+  });
+
+  it('returns last N messages when no bot reply and no cursor exist', () => {
+    // Use a fresh group with no bot messages
+    storeChatMetadata('fresh@g.us', '2024-01-01T00:00:00.000Z');
+    for (let i = 1; i <= 20; i++) {
+      store({
+        id: `fresh-${i}`,
+        chat_jid: 'fresh@g.us',
+        sender: 'user@s.whatsapp.net',
+        sender_name: 'User',
+        content: `message ${i}`,
+        timestamp: `2024-02-${String(i).padStart(2, '0')}T12:00:00.000Z`,
+      });
+    }
+
+    const recovered = getLastBotMessageTimestamp('fresh@g.us', 'Andy');
+    expect(recovered).toBeUndefined();
+
+    // No cursor → sinceTimestamp = '' but limit caps the result
+    const msgs = getMessagesSince('fresh@g.us', '', 'Andy', 10);
+    expect(msgs).toHaveLength(10);
+
+    const prompt = formatMessages(msgs, 'Asia/Jerusalem');
+    const messageTagCount = (prompt.match(/<message /g) || []).length;
+    expect(messageTagCount).toBe(10);
   });
 
   it('filters pre-migration bot messages via content prefix backstop', () => {

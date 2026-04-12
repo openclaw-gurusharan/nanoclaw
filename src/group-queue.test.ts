@@ -2,18 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 import { GroupQueue } from './group-queue.js';
 
-vi.mock('child_process', () => ({
-  exec: vi.fn(
-    (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
-      cb?.(null);
-    },
-  ),
-}));
-
-vi.mock('./container-runtime.js', () => ({
-  stopContainer: vi.fn((name: string) => `container stop ${name}`),
-}));
-
 // Mock config to control concurrency limit
 vi.mock('./config.js', () => ({
   DATA_DIR: '/tmp/nanoclaw-test-data',
@@ -52,7 +40,7 @@ describe('GroupQueue', () => {
     let concurrentCount = 0;
     let maxConcurrent = 0;
 
-    const processMessages = vi.fn(async (groupJid: string) => {
+    const processMessages = vi.fn(async (_groupJid: string) => {
       concurrentCount++;
       maxConcurrent = Math.max(maxConcurrent, concurrentCount);
       // Simulate async work
@@ -81,7 +69,7 @@ describe('GroupQueue', () => {
     let maxActive = 0;
     const completionCallbacks: Array<() => void> = [];
 
-    const processMessages = vi.fn(async (groupJid: string) => {
+    const processMessages = vi.fn(async (_groupJid: string) => {
       activeCount++;
       maxActive = Math.max(maxActive, activeCount);
       await new Promise<void>((resolve) => completionCallbacks.push(resolve));
@@ -116,7 +104,7 @@ describe('GroupQueue', () => {
     const executionOrder: string[] = [];
     let resolveFirst: () => void;
 
-    const processMessages = vi.fn(async (groupJid: string) => {
+    const processMessages = vi.fn(async (_groupJid: string) => {
       if (executionOrder.length === 0) {
         // First call: block until we release it
         await new Promise<void>((resolve) => {
@@ -445,43 +433,6 @@ describe('GroupQueue', () => {
     await vi.advanceTimersByTimeAsync(10);
   });
 
-  it('reports a read-only status snapshot for the group', async () => {
-    let resolveProcess: () => void;
-
-    const processMessages = vi.fn(async () => {
-      await new Promise<void>((resolve) => {
-        resolveProcess = resolve;
-      });
-      return true;
-    });
-
-    queue.setProcessMessagesFn(processMessages);
-    queue.enqueueMessageCheck('group1@g.us');
-    await vi.advanceTimersByTimeAsync(10);
-    queue.registerProcess(
-      'group1@g.us',
-      {} as any,
-      'container-1',
-      'test-group',
-    );
-    queue.notifyIdle('group1@g.us');
-    queue.enqueueTask('group1@g.us', 'task-1', async () => {});
-
-    expect(queue.getStatus('group1@g.us')).toEqual({
-      active: true,
-      idleWaiting: true,
-      isTaskContainer: false,
-      runningTaskId: null,
-      pendingMessages: false,
-      pendingTaskCount: 1,
-      containerName: 'container-1',
-      groupFolder: 'test-group',
-    });
-
-    resolveProcess!();
-    await vi.advanceTimersByTimeAsync(10);
-  });
-
   it('preempts when idle arrives with pending tasks', async () => {
     const fs = await import('fs');
     let resolveProcess: () => void;
@@ -526,40 +477,6 @@ describe('GroupQueue', () => {
       (call) => typeof call[0] === 'string' && call[0].endsWith('_close'),
     );
     expect(closeWrites).toHaveLength(1);
-
-    resolveProcess!();
-    await vi.advanceTimersByTimeAsync(10);
-  });
-
-  it('force-stops a still-active container after the close grace window', async () => {
-    const childProcess = await import('child_process');
-    let resolveProcess: () => void;
-
-    const proc = {
-      kill: vi.fn(),
-    } as any;
-
-    const processMessages = vi.fn(async () => {
-      await new Promise<void>((resolve) => {
-        resolveProcess = resolve;
-      });
-      return true;
-    });
-
-    queue.setProcessMessagesFn(processMessages);
-    queue.enqueueMessageCheck('group1@g.us');
-    await vi.advanceTimersByTimeAsync(10);
-    queue.registerProcess('group1@g.us', proc, 'container-1', 'test-group');
-
-    queue.closeStdin('group1@g.us', 1000);
-    await vi.advanceTimersByTimeAsync(1000);
-
-    expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(vi.mocked(childProcess.exec)).toHaveBeenCalledWith(
-      'container stop container-1',
-      { timeout: 15000 },
-      expect.any(Function),
-    );
 
     resolveProcess!();
     await vi.advanceTimersByTimeAsync(10);

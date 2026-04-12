@@ -1,5 +1,13 @@
 # V3 Plan: Root-Cause-First Reliability Remediation for Andy/Jarvis
 
+## Control Owner
+
+Owner for:
+- this architecture remediation plan and its scoped reliability changes
+
+Should not contain:
+- the canonical ongoing policy that belongs in the governing runtime, security, or workflow docs
+
   ## Summary
 
   This replaces the prior V2 plan by keeping the good mitigations and adding the missing root-cause tracks:

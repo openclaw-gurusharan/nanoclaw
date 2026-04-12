@@ -76,8 +76,8 @@ Expanded form for debugging:
 bash scripts/jarvis-ops.sh status
 bash scripts/jarvis-ops.sh verify-worker-connectivity
 bash scripts/jarvis-ops.sh linkage-audit
-node --experimental-transform-types scripts/test-andy-user-e2e.ts
-node --experimental-transform-types scripts/test-main-lane-status-e2e.ts
+bash scripts/with-service-node.sh npx tsx scripts/test-andy-user-e2e.ts
+bash scripts/with-service-node.sh npx tsx scripts/test-main-lane-status-e2e.ts
 ```
 
 ## Jarvis Acceptance Checklist

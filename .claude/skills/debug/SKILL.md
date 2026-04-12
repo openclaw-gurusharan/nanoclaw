@@ -153,6 +153,39 @@ npm run build
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nanoclaw.plist
 ```
 
+### Stale launchd registration
+
+If `launchctl load`/`bootstrap` returns `Input/output error`, or
+`launchctl print gui/$(id -u)/com.nanoclaw` stays at `state = spawn scheduled`
+with `last exit code = 1`, clear the stale job before re-registering:
+
+```bash
+launchctl bootout gui/$(id -u)/com.nanoclaw
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nanoclaw.plist
+```
+
+Then inspect the real failure in `logs/nanoclaw.error.log` before retry loops.
+
+### Native module ABI mismatch after npm install
+
+If `logs/nanoclaw.error.log` shows `better_sqlite3.node` compiled against the
+wrong `NODE_MODULE_VERSION`, rebuild it with the same Node binary used by the
+launch agent instead of the shell-default Node:
+
+```bash
+SERVICE_NODE="$(launchctl print gui/$(id -u)/com.nanoclaw | awk '/program = /{print $3; exit}')"
+export PATH="$(dirname "$SERVICE_NODE"):$PATH"
+(cd node_modules/better-sqlite3 && npm run build-release)
+launchctl kickstart -k gui/$(id -u)/com.nanoclaw
+```
+
+Verify with:
+
+```bash
+export PATH="$(dirname "$SERVICE_NODE"):$PATH"
+node -e "const Database=require('better-sqlite3'); new Database(':memory:').close(); console.log('db-ok', process.version, process.versions.modules)"
+```
+
 ### Stop Service
 
 ```bash
@@ -165,7 +198,48 @@ launchctl bootout gui/$(id -u)/com.nanoclaw
 bash scripts/jarvis-preflight.sh
 ```
 
+If preflight fails only on `runtime owner row missing` and legacy
+`worker_runs missing columns: run_generation stop_reason`, treat that as a
+known stale diagnostic. Confirm actual health with:
+
+```bash
+launchctl print gui/$(id -u)/com.nanoclaw
+tail -n 40 logs/nanoclaw.log
+```
+
+Healthy evidence is `state = running` plus `NanoClaw running` / `Connected to WhatsApp`
+in the current log tail.
+
 Plist: `~/Library/LaunchAgents/com.nanoclaw.plist` (`KeepAlive true`, `RunAtLoad true`).
+
+### Main WhatsApp Lane Validation
+
+Use this when the service is running and connected, but you need proof that the
+main WhatsApp lane answers natural-language Andy status questions end to end.
+
+Run the supported smoke with the same Node binary as the launch agent:
+
+```bash
+bash scripts/with-service-node.sh npx tsx scripts/test-main-lane-status-e2e.ts
+```
+
+If the shell-default Node shows `better_sqlite3.node` / `NODE_MODULE_VERSION`,
+do not rebuild first. Re-run through `scripts/with-service-node.sh`; that is the
+intended path for live DB-backed E2E probes.
+
+If the probe times out:
+
+```bash
+tail -n 80 logs/nanoclaw.log
+tail -n 80 logs/nanoclaw.error.log
+sqlite3 store/messages.db "SELECT id, timestamp, content FROM messages WHERE id LIKE 'uat-main-%' ORDER BY timestamp DESC LIMIT 5;"
+```
+
+Interpretation:
+
+- `uat-main-*` row present + retry loop in `logs/nanoclaw.log` = WhatsApp ingest worked; keep debugging runtime execution, not message delivery
+- `ENOENT` / mount-path errors in `logs/nanoclaw.error.log` = agent staging or container mount failure (for example missing `container/skills/...` path)
+- reply text present but missing status fields = control-plane/tooling regression, not transport failure
 
 ---
 

@@ -4,6 +4,14 @@ Canonical catalog for parallel verification subagents used in Claude Code and Co
 
 Use with `docs/workflow/delivery/unified-codex-claude-loop.md`.
 
+## Control Owner
+
+Owner for:
+- `docs/operations/subagent-catalog.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Contract
 
 Each subagent invocation must include:

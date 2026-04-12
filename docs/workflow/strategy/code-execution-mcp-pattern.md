@@ -4,6 +4,14 @@
 **Date**: 2026-03-09
 **Score**: 9/12 — Adopt
 
+## Control Owner
+
+Owner for:
+- `docs/workflow/strategy/code-execution-mcp-pattern.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Verdict
 
 **Rationale**: We already have the token-efficient MCP server implementing this pattern. The article validates why docs/runbooks teaching raw bash/grep is wrong and quantifies the cost at 98.7% token savings missed. One new pattern not yet implemented: progressive tool discovery via filesystem.

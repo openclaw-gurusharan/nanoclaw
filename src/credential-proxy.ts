@@ -1,31 +1,28 @@
 /**
  * Credential proxy for container isolation.
- * Containers connect here instead of directly to the Anthropic API.
- * The proxy injects real credentials so containers never see them.
- *
- * Two auth modes:
- *   API key:  Proxy injects x-api-key on every request.
- *   OAuth:    Container CLI exchanges its placeholder token for a temp
- *             API key via /api/oauth/claude_cli/create_api_key.
- *             Proxy injects real OAuth token on that exchange request;
- *             subsequent requests carry the temp key which is valid as-is.
+ * Containers talk to this proxy instead of holding real Anthropic creds.
  */
 import { createServer, Server } from 'http';
-import { request as httpsRequest } from 'https';
 import { request as httpRequest, RequestOptions } from 'http';
+import { request as httpsRequest } from 'https';
 
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 
 export type AuthMode = 'api-key' | 'oauth';
 
-export interface ProxyConfig {
-  authMode: AuthMode;
+export function detectAuthMode(): AuthMode {
+  const secrets = readEnvFile([
+    'ANTHROPIC_API_KEY',
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'ANTHROPIC_AUTH_TOKEN',
+  ]);
+  return secrets.ANTHROPIC_API_KEY ? 'api-key' : 'oauth';
 }
 
 export function startCredentialProxy(
   port: number,
-  host = '127.0.0.1',
+  host: string,
 ): Promise<Server> {
   const secrets = readEnvFile([
     'ANTHROPIC_API_KEY',
@@ -37,17 +34,16 @@ export function startCredentialProxy(
   const authMode: AuthMode = secrets.ANTHROPIC_API_KEY ? 'api-key' : 'oauth';
   const oauthToken =
     secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.ANTHROPIC_AUTH_TOKEN;
-
   const upstreamUrl = new URL(
     secrets.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
   );
-  const isHttps = upstreamUrl.protocol === 'https:';
-  const makeRequest = isHttps ? httpsRequest : httpRequest;
+  const makeRequest =
+    upstreamUrl.protocol === 'https:' ? httpsRequest : httpRequest;
 
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const chunks: Buffer[] = [];
-      req.on('data', (c) => chunks.push(c));
+      req.on('data', (chunk) => chunks.push(chunk));
       req.on('end', () => {
         const body = Buffer.concat(chunks);
         const headers: Record<string, string | number | string[] | undefined> =
@@ -57,44 +53,35 @@ export function startCredentialProxy(
             'content-length': body.length,
           };
 
-        // Strip hop-by-hop headers that must not be forwarded by proxies
-        delete headers['connection'];
+        delete headers.connection;
         delete headers['keep-alive'];
         delete headers['transfer-encoding'];
 
         if (authMode === 'api-key') {
-          // API key mode: inject x-api-key on every request
           delete headers['x-api-key'];
           headers['x-api-key'] = secrets.ANTHROPIC_API_KEY;
-        } else {
-          // OAuth mode: replace placeholder Bearer token with the real one
-          // only when the container actually sends an Authorization header
-          // (exchange request + auth probes). Post-exchange requests use
-          // x-api-key only, so they pass through without token injection.
-          if (headers['authorization']) {
-            delete headers['authorization'];
-            if (oauthToken) {
-              headers['authorization'] = `Bearer ${oauthToken}`;
-            }
+        } else if (headers.authorization) {
+          delete headers.authorization;
+          if (oauthToken) {
+            headers.authorization = `Bearer ${oauthToken}`;
           }
         }
 
-        // Prepend upstream base path (e.g. /anthropic) so proxies like minimax work correctly.
-        // upstreamUrl.pathname is '' or '/' for plain hosts — normalize to '' to avoid double slash.
         const basePath = upstreamUrl.pathname.replace(/\/$/, '');
         const forwardPath = basePath + (req.url || '/');
-
         const upstream = makeRequest(
           {
             hostname: upstreamUrl.hostname,
-            port: upstreamUrl.port || (isHttps ? 443 : 80),
+            port:
+              upstreamUrl.port ||
+              (upstreamUrl.protocol === 'https:' ? 443 : 80),
             path: forwardPath,
             method: req.method,
             headers,
           } as RequestOptions,
-          (upRes) => {
-            res.writeHead(upRes.statusCode!, upRes.headers);
-            upRes.pipe(res);
+          (upstreamRes) => {
+            res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+            upstreamRes.pipe(res);
           },
         );
 
@@ -118,13 +105,6 @@ export function startCredentialProxy(
       logger.info({ port, host, authMode }, 'Credential proxy started');
       resolve(server);
     });
-
     server.on('error', reject);
   });
-}
-
-/** Detect which auth mode the host is configured for. */
-export function detectAuthMode(): AuthMode {
-  const secrets = readEnvFile(['ANTHROPIC_API_KEY']);
-  return secrets.ANTHROPIC_API_KEY ? 'api-key' : 'oauth';
 }

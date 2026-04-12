@@ -65,8 +65,8 @@ Workers should not change these unless dispatch explicitly marks a control-plane
 If push fails with "Repository not found":
 
 ```bash
-# Re-embed token — GH_TOKEN is already set via direnv
-git remote set-url origin https://oauth2:${GH_TOKEN}@github.com/openclaw-gurusharan/<repo>.git
+# Keep the remote plain HTTPS — OneCLI injects the worker secret on the wire
+git remote set-url origin https://github.com/openclaw-gurusharan/<repo>.git
 git push -u origin jarvis-<feature>
 ```
 

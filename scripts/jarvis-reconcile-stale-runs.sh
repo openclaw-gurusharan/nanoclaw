@@ -103,6 +103,15 @@ else
   mode="batch"
 fi
 
+has_stop_reason="$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('worker_runs') WHERE name = 'stop_reason';")"
+update_stop_reason_sql=""
+select_stop_reason_sql="'' AS stop_reason"
+if [ "$has_stop_reason" -gt 0 ]; then
+  update_stop_reason_sql=",
+    stop_reason = COALESCE(stop_reason, 'auto_stale_run_reconcile')"
+  select_stop_reason_sql="stop_reason"
+fi
+
 echo "== Jarvis Reconcile Stale Runs =="
 echo "db: $DB_PATH"
 echo "mode: $mode"
@@ -188,8 +197,8 @@ SET status = 'failed_runtime',
     active_container_name = NULL,
     no_container_since = NULL,
     expects_followup_container = 0,
-    lease_expires_at = NULL,
-    stop_reason = COALESCE(stop_reason, 'auto_stale_run_reconcile')
+    lease_expires_at = NULL
+    $update_stop_reason_sql
 WHERE run_id IN (SELECT run_id FROM _stale_targets);
 
 $andy_sql
@@ -207,7 +216,7 @@ done
 echo
 echo "Reconciled worker runs:"
 sqlite3 -separator '|' "$DB_PATH" "
-SELECT run_id, group_folder, status, phase, completed_at, stop_reason
+SELECT run_id, group_folder, status, phase, completed_at, $select_stop_reason_sql
 FROM worker_runs
 WHERE run_id IN ($in_clause)
 ORDER BY datetime(started_at) ASC;

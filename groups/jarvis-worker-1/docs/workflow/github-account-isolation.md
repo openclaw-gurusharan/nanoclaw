@@ -1,94 +1,52 @@
 # GitHub Account Isolation & Environment
 
-Canonical reference for Jarvis's secrets, tokens, and environment setup.
+Canonical reference for Jarvis GitHub auth inside NanoClaw containers.
 
-## Accounts
+## Source of Truth
 
-| Account | Owner | Default context |
-|---------|-------|----------------|
-| `ingpoc` | User (personal) | Personal shell |
-| `openclaw-gurusharan` | Jarvis | Jarvis workspace |
+- GitHub credentials are assigned per lane in the OneCLI dashboard.
+- Jarvis worker lanes use the OneCLI agent whose identifier matches the worker
+  folder (`jarvis-worker-1`, `jarvis-worker-2`, etc.).
+- Anthropic auth is separate and remains host-provided through NanoClaw's local
+  credential proxy.
 
----
+## What The Container Gets
 
-## Environment Map — What Jarvis Has, Where It Comes From
+- `HTTPS_PROXY` / `HTTP_PROXY` from OneCLI so outbound GitHub traffic passes
+  through the gateway
+- `GH_TOKEN=placeholder` and `GITHUB_TOKEN=placeholder` only to make GitHub
+  clients emit authenticated requests
+- no real GitHub token in the environment, workspace files, or shell profiles
 
-| Variable | Source | How loaded | When used |
-|----------|--------|-----------|-----------|
-| `GH_CONFIG_DIR` | Static path `~/.jarvis/gh-config` | `.envrc` → direnv | All gh/git operations |
-| `GH_TOKEN` | gh keyring (`openclaw-gurusharan`) | `.envrc` → direnv | All git push/pull/gh CLI |
-| `GITHUB_TOKEN` | Same as `GH_TOKEN` | `.envrc` → direnv | GitHub API calls |
-| `ANTHROPIC_API_KEY` | macOS keychain (`jarvis-anthropic`, `openclaw-gurusharan`) | `.envrc` → direnv | Set repo secrets for `@claude` review |
+The gateway injects the real lane-scoped secret at request time.
 
-**Rule:** Never hardcode tokens. Always pull from keychain dynamically.
+## How To Use GitHub
 
----
-
-## direnv — How It Works
-
-direnv auto-loads `~/.jarvis/workspaces/.envrc` whenever Jarvis enters the workspace directory. OpenCode inherits all vars automatically.
-
-```
-cd ~/.jarvis/workspaces/
-    └─► direnv loads .envrc
-            ├─► GH_CONFIG_DIR=~/.jarvis/gh-config
-            ├─► GH_TOKEN ← pulled live from gh keyring
-            ├─► GITHUB_TOKEN=$GH_TOKEN
-            └─► ANTHROPIC_API_KEY ← pulled live from macOS keychain
-```
-
-**`.envrc` contents:**
+Use plain HTTPS GitHub URLs. Do not embed tokens in remotes, URLs, or
+`.git-credentials`.
 
 ```bash
-export GH_CONFIG_DIR="$HOME/.jarvis/gh-config"
-export GH_TOKEN=$(GH_CONFIG_DIR="$HOME/.jarvis/gh-config" GH_TOKEN= GITHUB_TOKEN= gh auth token --hostname github.com 2>/dev/null)
-export GITHUB_TOKEN=$GH_TOKEN
-export ANTHROPIC_API_KEY=$(security find-generic-password -s "jarvis-anthropic" -a "openclaw-gurusharan" -w 2>/dev/null)
+cd /workspace/group/workspace
+git clone https://github.com/openclaw-gurusharan/REPO.git
 ```
 
----
-
-## Keychain Secrets
-
-| Service | Account | Contains | Used for |
-|---------|---------|---------|---------|
-| `jarvis-anthropic` | `openclaw-gurusharan` | Anthropic OAuth token | GitHub Actions `@claude` review |
-| macOS gh keyring | `openclaw-gurusharan` | gh OAuth token | All git/gh operations |
-
-**Fetch manually:**
+For API and PR operations:
 
 ```bash
-# Anthropic token
-security find-generic-password -s "jarvis-anthropic" -a "openclaw-gurusharan" -w
-
-# gh token
-GH_CONFIG_DIR=~/.jarvis/gh-config gh auth token
+gh repo list openclaw-gurusharan --limit 50
+gh pr create ...
 ```
 
----
+## Troubleshooting
 
-## GitHub Isolation
-
-- `~/.jarvis/gh-config/` contains only `openclaw-gurusharan` — `ingpoc` does not exist here
-- `gh auth switch --user ingpoc` fails in Jarvis context: "no accounts matched"
-- Personal shell (`~/.config/gh/`) has both accounts, `ingpoc` active
-
----
-
-## Maintenance
-
-| Issue | Fix |
-|-------|-----|
-| `GH_TOKEN` expired | `GH_CONFIG_DIR=~/.jarvis/gh-config gh auth refresh && direnv reload` |
-| `ANTHROPIC_API_KEY` rotated | `security add-generic-password -s "jarvis-anthropic" -a "openclaw-gurusharan" -w "<new-token>" -U` |
-| direnv not loading | `direnv allow ~/.jarvis/workspaces` |
-| Verify env in workspace | `direnv exec ~/.jarvis/workspaces env \| grep -E "GH_|ANTHROPIC"` |
-
----
+| Problem | Action |
+|---------|--------|
+| `git` or `gh` returns 401/403 | verify the worker's OneCLI agent has the right secret assignment |
+| request hits the wrong account scope | check which secret is assigned to this worker lane in OneCLI |
+| Anthropic auth fails | inspect the host-side NanoClaw credential proxy, not OneCLI |
 
 ## Rules
 
-- Never add `ingpoc` to `~/.jarvis/gh-config/`
-- Never set `GH_TOKEN` / `GITHUB_TOKEN` / `ANTHROPIC_API_KEY` in `~/.zshrc`
-- All gh operations in Jarvis context automatically use `openclaw-gurusharan`
-- Tokens are always pulled dynamically — never stale, never hardcoded
+- Never hardcode or paste raw GitHub tokens into commands or files.
+- Never rely on local keychains, direnv, or `gh auth login` state inside the container.
+- Treat OneCLI as the owner of non-Anthropic lane credentials.

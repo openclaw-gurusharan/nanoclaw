@@ -1,23 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 import {
   _initTestDatabase,
-  createAndyRequestIfAbsent,
   createTask,
   getAllTasks,
-  getAndyRequestById,
-  getWorkerRun,
   getRegisteredGroup,
   getTaskById,
-  listDispatchAttemptsForRequest,
   setRegisteredGroup,
 } from './db.js';
-import {
-  isIpcTargetAuthorized,
-  processTaskIpc,
-  queueAndyWorkerDispatchRun,
-  IpcDeps,
-} from './ipc.js';
+import { canIpcAccessTarget, processTaskIpc, IpcDeps } from './ipc.js';
 import { RegisteredGroup } from './types.js';
 
 // Set up registered groups used across tests
@@ -43,18 +34,12 @@ const THIRD_GROUP: RegisteredGroup = {
   added_at: '2024-01-01T00:00:00.000Z',
 };
 
-const ANDY_DEVELOPER_GROUP: RegisteredGroup = {
-  name: 'Andy Developer',
-  folder: 'andy-developer',
-  trigger: '@Andy',
-  added_at: '2024-01-01T00:00:00.000Z',
-};
-
-const JARVIS_WORKER_1_GROUP: RegisteredGroup = {
+const WORKER_GROUP: RegisteredGroup = {
   name: 'Jarvis Worker 1',
   folder: 'jarvis-worker-1',
-  trigger: '@Andy',
+  trigger: '@jarvis',
   added_at: '2024-01-01T00:00:00.000Z',
+  requiresTrigger: false,
 };
 
 let groups: Record<string, RegisteredGroup>;
@@ -67,14 +52,14 @@ beforeEach(() => {
     'main@g.us': MAIN_GROUP,
     'other@g.us': OTHER_GROUP,
     'third@g.us': THIRD_GROUP,
-    'andy-developer@g.us': ANDY_DEVELOPER_GROUP,
-    'jarvis-worker-1@nanoclaw': JARVIS_WORKER_1_GROUP,
+    'jarvis-worker-1@nanoclaw': WORKER_GROUP,
   };
 
   // Populate DB as well
   setRegisteredGroup('main@g.us', MAIN_GROUP);
   setRegisteredGroup('other@g.us', OTHER_GROUP);
   setRegisteredGroup('third@g.us', THIRD_GROUP);
+  setRegisteredGroup('jarvis-worker-1@nanoclaw', WORKER_GROUP);
 
   deps = {
     sendMessage: async () => {},
@@ -87,6 +72,7 @@ beforeEach(() => {
     syncGroups: async () => {},
     getAvailableGroups: () => [],
     writeGroupsSnapshot: () => {},
+    onTasksChanged: () => {},
   };
 });
 
@@ -166,172 +152,6 @@ describe('schedule_task authorization', () => {
 
     const allTasks = getAllTasks();
     expect(allTasks.length).toBe(0);
-  });
-
-  it('andy-developer can schedule worker tasks', async () => {
-    await processTaskIpc(
-      {
-        type: 'schedule_task',
-        prompt: JSON.stringify({
-          run_id: 'task-andy-worker-1',
-          request_id: 'req-andy-worker-1',
-          task_type: 'implement',
-          context_intent: 'fresh',
-          input: 'delegate worker task',
-          repo: 'openclaw-gurusharan/nanoclaw',
-          branch: 'jarvis-andy-worker-test',
-          acceptance_tests: ['npm test'],
-          output_contract: {
-            required_fields: [
-              'run_id',
-              'branch',
-              'commit_sha',
-              'files_changed',
-              'test_result',
-              'risk',
-              'pr_url',
-            ],
-          },
-        }),
-        schedule_type: 'once',
-        schedule_value: '2025-06-01T00:00:00.000Z',
-        targetJid: 'jarvis-worker-1@nanoclaw',
-      },
-      'andy-developer',
-      false,
-      deps,
-    );
-
-    const allTasks = getAllTasks();
-    expect(allTasks.length).toBe(1);
-    expect(allTasks[0].group_folder).toBe('jarvis-worker-1');
-  });
-
-  it('marks andy request failed when worker dispatch is blocked before queueing', async () => {
-    createAndyRequestIfAbsent({
-      request_id: 'req-invalid-dispatch',
-      chat_jid: 'andy-developer@g.us',
-      source_group_folder: 'andy-developer',
-      user_message_id: 'msg-invalid-dispatch',
-      user_prompt: 'dispatch this work',
-      intent: 'work_intake',
-      state: 'queued_for_coordinator',
-    });
-
-    await processTaskIpc(
-      {
-        type: 'schedule_task',
-        prompt: JSON.stringify({
-          run_id: 'task-invalid-dispatch',
-          request_id: 'req-invalid-dispatch',
-          task_type: 'implement',
-          context_intent: 'fresh',
-          input: 'delegate worker task',
-          repo: 'openclaw-gurusharan/nanoclaw',
-          branch: 'invalid-branch-name',
-          acceptance_tests: ['npm test'],
-          output_contract: {
-            required_fields: [
-              'run_id',
-              'branch',
-              'commit_sha',
-              'files_changed',
-              'test_result',
-              'risk',
-              'pr_url',
-            ],
-          },
-        }),
-        schedule_type: 'once',
-        schedule_value: '2025-06-01T00:00:00.000Z',
-        targetJid: 'jarvis-worker-1@nanoclaw',
-      },
-      'andy-developer',
-      false,
-      deps,
-    );
-
-    const request = getAndyRequestById('req-invalid-dispatch');
-    const attempts = listDispatchAttemptsForRequest('req-invalid-dispatch');
-    expect(request?.worker_run_id).toBeNull();
-    expect(request?.state).toBe('failed');
-    expect(request?.last_status_text).toContain(
-      'Dispatch blocked before worker queue',
-    );
-    expect(attempts).toHaveLength(1);
-    expect(attempts[0].status).toBe('blocked');
-    expect(attempts[0].source_lane_id).toBe('andy-developer');
-    expect(attempts[0].target_lane_id).toBe('jarvis-worker-1');
-  });
-
-  it('records queued dispatch attempts with canonical lane ids', () => {
-    createAndyRequestIfAbsent({
-      request_id: 'req-queued-dispatch',
-      chat_jid: 'andy-developer@g.us',
-      source_group_folder: 'andy-developer',
-      user_message_id: 'msg-queued-dispatch',
-      user_prompt: 'dispatch this work',
-      intent: 'work_intake',
-      state: 'queued_for_coordinator',
-    });
-
-    const decision = queueAndyWorkerDispatchRun(
-      'andy-developer',
-      groups['jarvis-worker-1@nanoclaw'],
-      JSON.stringify({
-        run_id: 'task-queued-dispatch',
-        request_id: 'req-queued-dispatch',
-        task_type: 'implement',
-        context_intent: 'fresh',
-        input: 'delegate worker task',
-        repo: 'openclaw-gurusharan/nanoclaw',
-        branch: 'jarvis-queued-dispatch',
-        acceptance_tests: ['npm test'],
-        output_contract: {
-          required_fields: [
-            'run_id',
-            'branch',
-            'commit_sha',
-            'files_changed',
-            'test_result',
-            'risk',
-            'pr_url',
-          ],
-        },
-      }),
-    );
-
-    const attempts = listDispatchAttemptsForRequest('req-queued-dispatch');
-    const request = getAndyRequestById('req-queued-dispatch');
-    const workerRun = getWorkerRun('task-queued-dispatch');
-
-    expect(decision.allowSend).toBe(true);
-    expect(decision.queueState).toBe('new');
-    expect(attempts).toHaveLength(1);
-    expect(attempts[0].status).toBe('queued');
-    expect(attempts[0].source_lane_id).toBe('andy-developer');
-    expect(attempts[0].target_lane_id).toBe('jarvis-worker-1');
-    expect(request?.worker_run_id).toBe('task-queued-dispatch');
-    expect(request?.worker_group_folder).toBe('jarvis-worker-1');
-    expect(workerRun?.lane_id).toBe('jarvis-worker-1');
-  });
-
-  it('blocks worker lanes from sending chat messages to worker chats', async () => {
-    const sendMessage = vi.fn(async () => {});
-    deps.sendMessage = sendMessage;
-
-    await processTaskIpc(
-      {
-        type: 'message',
-        chatJid: 'jarvis-worker-1@nanoclaw',
-        text: 'Pipeline probe document created for NAN-54 Aadhaar-chain',
-      },
-      'jarvis-worker-1',
-      false,
-      deps,
-    );
-
-    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -573,62 +393,51 @@ describe('refresh_groups authorization', () => {
 });
 
 // --- IPC message authorization ---
-// Tests the authorization pattern from startIpcWatcher (ipc.ts).
-// The logic: isMain || (targetGroup && targetGroup.folder === sourceGroup)
+// Tests the authorization helper from ipc.ts.
 
 describe('IPC message authorization', () => {
+  function isMessageAuthorized(
+    sourceGroup: string,
+    isMain: boolean,
+    targetChatJid: string,
+  ): boolean {
+    return canIpcAccessTarget(sourceGroup, isMain, groups[targetChatJid]);
+  }
+
   it('main group can send to any group', () => {
-    expect(
-      isIpcTargetAuthorized('whatsapp_main', true, 'other@g.us', groups),
-    ).toBe(true);
-    expect(
-      isIpcTargetAuthorized('whatsapp_main', true, 'third@g.us', groups),
-    ).toBe(true);
+    expect(isMessageAuthorized('whatsapp_main', true, 'other@g.us')).toBe(true);
+    expect(isMessageAuthorized('whatsapp_main', true, 'third@g.us')).toBe(true);
   });
 
   it('non-main group can send to its own chat', () => {
+    expect(isMessageAuthorized('other-group', false, 'other@g.us')).toBe(true);
+  });
+
+  it('andy-developer can send to jarvis-worker lanes', () => {
     expect(
-      isIpcTargetAuthorized('other-group', false, 'other@g.us', groups),
+      isMessageAuthorized('andy-developer', false, 'jarvis-worker-1@nanoclaw'),
     ).toBe(true);
   });
 
   it('non-main group cannot send to another groups chat', () => {
+    expect(isMessageAuthorized('other-group', false, 'main@g.us')).toBe(false);
+    expect(isMessageAuthorized('other-group', false, 'third@g.us')).toBe(false);
     expect(
-      isIpcTargetAuthorized('other-group', false, 'main@g.us', groups),
-    ).toBe(false);
-    expect(
-      isIpcTargetAuthorized('other-group', false, 'third@g.us', groups),
+      isMessageAuthorized('third-group', false, 'jarvis-worker-1@nanoclaw'),
     ).toBe(false);
   });
 
   it('non-main group cannot send to unregistered JID', () => {
-    expect(
-      isIpcTargetAuthorized('other-group', false, 'unknown@g.us', groups),
-    ).toBe(false);
+    expect(isMessageAuthorized('other-group', false, 'unknown@g.us')).toBe(
+      false,
+    );
   });
 
   it('main group can send to unregistered JID', () => {
     // Main is always authorized regardless of target
     expect(
-      isIpcTargetAuthorized('whatsapp_main', true, 'unknown@g.us', groups),
+      isMessageAuthorized('whatsapp_main', true, 'unknown@g.us', groups),
     ).toBe(true);
-  });
-
-  it('andy-developer can send to jarvis-worker lanes', () => {
-    expect(
-      isIpcTargetAuthorized(
-        'andy-developer',
-        false,
-        'jarvis-worker-1@nanoclaw',
-        groups,
-      ),
-    ).toBe(true);
-  });
-
-  it('andy-developer cannot send to non-worker lanes', () => {
-    expect(
-      isIpcTargetAuthorized('andy-developer', false, 'other@g.us', groups),
-    ).toBe(false);
   });
 });
 

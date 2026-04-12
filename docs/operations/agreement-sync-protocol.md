@@ -2,6 +2,14 @@
 
 Mandatory protocol for translating an accepted operating agreement into durable repository state.
 
+## Control Owner
+
+Owner for:
+- `docs/operations/agreement-sync-protocol.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Rule
 
 After any accepted agreement affecting Andy/Jarvis behavior, documentation sync is automatic in the same change set.

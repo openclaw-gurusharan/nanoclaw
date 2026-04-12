@@ -6,6 +6,14 @@
 
 ---
 
+## Control Owner
+
+Owner for:
+- `docs/research/WORKFLOW-ANALYSIS-2026-03-04.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Executive Summary
 
 **Problem:** NanoClaw has been solving fires (incidents) rather than building systematically. Despite a well-documented CLAUDE.md and mission statement, development sessions have created escalating technical debt through:

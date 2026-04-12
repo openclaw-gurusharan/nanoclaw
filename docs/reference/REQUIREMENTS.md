@@ -2,7 +2,13 @@
 
 Original requirements and design decisions from the project creator.
 
----
+## Control Owner
+
+Owner for:
+- `docs/reference/REQUIREMENTS.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
 
 ## Why This Exists
 
@@ -10,9 +16,7 @@ This is a lightweight, secure alternative to OpenClaw (formerly ClawBot). That p
 
 NanoClaw gives you the core functionality without that mess.
 
----
-
-## Philosophy
+## Product Philosophy
 
 ### Small Enough to Understand
 
@@ -40,8 +44,6 @@ The codebase assumes you have an AI collaborator. It doesn't need to be excessiv
 
 When people contribute, they shouldn't add "Telegram support alongside WhatsApp." They should contribute a skill like `/add-telegram` that transforms the codebase. Users fork the repo, run skills to customize, and end up with clean code that does exactly what they need - not a bloated system trying to support everyone's use case simultaneously.
 
----
-
 ## RFS (Request for Skills)
 
 Skills we'd love contributors to build:
@@ -62,8 +64,6 @@ The project uses Docker by default (cross-platform). For macOS users who prefer 
 - `/setup-linux` - Make the full setup work on Linux (depends on Docker conversion)
 - `/setup-windows` - Windows support via WSL2 + Docker
 
----
-
 ## Vision
 
 A personal Claude assistant accessible via WhatsApp, with minimal custom code.
@@ -81,8 +81,6 @@ A personal Claude assistant accessible via WhatsApp, with minimal custom code.
 - Use existing tools (WhatsApp connector, Claude Agent SDK, MCP servers)
 - Minimal glue code
 - File-based systems where possible (CLAUDE.md for memory, folders for groups)
-
----
 
 ## Architecture Decisions
 
@@ -133,8 +131,6 @@ A personal Claude assistant accessible via WhatsApp, with minimal custom code.
 - Can view and manage tasks from all groups
 - Can configure additional directory mounts for any group
 
----
-
 ## Integration Points
 
 ### WhatsApp
@@ -160,8 +156,6 @@ A personal Claude assistant accessible via WhatsApp, with minimal custom code.
 - Screenshots, PDFs, video recording
 - Authentication state persistence
 
----
-
 ## Setup & Customization
 
 ### Philosophy
@@ -179,8 +173,6 @@ A personal Claude assistant accessible via WhatsApp, with minimal custom code.
 - Runs on local Mac via launchd
 - Single Node.js process handles everything
 
----
-
 ## Personal Configuration (Reference)
 
 These are the creator's settings, stored here for reference:
@@ -189,8 +181,6 @@ These are the creator's settings, stored here for reference:
 - **Response prefix**: `Andy:`
 - **Persona**: Default Claude (no custom personality)
 - **Main channel**: Self-chat (messaging yourself in WhatsApp)
-
----
 
 ## Project Name
 

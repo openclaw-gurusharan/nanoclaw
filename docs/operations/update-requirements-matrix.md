@@ -1,6 +1,8 @@
 # Update Requirements Matrix
 
-Where updates are required for each change type.
+Decision: use this matrix as the first stop whenever a change affects runtime contracts, role authority, sync policy, or documentation ownership, and do not close the work until every listed owner surface has been updated or explicitly ruled out.
+
+Use this document to determine which repo surfaces must change together for a given change type. If a proposed edit is not covered here, extend the matrix before treating the work as complete.
 
 | Change Type | Required Updates |
 |-------------|------------------|
@@ -18,6 +20,14 @@ Where updates are required for each change type.
 | Unified Claude/Codex workflow policy, adapters, and role/hook enforcement changes | `docs/workflow/delivery/unified-codex-claude-loop.md`, `docs/operations/claude-codex-adapter-matrix.md`, `docs/operations/subagent-catalog.md`, `docs/operations/tooling-governance-budget.json`, `CLAUDE.md` triggers, `AGENTS.md` mirror, `.codex/config.toml`, `.codex/agents/*`, `.claude/settings.local.json`, `.claude/hooks/*`, `scripts/check-claude-codex-mirror.sh`, and `scripts/check-tooling-governance.sh` |
 | Worker workflow policy changes | `groups/<worker>/workflow execution loop`, `groups/<worker>/workflow skill policy`, relevant role rules |
 | Root documentation structure/classification | `DOCS.md`, `README.md` docs link, `CLAUDE.md` trigger index |
+
+## Control Owner
+
+Owner for:
+- `docs/operations/update-requirements-matrix.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
 
 ## Minimum Verification
 

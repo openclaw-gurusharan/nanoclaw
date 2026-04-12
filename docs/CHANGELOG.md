@@ -3,6 +3,14 @@
 Tracks only the latest upstream sync outcome.
 Previous entries are retained in git history only.
 
+## Control Owner
+
+Owner for:
+- `docs/CHANGELOG.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## 2026-03-04
 
 - Synced from: `upstream/main` into `andy-autonomous`

@@ -1,19 +1,23 @@
 # Project Bootstrap and Secret Contract
 
-## Purpose
+## Bootstrap Contract Purpose
 
 Canonical contract for onboarding a project into the `Linear + Notion + GitHub + optional Symphony` model and for assigning one reusable secret scope per project.
 
-## Doc Type
+## Bootstrap Contract Type
 
 `contract`
 
-## Canonical Owner
+## Control Owner
 
-This document owns project bootstrap order, project-registry expectations, and the universal secret-scope model.
-It does not own execution-lane routing or shared-context content design.
+Owner for:
+- project bootstrap order, project-registry expectations, and the universal secret-scope model
 
-## Use When
+Should not contain:
+- execution-lane routing that belongs in `docs/workflow/control-plane/execution-lane-routing-contract.md`
+- shared-context content design that belongs in `docs/workflow/control-plane/collaboration-surface-contract.md`
+
+## Bootstrap Contract Use When
 
 - onboarding a new project requested through WhatsApp
 - normalizing an old project into the new control-plane model
@@ -21,13 +25,13 @@ It does not own execution-lane routing or shared-context content design.
 - assigning or rotating project secret scopes
 - changing where project registry data is cached locally
 
-## Do Not Use When
+## Bootstrap Contract Do Not Use When
 
 - changing daily collaboration placement; use `docs/workflow/control-plane/collaboration-surface-contract.md`
 - changing execution-lane routing; use `docs/workflow/control-plane/execution-lane-routing-contract.md`
 - changing custom Symphony backend selection logic; use `docs/workflow/control-plane/custom-symphony-orchestration-contract.md`
 
-## Verification
+## Bootstrap Contract Verification
 
 - `npx tsx scripts/workflow/symphony.ts print-example`
 - `npx tsx scripts/workflow/symphony.ts validate-registry --file .claude/examples/symphony-project-registry.example.json`
@@ -35,7 +39,7 @@ It does not own execution-lane routing or shared-context content design.
 - `npm run symphony:status`
 - `bash scripts/check-workflow-contracts.sh`
 
-## Related Docs
+## Bootstrap Contract Related Docs
 
 - `docs/workflow/control-plane/collaboration-surface-contract.md`
 - `docs/workflow/control-plane/custom-symphony-orchestration-contract.md`
@@ -133,7 +137,7 @@ If Symphony is enabled, the registry must also declare:
 3. ready policy
 4. supported work classes
 
-## Exit Criteria
+## Bootstrap Contract Exit Criteria
 
 This contract is operating correctly when all are true:
 

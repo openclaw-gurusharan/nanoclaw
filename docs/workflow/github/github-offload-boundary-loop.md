@@ -7,17 +7,25 @@ Canonical decision workflow for placing automation between:
 
 Mission anchor: `docs/MISSION.md`.
 
-## Owns
+## Control Owner
 
-This document owns placement decisions between GitHub and local execution lanes:
+Owner for:
+- `docs/workflow/github/github-offload-boundary-loop.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
+## In Scope
+
+This document covers placement decisions between GitHub and local execution lanes:
 
 1. what belongs in GitHub-native automation
 2. what should remain in stateful local lanes
 3. when a hybrid split is appropriate
 
-## Does Not Own
+## Out Of Scope
 
-This document does not own:
+This document does not cover:
 
 1. the setup shape of the GitHub delivery stack
 2. the daily operating rules for Notion context, Linear issues, and delivery PRs

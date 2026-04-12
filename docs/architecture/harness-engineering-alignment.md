@@ -4,6 +4,14 @@ Reference article: https://openai.com/index/harness-engineering/
 
 This repository applies that approach as follows.
 
+## Control Owner
+
+Owner for:
+- `docs/architecture/harness-engineering-alignment.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Principle Mapping
 
 | Harness Principle | NanoClaw Implementation |

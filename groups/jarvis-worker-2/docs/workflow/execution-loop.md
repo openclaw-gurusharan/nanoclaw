@@ -143,7 +143,8 @@ If that required validation reveals a regression inside dispatched scope, fix it
 
 **Branch naming:** `jarvis-<feature>`
 
-**All tokens auto-available via direnv** — see `github-account-isolation.md` for full env map.
+**GitHub auth is lane-scoped through OneCLI** — see `github-account-isolation.md`
+for the runtime model. Anthropic auth remains host-provided.
 
 ---
 
@@ -171,7 +172,7 @@ Execution-state ownership is external to workers:
 
 | Problem | Action |
 |---------|--------|
-| GH_TOKEN invalid | Re-auth via keyring: `gh auth refresh` |
+| GitHub 401/403 | Check the worker's OneCLI secret assignment |
 | Server won't start | Check port, kill existing, retry |
 | Tests fail | Fix + re-run, don't ask |
 | Browser tooling unavailable | Report blocker, skip browser tests |

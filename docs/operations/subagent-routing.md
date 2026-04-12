@@ -2,6 +2,14 @@
 
 Central routing reference for Codex role delegation and Claude consult escalation.
 
+## Control Owner
+
+Owner for:
+- `docs/operations/subagent-routing.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Agent Profiles
 
 | Agent | Model | Sandbox | Mode | Primary Use |

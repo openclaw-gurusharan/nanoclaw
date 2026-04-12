@@ -1,5 +1,13 @@
 # Mission Runtime Profiles
 
+## Control Owner
+
+Owner for:
+- `docs/architecture/mission-runtime-profiles.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Purpose
 
 Defines the supported NanoClaw runtime profiles, their default behavior, and the boundary between mission-critical baseline behavior and optional operational extensions.

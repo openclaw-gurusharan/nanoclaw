@@ -1,19 +1,24 @@
 # Execution Lane Routing Contract
 
-## Purpose
+## Lane Contract Purpose
 
 Canonical routing contract for deciding which lane executes work, who may mark work `Ready`, and where Symphony is allowed to orchestrate execution.
 
-## Doc Type
+## Lane Contract Type
 
 `contract`
 
-## Canonical Owner
+## Control Owner
 
-This document owns execution-lane routing for NanoClaw and downstream project work.
-It does not own shared-context placement, GitHub governance, or worker runtime internals.
+Owner for:
+- execution-lane routing for NanoClaw and downstream project work
 
-## Use When
+Should not contain:
+- shared-context placement that belongs in `docs/workflow/control-plane/collaboration-surface-contract.md`
+- GitHub delivery governance that belongs in `docs/workflow/github/github-delivery-governance.md`
+- worker runtime internals that belong in `docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md`
+
+## Lane Contract Use When
 
 - changing which lane executes NanoClaw repo work
 - changing which lane executes downstream project work
@@ -21,27 +26,27 @@ It does not own shared-context placement, GitHub governance, or worker runtime i
 - changing whether Symphony is allowed for a class of work
 - changing Linear `Execution Lane` or `Work Class` conventions
 
-## Do Not Use When
+## Lane Contract Do Not Use When
 
 - changing the Linear/Notion/GitHub surface split only; use `docs/workflow/control-plane/collaboration-surface-contract.md`
 - changing GitHub review or merge policy; use `docs/workflow/github/github-delivery-governance.md`
 - changing worker runtime/container behavior; use `docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md`
 
-## Verification
+## Lane Contract Verification
 
 - `bash scripts/check-workflow-contracts.sh`
 - `bash scripts/check-claude-codex-mirror.sh`
 - `npm test -- src/platform-loop.test.ts src/platform-loop-sync.test.ts src/extensions/jarvis/frontdesk-service.test.ts src/ipc-auth.test.ts src/db.test.ts`
 - `node scripts/workflow/platform-loop.js next`
 
-## Related Docs
+## Lane Contract Related Docs
 
 - `docs/workflow/control-plane/collaboration-surface-contract.md`
 - `docs/operations/roles-classification.md`
 - `docs/workflow/runtime/nanoclaw-jarvis-dispatch-contract.md`
 - `docs/workflow/delivery/platform-claude-pickup-lane.md`
 
-## Requirements
+## Lane Contract Requirements
 
 ### Core role model
 
@@ -175,7 +180,7 @@ Blocked transitions:
 2. `jarvis-worker-*` executing NanoClaw repo tasks by default
 3. `symphony` consuming any work outside explicitly approved project queues
 
-## Exit Criteria
+## Lane Contract Exit Criteria
 
 This contract is implemented correctly when all are true:
 

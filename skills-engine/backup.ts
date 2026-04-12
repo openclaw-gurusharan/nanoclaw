@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { BACKUP_DIR } from './constants.js';
+import { copyPathPreservingLinks } from './fs-utils.js';
 
 const TOMBSTONE_SUFFIX = '.tombstone';
 
@@ -20,7 +21,7 @@ export function createBackup(filePaths: string[]): void {
     fs.mkdirSync(path.dirname(backupPath), { recursive: true });
 
     if (fs.existsSync(absPath)) {
-      fs.copyFileSync(absPath, backupPath);
+      copyPathPreservingLinks(absPath, backupPath);
     } else {
       // File doesn't exist yet — write a tombstone so restore can delete it
       fs.writeFileSync(backupPath + TOMBSTONE_SUFFIX, '', 'utf-8');
@@ -48,8 +49,7 @@ export function restoreBackup(): void {
       } else {
         const relativePath = path.relative(backupDir, fullPath);
         const originalPath = path.join(process.cwd(), relativePath);
-        fs.mkdirSync(path.dirname(originalPath), { recursive: true });
-        fs.copyFileSync(fullPath, originalPath);
+        copyPathPreservingLinks(fullPath, originalPath);
       }
     }
   };

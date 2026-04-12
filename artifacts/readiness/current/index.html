@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Repo Readiness Report</title>
+  <style>
+    :root {
+      --bg: #f3ede3;
+      --panel: rgba(255, 252, 246, 0.92);
+      --ink: #18212b;
+      --muted: #5c6775;
+      --line: #d8d0c4;
+      --shadow: rgba(18, 28, 45, 0.08);
+      --accent: #0f3d3e;
+      --accent-soft: #d7ebe6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(15, 61, 62, 0.09), transparent 24%),
+        radial-gradient(circle at top right, rgba(180, 83, 9, 0.10), transparent 22%),
+        linear-gradient(180deg, #ece4d6 0%, var(--bg) 48%, #f8f4ec 100%);
+    }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 40px 24px 72px; }
+    .hero, .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      box-shadow: 0 18px 45px var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+    .hero { padding: 32px; position: relative; overflow: hidden; }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -100px -120px auto;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(15, 61, 62, 0.13), transparent 70%);
+    }
+    .section { margin-top: 24px; padding: 24px; }
+    h1, h2 { margin: 0; font-weight: 700; letter-spacing: -0.03em; }
+    h1 { font-size: 38px; }
+    h2 { font-size: 20px; margin-bottom: 16px; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .eyebrow::before {
+      content: "";
+      width: 36px;
+      height: 1px;
+      background: currentColor;
+    }
+    .sub {
+      margin-top: 12px;
+      max-width: 74ch;
+      color: var(--muted);
+      line-height: 1.55;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .sub.compact { margin-top: 8px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 14px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      color: white;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: #b45309;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(216, 208, 196, 0.9);
+      border-radius: 20px;
+      padding: 16px;
+      min-height: 132px;
+    }
+    .card.emphasis {
+      background: linear-gradient(180deg, rgba(15, 61, 62, 0.08), rgba(255, 255, 255, 0.84));
+    }
+    .label {
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .value {
+      margin-top: 10px;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 25px;
+      font-weight: 700;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .value.small { font-size: 16px; font-weight: 600; }
+    .execution-grid, .remediation-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .remediation-card { min-height: 220px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left;
+      padding: 12px 10px;
+      vertical-align: top;
+      border-top: 1px solid var(--line);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    th {
+      border-top: none;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .lane-status { font-weight: 700; }
+    .lane-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .muted {
+      color: var(--muted);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    li { margin: 8px 0; line-height: 1.45; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      background: #f1eadf;
+      border: 1px solid #dfd5c7;
+      border-radius: 6px;
+      padding: 2px 6px;
+      word-break: break-word;
+    }
+    .summary-strip {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 18px;
+      margin-top: 24px;
+    }
+    @media (max-width: 1040px) {
+      .grid, .execution-grid, .remediation-grid, .summary-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 680px) {
+      .wrap { padding: 20px 14px 40px; }
+      .hero, .section { padding: 18px; border-radius: 20px; }
+      .grid, .execution-grid, .remediation-grid, .summary-strip {
+        grid-template-columns: 1fr;
+      }
+      h1 { font-size: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">Repo Readiness Bootstrap</div>
+      <h1>Service Repo Report</h1>
+      <p class="sub">Generated from the project-agnostic readiness manifest. This artifact keeps discovery separate from proof, shows what is only detected versus actually verified, and gives remediation agents a stable follow-on contract.</p>
+      <div class="pill">Overall: degraded</div>
+
+      <div class="summary-strip">
+        <div class="card emphasis">
+          <div class="label">Repository</div>
+          <div class="value small">/Users/gurusharan/Documents/remote-claude/active/apps/nanoclaw</div>
+          <p class="sub compact">Stacks: node · Web-facing: no · Agent can proceed: with_limits</p>
+        </div>
+        <div class="card">
+          <div class="label">High-Signal Lanes</div>
+          <ul>
+            <li>Verification: <code>./scripts/jarvis-smoke.sh</code></li>
+            <li>Runtime: <code>curl -fsS http://127.0.0.1:${port}/health</code></li>
+            <li>Browser: <strong>not_applicable</strong></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card"><div class="label">Repo Integrations</div><div class="value small">github, gmail, linear, notion</div></div>
+        <div class="card"><div class="label">Parallel Discovery</div><ul><li><code>repo_contract</code></li><li><code>verification</code></li><li><code>integrations</code></li><li><code>guardrails</code></li><li><code>dx_primitives</code></li></ul></div>
+        <div class="card"><div class="label">Sequential Proof</div><ul><li><code>environment_start</code></li><li><code>runtime_evidence</code></li></ul></div>
+        <div class="card"><div class="label">Artifact Discipline</div><p class="sub compact">This report is intended to exist as files, not just stdout, so a later agent can remediate and rerun only affected lanes.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Lane Status</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Lane</th>
+            <th>Phase</th>
+            <th>Status</th>
+            <th>Proof State</th>
+            <th>Validation Command</th>
+            <th>Next Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Repo Contract</strong><div class="muted">repo</div></td><td>parallel_discovery</td><td class="lane-status"><span class="lane-dot" style="background:#0f766e"></span>ready</td><td class="muted">detected=true<br>configured=true<br>executed=true<br>verified=true</td><td><span class="muted">n/a</span></td><td>none</td></tr><tr><td><strong>Verification</strong><div class="muted">repo</div></td><td>parallel_discovery</td><td class="lane-status"><span class="lane-dot" style="background:#b45309"></span>degraded</td><td class="muted">detected=true<br>configured=true<br>executed=false<br>verified=false</td><td><code>./scripts/jarvis-smoke.sh</code></td><td>Run `./scripts/jarvis-smoke.sh` and capture pass/fail output before claiming readiness.</td></tr><tr><td><strong>Environment Start</strong><div class="muted">repo</div></td><td>sequential_proof</td><td class="lane-status"><span class="lane-dot" style="background:#b45309"></span>degraded</td><td class="muted">detected=true<br>configured=true<br>executed=false<br>verified=false</td><td><code>npm --prefix .nanoclaw/base run dev</code></td><td>Start the environment with `npm --prefix .nanoclaw/base run dev` before running runtime or browser proof.</td></tr><tr><td><strong>Runtime Evidence</strong><div class="muted">repo</div></td><td>sequential_proof</td><td class="lane-status"><span class="lane-dot" style="background:#b45309"></span>degraded</td><td class="muted">detected=true<br>configured=true<br>executed=false<br>verified=false</td><td><code>curl -fsS http://127.0.0.1:${port}/health</code></td><td>Run the runtime proof lane after startup and record the observed health or livez output.</td></tr><tr><td><strong>Integrations</strong><div class="muted">integration</div></td><td>parallel_discovery</td><td class="lane-status"><span class="lane-dot" style="background:#b45309"></span>degraded</td><td class="muted">detected=true<br>configured=true<br>executed=false<br>verified=false</td><td><code>best-effort non-destructive integration probes</code></td><td>Run non-destructive auth or reachability probes for repo-relevant integrations.</td></tr><tr><td><strong>Guardrails</strong><div class="muted">repo</div></td><td>parallel_discovery</td><td class="lane-status"><span class="lane-dot" style="background:#b45309"></span>degraded</td><td class="muted">detected=true<br>configured=true<br>executed=false<br>verified=false</td><td><code>npm --prefix .nanoclaw/base run lint</code></td><td>Strengthen deterministic guardrails with repo-owned checks, hooks, or CI policies.</td></tr><tr><td><strong>DX Primitives</strong><div class="muted">repo</div></td><td>parallel_discovery</td><td class="lane-status"><span class="lane-dot" style="background:#b45309"></span>degraded</td><td class="muted">detected=true<br>configured=true<br>executed=false<br>verified=false</td><td><span class="muted">n/a</span></td><td>Keep scripts, docs, and examples repo-owned and close to the workflows they describe.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Remediation Plan</h2>
+      <div class="remediation-grid">
+        <div class="card remediation-card"><div class="label">Repo</div><p class="sub compact">Fix missing repo-owned surfaces, commands, and deterministic local proof.</p><ul><li><strong>Verification</strong>: Run `./scripts/jarvis-smoke.sh` and capture pass/fail output before claiming readiness.<div class="muted">Done when: The strongest verification command executes successfully and the output is intelligible.</div><div><code>./scripts/jarvis-smoke.sh</code></div></li><li><strong>DX Primitives</strong>: Keep scripts, docs, and examples repo-owned and close to the workflows they describe.<div class="muted">Done when: An unfamiliar agent can discover start, verify, and debug paths without tribal knowledge.</div><div><span class="muted">n/a</span></div></li><li><strong>Guardrails</strong>: Strengthen deterministic guardrails with repo-owned checks, hooks, or CI policies.<div class="muted">Done when: Deterministic checks exist and are routinely executable on the primary path.</div><div><code>npm --prefix .nanoclaw/base run lint</code></div></li></ul></div>
+        <div class="card remediation-card"><div class="label">Environment</div><p class="sub compact">Fix startup, runtime truth, and browser verification on the primary path.</p><ul><li><strong>Environment Start</strong>: Start the environment with `npm --prefix .nanoclaw/base run dev` before running runtime or browser proof.<div class="muted">Done when: The canonical start command launches the intended environment without manual tribal steps.</div><div><code>npm --prefix .nanoclaw/base run dev</code></div></li><li><strong>Runtime Evidence</strong>: Run the runtime proof lane after startup and record the observed health or livez output.<div class="muted">Done when: The runtime truth surface responds successfully on the intended environment.</div><div><code>curl -fsS http://127.0.0.1:${port}/health</code></div></li></ul></div>
+        <div class="card remediation-card"><div class="label">Integrations</div><p class="sub compact">Fix missing or unusable repo-relevant external systems and auth lanes.</p><ul><li><strong>Integrations</strong>: Run non-destructive auth or reachability probes for repo-relevant integrations.<div class="muted">Done when: Repo-relevant systems are both configured and non-destructively reachable.</div><div><code>best-effort non-destructive integration probes</code></div></li></ul></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Ordered Next Actions</h2>
+      <ol><li>Run `./scripts/jarvis-smoke.sh` and capture pass/fail output before claiming readiness.</li><li>Start the environment with `npm --prefix .nanoclaw/base run dev` before running runtime or browser proof.</li><li>Run the runtime proof lane after startup and record the observed health or livez output.</li><li>Keep scripts, docs, and examples repo-owned and close to the workflows they describe.</li><li>Strengthen deterministic guardrails with repo-owned checks, hooks, or CI policies.</li><li>Run non-destructive auth or reachability probes for repo-relevant integrations.</li></ol>
+    </section>
+  </div>
+</body>
+</html>

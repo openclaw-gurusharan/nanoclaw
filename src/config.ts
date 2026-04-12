@@ -2,12 +2,15 @@ import os from 'os';
 import path from 'path';
 
 import { readEnvFile } from './env.js';
-import type { RuntimeOwnerMode } from './types.js';
+import { isValidTimezone } from './timezone.js';
 
 // Read config values from .env (falls back to process.env).
-// Secrets (API keys, tokens) are NOT read here — they are loaded only
-// by the credential proxy (credential-proxy.ts), never exposed to containers.
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER']);
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'ONECLI_URL',
+  'TZ',
+]);
 
 export const ASSISTANT_NAME =
   process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
@@ -37,84 +40,28 @@ export const SENDER_ALLOWLIST_PATH = path.join(
 export const STORE_DIR = path.resolve(PROJECT_ROOT, 'store');
 export const GROUPS_DIR = path.resolve(PROJECT_ROOT, 'groups');
 export const DATA_DIR = path.resolve(PROJECT_ROOT, 'data');
-export const MAIN_GROUP_FOLDER = 'main';
-
-export type RuntimeProfile = 'mission_core' | 'ops_extended';
-
-const rawRuntimeProfile = (
-  process.env.NANOCLAW_RUNTIME_PROFILE || 'mission_core'
-)
-  .trim()
-  .toLowerCase();
-export const RUNTIME_PROFILE: RuntimeProfile =
-  rawRuntimeProfile === 'ops_extended' ? 'ops_extended' : 'mission_core';
-export const RUNTIME_OPS_EXTENDED = RUNTIME_PROFILE === 'ops_extended';
-
-function envBool(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined) return fallback;
-  return value === 'true';
-}
-
-// Mission-core defaults: keep execution path minimal; opt into extended ops features.
-export const ENABLE_SCHEDULER = envBool(
-  process.env.NANOCLAW_ENABLE_SCHEDULER,
-  RUNTIME_OPS_EXTENDED,
-);
-export const ENABLE_WORKER_STEERING = envBool(
-  process.env.NANOCLAW_ENABLE_WORKER_STEERING,
-  RUNTIME_OPS_EXTENDED,
-);
-export const ENABLE_DYNAMIC_GROUP_REGISTRATION = envBool(
-  process.env.NANOCLAW_ENABLE_DYNAMIC_GROUP_REGISTRATION,
-  RUNTIME_OPS_EXTENDED,
-);
-export const ENABLE_CONTROL_PLANE_SNAPSHOTS = envBool(
-  process.env.NANOCLAW_ENABLE_CONTROL_PLANE_SNAPSHOTS,
-  true,
-);
 
 export const CONTAINER_IMAGE =
   process.env.CONTAINER_IMAGE || 'nanoclaw-agent:latest';
-export const WORKER_CONTAINER_IMAGE =
-  process.env.WORKER_CONTAINER_IMAGE || 'nanoclaw-worker:latest';
 export const CONTAINER_TIMEOUT = parseInt(
   process.env.CONTAINER_TIMEOUT || '1800000',
-  10,
-);
-export const CONTAINER_NO_OUTPUT_TIMEOUT = parseInt(
-  process.env.CONTAINER_NO_OUTPUT_TIMEOUT || '720000',
-  10,
-);
-export const WORKER_MIN_NO_OUTPUT_TIMEOUT_MS = parseInt(
-  process.env.WORKER_MIN_NO_OUTPUT_TIMEOUT_MS || '300000',
   10,
 );
 export const CONTAINER_MAX_OUTPUT_SIZE = parseInt(
   process.env.CONTAINER_MAX_OUTPUT_SIZE || '10485760',
   10,
 ); // 10MB default
-// Local: container resource limits
-export const CONTAINER_PARSE_BUFFER_LIMIT = parseInt(
-  process.env.CONTAINER_PARSE_BUFFER_LIMIT || '1048576',
-  10,
-); // 1MB default - prevents unbounded memory growth if markers are malformed
-export const CONTAINER_CPU_LIMIT = process.env.CONTAINER_CPU_LIMIT || '2';
-export const CONTAINER_MEMORY_LIMIT =
-  process.env.CONTAINER_MEMORY_LIMIT || '4096M';
 export const CREDENTIAL_PROXY_PORT = parseInt(
   process.env.CREDENTIAL_PROXY_PORT || '3001',
   10,
 );
-export const NOTION_MCP_HTTP_PORT = parseInt(
-  process.env.NOTION_MCP_HTTP_PORT || '7802',
-  10,
-);
-export const LINEAR_MCP_HTTP_PORT = parseInt(
-  process.env.LINEAR_MCP_HTTP_PORT || '7803',
-  10,
+export const ONECLI_URL = process.env.ONECLI_URL || envConfig.ONECLI_URL;
+export const MAX_MESSAGES_PER_PROMPT = Math.max(
+  1,
+  parseInt(process.env.MAX_MESSAGES_PER_PROMPT || '10', 10) || 10,
 );
 export const IPC_POLL_INTERVAL = 1000;
-export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '300000', 10); // 5min default — close stdin after last result
+export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(
   1,
   parseInt(process.env.MAX_CONCURRENT_CONTAINERS || '5', 10) || 5,
@@ -143,63 +90,35 @@ export const WA_RECONNECT_COOLDOWN_MS = parseInt(
   process.env.WA_RECONNECT_COOLDOWN_MS || '60000',
   10,
 );
-const rawRuntimeOwnerMode = (
-  process.env.NANOCLAW_RUNTIME_OWNER_MODE || 'service'
-)
-  .trim()
-  .toLowerCase();
-export const RUNTIME_OWNER_MODE: RuntimeOwnerMode =
-  rawRuntimeOwnerMode === 'service' ? 'service' : 'manual';
-export const RUNTIME_OWNER_ALLOW_TAKEOVER = envBool(
-  process.env.NANOCLAW_RUNTIME_ALLOW_TAKEOVER,
-  false,
-);
-export const RUNTIME_OWNER_NAME =
-  process.env.NANOCLAW_RUNTIME_OWNER_NAME || 'host';
-export const RUNTIME_OWNER_HEARTBEAT_MS = parseInt(
-  process.env.NANOCLAW_RUNTIME_OWNER_HEARTBEAT_MS || '5000',
-  10,
-);
-export const RUNTIME_OWNER_STALE_MS = parseInt(
-  process.env.NANOCLAW_RUNTIME_OWNER_STALE_MS || '20000',
-  10,
-);
-export const RUNTIME_OWNER_LAUNCHD_LABEL =
-  process.env.NANOCLAW_LAUNCHD_LABEL || 'com.nanoclaw';
-export const SHUTDOWN_DRAIN_MS = parseInt(
-  process.env.SHUTDOWN_DRAIN_MS || '600000',
-  10,
-);
-export const ANDY_BUSY_PREEMPT_MS = parseInt(
-  process.env.ANDY_BUSY_PREEMPT_MS || '90000',
-  10,
-);
-export const ANDY_BUSY_ACK_COOLDOWN_MS = parseInt(
-  process.env.ANDY_BUSY_ACK_COOLDOWN_MS || '180000',
-  10,
-);
-export const ANDY_ERROR_NOTICE_COOLDOWN_MS = parseInt(
-  process.env.ANDY_ERROR_NOTICE_COOLDOWN_MS || '180000',
-  10,
-);
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export const TRIGGER_PATTERN = new RegExp(
-  `^@${escapeRegex(ASSISTANT_NAME)}\\b`,
-  'i',
-);
+export function buildTriggerPattern(trigger: string): RegExp {
+  return new RegExp(`^${escapeRegex(trigger.trim())}\\b`, 'i');
+}
 
-// Timezone for scheduled tasks (cron expressions, etc.)
-// Uses system timezone by default
-export const TIMEZONE =
-  process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+export const DEFAULT_TRIGGER = `@${ASSISTANT_NAME}`;
 
-export const EVENT_BRIDGE_URL =
-  process.env.EVENT_BRIDGE_URL || 'http://localhost:9851/events';
-export const EVENT_BRIDGE_ENABLED = envBool(
-  process.env.EVENT_BRIDGE_ENABLED,
-  RUNTIME_OPS_EXTENDED,
-);
+export function getTriggerPattern(trigger?: string): RegExp {
+  const normalizedTrigger = trigger?.trim();
+  return buildTriggerPattern(normalizedTrigger || DEFAULT_TRIGGER);
+}
+
+export const TRIGGER_PATTERN = buildTriggerPattern(DEFAULT_TRIGGER);
+
+// Timezone for scheduled tasks, message formatting, etc.
+// Validates each candidate is a real IANA identifier before accepting.
+function resolveConfigTimezone(): string {
+  const candidates = [
+    process.env.TZ,
+    envConfig.TZ,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  ];
+  for (const tz of candidates) {
+    if (tz && isValidTimezone(tz)) return tz;
+  }
+  return 'UTC';
+}
+export const TIMEZONE = resolveConfigTimezone();

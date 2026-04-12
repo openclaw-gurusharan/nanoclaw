@@ -9,6 +9,14 @@ needs laptop supervision.
 
 Mission anchor: `docs/MISSION.md`.
 
+## Control Owner
+
+Owner for:
+- `docs/workflow/strategy/launchdeck-proving-program.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Objective
 
 Build one real app, `LaunchDeck`, through the normal Andy/worker flow while

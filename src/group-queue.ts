@@ -1,9 +1,8 @@
-import { ChildProcess, exec } from 'child_process';
+import { ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
 import { DATA_DIR, MAX_CONCURRENT_CONTAINERS } from './config.js';
-import { stopContainer } from './container-runtime.js';
 import { logger } from './logger.js';
 
 interface QueuedTask {
@@ -28,20 +27,8 @@ interface GroupState {
   retryCount: number;
 }
 
-export interface GroupQueueStatusSnapshot {
-  active: boolean;
-  idleWaiting: boolean;
-  isTaskContainer: boolean;
-  runningTaskId: string | null;
-  pendingMessages: boolean;
-  pendingTaskCount: number;
-  containerName: string | null;
-  groupFolder: string | null;
-}
-
 export class GroupQueue {
   private groups = new Map<string, GroupState>();
-  private forceCloseTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private activeCount = 0;
   private waitingGroups: string[] = [];
   private processMessagesFn: ((groupJid: string) => Promise<boolean>) | null =
@@ -154,20 +141,6 @@ export class GroupQueue {
     if (groupFolder) state.groupFolder = groupFolder;
   }
 
-  getStatus(groupJid: string): GroupQueueStatusSnapshot {
-    const state = this.getGroup(groupJid);
-    return {
-      active: state.active,
-      idleWaiting: state.idleWaiting,
-      isTaskContainer: state.isTaskContainer,
-      runningTaskId: state.runningTaskId,
-      pendingMessages: state.pendingMessages,
-      pendingTaskCount: state.pendingTasks.length,
-      containerName: state.containerName,
-      groupFolder: state.groupFolder,
-    };
-  }
-
   /**
    * Mark the container as idle-waiting (finished work, waiting for IPC input).
    * If tasks are pending, preempt the idle container immediately.
@@ -207,7 +180,7 @@ export class GroupQueue {
   /**
    * Signal the active container to wind down by writing a close sentinel.
    */
-  closeStdin(groupJid: string, forceAfterMs = 0): void {
+  closeStdin(groupJid: string): void {
     const state = this.getGroup(groupJid);
     if (!state.active || !state.groupFolder) return;
 
@@ -218,61 +191,6 @@ export class GroupQueue {
     } catch {
       // ignore
     }
-
-    const existingTimer = this.forceCloseTimers.get(groupJid);
-    if (existingTimer) {
-      clearTimeout(existingTimer);
-      this.forceCloseTimers.delete(groupJid);
-    }
-
-    if (forceAfterMs <= 0 || !state.process) return;
-
-    const expectedProcess = state.process;
-    const expectedContainerName = state.containerName;
-    const timer = setTimeout(() => {
-      const current = this.getGroup(groupJid);
-      if (
-        !current.active ||
-        current.process !== expectedProcess ||
-        current.containerName !== expectedContainerName
-      ) {
-        return;
-      }
-
-      logger.warn(
-        {
-          groupJid,
-          groupFolder: current.groupFolder,
-          containerName: expectedContainerName,
-          forceAfterMs,
-        },
-        'Force-stopping still-active container after close sentinel grace window',
-      );
-
-      try {
-        expectedProcess.kill('SIGTERM');
-      } catch {
-        // ignore
-      }
-
-      if (expectedContainerName) {
-        exec(stopContainer(expectedContainerName), { timeout: 15000 }, () => {
-          // best effort only
-        });
-      }
-
-      setTimeout(() => {
-        const latest = this.getGroup(groupJid);
-        if (latest.process !== expectedProcess) return;
-        try {
-          expectedProcess.kill('SIGKILL');
-        } catch {
-          // ignore
-        }
-      }, 5000);
-    }, forceAfterMs);
-
-    this.forceCloseTimers.set(groupJid, timer);
   }
 
   private async runForGroup(
@@ -304,11 +222,6 @@ export class GroupQueue {
       logger.error({ groupJid, err }, 'Error processing messages for group');
       this.scheduleRetry(groupJid, state);
     } finally {
-      const forceCloseTimer = this.forceCloseTimers.get(groupJid);
-      if (forceCloseTimer) {
-        clearTimeout(forceCloseTimer);
-        this.forceCloseTimers.delete(groupJid);
-      }
       state.active = false;
       state.process = null;
       state.containerName = null;
@@ -438,7 +351,7 @@ export class GroupQueue {
     // via idle timeout or container timeout. The --rm flag cleans them up on exit.
     // This prevents WhatsApp reconnection restarts from killing working agents.
     const activeContainers: string[] = [];
-    for (const [jid, state] of this.groups) {
+    for (const [_jid, state] of this.groups) {
       if (state.process && !state.process.killed && state.containerName) {
         activeContainers.push(state.containerName);
       }

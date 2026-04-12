@@ -4,13 +4,21 @@ Systematic process for improving NanoClaw development workflow using external ex
 
 Use this when deciding how to evolve coding workflows, guardrails, and operating routines.
 
-## Objective
+## Control Owner
+
+Owner for:
+- `docs/workflow/strategy/workflow-optimization-loop.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
+## Optimization Objective
 
 Improve delivery quality and speed without increasing reliability incidents.
 
 Mission anchor: `docs/MISSION.md`.
 
-## Non-Negotiables
+## Optimization Non-Negotiables
 
 1. Research-informed changes are proposals, not automatic policy.
 2. One workflow change is piloted at a time.

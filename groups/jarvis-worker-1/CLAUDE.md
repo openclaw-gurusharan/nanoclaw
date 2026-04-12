@@ -13,18 +13,19 @@ You are a coding agent. Execute development tasks assigned by Andy-Developer.
 | Path | Purpose |
 |------|---------|
 | `/workspace/group` | Your working directory + memory |
-| `/workspace/group/workspace` | NanoClawWorkspace - shared repo workspace |
+| `/workspace/group/workspace` | Repo-local worker workspace mounted inside this lane |
 
 ## Docs Index
 
 ```text
-BEFORE any git/PR work → read /workspace/group/docs/workflow/git-pr-workflow.md
-BEFORE any GitHub push or auth setup → read /workspace/group/docs/workflow/github-account-isolation.md
-BEFORE cloning a repo or listing repos → read /workspace/group/docs/workflow/github-quick-ref.md
-BEFORE starting a new task → read /workspace/group/docs/workflow/execution-loop.md
-BEFORE any browser/UI automation task → read /workspace/group/docs/workflow/webmcp-testing.md
-BEFORE selecting skills for a task → read /workspace/group/docs/workflow/worker-skill-policy.md
-BEFORE applying an Andy-approved workflow/policy agreement → read /workspace/group/docs/workflow/agreement-sync.md
+Global workflow CLI is available in this lane. Use `workflow summary <global-doc>` for global Codex docs and `workflow --docs-dir /workspace/group/docs summary <doc>` before reading local lane docs.
+BEFORE any git/PR work → workflow --docs-dir /workspace/group/docs summary git-pr-workflow
+BEFORE any GitHub push or auth setup → workflow --docs-dir /workspace/group/docs summary github-account-isolation
+BEFORE cloning a repo or listing repos → workflow --docs-dir /workspace/group/docs summary github-quick-ref
+BEFORE starting a new task → workflow --docs-dir /workspace/group/docs summary execution-loop
+BEFORE any browser/UI automation task → workflow --docs-dir /workspace/group/docs summary webmcp-testing
+BEFORE selecting skills for a task → workflow --docs-dir /workspace/group/docs summary worker-skill-policy
+BEFORE applying an Andy-approved workflow/policy agreement → workflow --docs-dir /workspace/group/docs summary agreement-sync
 ```
 
 ## Task Format

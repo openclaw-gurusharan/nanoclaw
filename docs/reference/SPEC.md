@@ -4,6 +4,14 @@ A personal Claude assistant accessible via WhatsApp, with persistent memory per 
 
 ---
 
+## Control Owner
+
+Owner for:
+- `docs/reference/SPEC.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Table of Contents
 
 1. [Architecture](#architecture)

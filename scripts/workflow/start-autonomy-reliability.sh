@@ -14,7 +14,7 @@ BASE_BRANCH="${NANOCLAW_RELIABILITY_BASE_BRANCH:-main}"
 REMOTE_NAME="${NANOCLAW_RELIABILITY_REMOTE:-origin}"
 GH_ACCOUNT="${NANOCLAW_PLATFORM_GH_ACCOUNT:-ingpoc}"
 CLAUDE_PERMISSION_MODE="${NANOCLAW_RELIABILITY_CLAUDE_PERMISSION_MODE:-bypassPermissions}"
-CLAUDE_ALLOWED_TOOLS="${NANOCLAW_RELIABILITY_ALLOWED_TOOLS:-Read,Grep,Glob,Bash(bash scripts/workflow/autonomy-lane.sh:*),Bash(bash scripts/workflow/platform-loop-sync.sh:*),Bash(bash scripts/jarvis-ops.sh:*),Bash(node scripts/workflow/platform-loop.js:*),Bash(gh auth:*),Bash(gh api:*),Bash(gh issue:*),Bash(gh pr:*),Bash(git status),Bash(git switch:*),Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(npm run build),Bash(npm test),Bash(node --experimental-transform-types scripts/test-andy-user-e2e.ts),Bash(node --experimental-transform-types scripts/test-main-lane-status-e2e.ts),Bash(node --experimental-transform-types scripts/test-andy-full-user-journey-e2e.ts)}"
+CLAUDE_ALLOWED_TOOLS="${NANOCLAW_RELIABILITY_ALLOWED_TOOLS:-Read,Grep,Glob,Bash(bash scripts/workflow/autonomy-lane.sh:*),Bash(bash scripts/workflow/platform-loop-sync.sh:*),Bash(bash scripts/jarvis-ops.sh:*),Bash(bash scripts/with-service-node.sh:*),Bash(node scripts/workflow/platform-loop.js:*),Bash(gh auth:*),Bash(gh api:*),Bash(gh issue:*),Bash(gh pr:*),Bash(git status),Bash(git switch:*),Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(npm run build),Bash(npm test)}"
 SESSION_RUNNER="$ROOT_DIR/scripts/workflow/run-platform-claude-session.sh"
 SYNC_HELPER="$ROOT_DIR/scripts/workflow/platform-loop-sync.sh"
 AUTONOMY_HELPER="$ROOT_DIR/scripts/workflow/autonomy-lane.sh"
@@ -62,9 +62,9 @@ Execution:
    - if runtime or user-facing flow is in scope, run the relevant deterministic checks:
      - \`bash scripts/jarvis-ops.sh verify-worker-connectivity\`
      - \`bash scripts/jarvis-ops.sh linkage-audit\`
-     - \`node --experimental-transform-types scripts/test-andy-user-e2e.ts\`
-     - \`node --experimental-transform-types scripts/test-main-lane-status-e2e.ts\`
-     - \`node --experimental-transform-types scripts/test-andy-full-user-journey-e2e.ts\` when dispatch or linkage is touched
+     - \`bash scripts/with-service-node.sh npx tsx scripts/test-andy-user-e2e.ts\`
+     - \`bash scripts/with-service-node.sh npx tsx scripts/test-main-lane-status-e2e.ts\`
+     - \`bash scripts/with-service-node.sh npx tsx scripts/test-andy-full-user-journey-e2e.ts\` when dispatch or linkage is touched
 5. If the system is healthy and the active blocker is gone, clear pause with \`bash scripts/workflow/autonomy-lane.sh pause-clear --source reliability\`.
 6. Return a concise summary naming whether the run triaged a regression, patched a PR, or completed a soak scenario.
 EOF

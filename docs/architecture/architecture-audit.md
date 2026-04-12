@@ -1,5 +1,13 @@
 # Architecture Audit Priority Report (Apple Container-First Audit)
 
+## Control Owner
+
+Owner for:
+- audit findings and prioritization guidance in this document
+
+Should not contain:
+- canonical runtime, security, or architecture policy that belongs in the owning contract docs
+
   ### P0 (Fix Immediately)
 
   1. Secret blast radius: untrusted non-main groups can receive and exfiltrate GitHub token

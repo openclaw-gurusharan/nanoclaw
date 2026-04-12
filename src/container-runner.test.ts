@@ -1,26 +1,30 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
-import fs from 'fs';
 
 // Sentinel markers must match container-runner.ts
 const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
+const testState = vi.hoisted(() => ({
+  isAppleContainerRuntime: false,
+  authMode: 'oauth' as 'oauth' | 'api-key',
+  applyContainerConfigMock: vi.fn().mockResolvedValue(true),
+  spawnMock: vi.fn(),
+  mockPathKinds: new Map<string, 'file' | 'dir'>(),
+  copyFileSyncMock: vi.fn(),
+}));
 
 // Mock config
 vi.mock('./config.js', () => ({
   CONTAINER_IMAGE: 'nanoclaw-agent:latest',
   CONTAINER_MAX_OUTPUT_SIZE: 10485760,
-  CONTAINER_NO_OUTPUT_TIMEOUT: 720000, // 12min
-  CONTAINER_PARSE_BUFFER_LIMIT: 1048576,
   CONTAINER_TIMEOUT: 1800000, // 30min
   CREDENTIAL_PROXY_PORT: 3001,
   DATA_DIR: '/tmp/nanoclaw-test-data',
   GROUPS_DIR: '/tmp/nanoclaw-test-groups',
   IDLE_TIMEOUT: 1800000, // 30min
+  ONECLI_URL: 'http://localhost:10254',
   TIMEZONE: 'America/Los_Angeles',
-  WORKER_CONTAINER_IMAGE: 'nanoclaw-worker:latest',
-  WORKER_MIN_NO_OUTPUT_TIMEOUT_MS: 0,
 }));
 
 // Mock logger
@@ -36,24 +40,28 @@ vi.mock('./logger.js', () => ({
 // Mock fs
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('fs')>('fs');
+  const pathKind = (value: unknown) =>
+    testState.mockPathKinds.get(String(value)) ?? null;
   return {
     ...actual,
     default: {
       ...actual,
-      existsSync: vi.fn(() => false),
-      mkdirSync: vi.fn(),
+      existsSync: vi.fn((value: unknown) => pathKind(value) !== null),
+      mkdirSync: vi.fn((value: unknown) => {
+        testState.mockPathKinds.set(String(value), 'dir');
+      }),
       writeFileSync: vi.fn(),
-      renameSync: vi.fn(),
       readFileSync: vi.fn(() => ''),
       readdirSync: vi.fn(() => []),
-      statSync: vi.fn(() => ({ isDirectory: () => false })),
-      lstatSync: vi.fn(() => ({
-        isDirectory: () => false,
-        isSymbolicLink: () => false,
+      statSync: vi.fn((value: unknown) => ({
+        isDirectory: () => pathKind(value) === 'dir',
+        isFile: () => pathKind(value) === 'file',
       })),
-      realpathSync: vi.fn((target: fs.PathLike) => String(target)),
-      cpSync: vi.fn(),
-      copyFileSync: vi.fn(),
+      copyFileSync: testState.copyFileSyncMock.mockImplementation(
+        (_src: unknown, dst: unknown) => {
+          testState.mockPathKinds.set(String(dst), 'file');
+        },
+      ),
     },
   };
 });
@@ -61,6 +69,33 @@ vi.mock('fs', async () => {
 // Mock mount-security
 vi.mock('./mount-security.js', () => ({
   validateAdditionalMounts: vi.fn(() => []),
+}));
+
+vi.mock('./credential-proxy.js', () => ({
+  detectAuthMode: vi.fn(() => testState.authMode),
+}));
+
+// Mock container-runtime
+vi.mock('./container-runtime.js', () => ({
+  CONTAINER_HOST_GATEWAY: '192.168.64.1',
+  CONTAINER_RUNTIME_BIN: 'docker',
+  hostGatewayArgs: () => [],
+  readonlyMountArgs: (h: string, c: string) => ['-v', `${h}:${c}:ro`],
+  get IS_APPLE_CONTAINER_RUNTIME() {
+    return testState.isAppleContainerRuntime;
+  },
+  stopContainer: vi.fn(),
+}));
+
+// Mock OneCLI SDK
+vi.mock('@onecli-sh/sdk', () => ({
+  OneCLI: class {
+    applyContainerConfig = testState.applyContainerConfigMock;
+    createAgent = vi.fn().mockResolvedValue({ id: 'test' });
+    ensureAgent = vi
+      .fn()
+      .mockResolvedValue({ name: 'test', identifier: 'test', created: true });
+  },
 }));
 
 // Create a controllable fake ChildProcess
@@ -88,7 +123,7 @@ vi.mock('child_process', async () => {
     await vi.importActual<typeof import('child_process')>('child_process');
   return {
     ...actual,
-    spawn: vi.fn(() => fakeProc),
+    spawn: testState.spawnMock.mockImplementation(() => fakeProc),
     exec: vi.fn(
       (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
         if (cb) cb(null);
@@ -98,26 +133,12 @@ vi.mock('child_process', async () => {
   };
 });
 
-import {
-  runContainerAgent,
-  ContainerOutput,
-  selectContainerImageForGroup,
-  shouldStopSingleShotWorkerAgentRuntime,
-  shouldUseAgentRuntimeForWorkers,
-} from './container-runner.js';
-import { exec, spawn } from 'child_process';
+import { runContainerAgent, ContainerOutput } from './container-runner.js';
 import type { RegisteredGroup } from './types.js';
 
 const testGroup: RegisteredGroup = {
   name: 'Test Group',
   folder: 'test-group',
-  trigger: '@Andy',
-  added_at: new Date().toISOString(),
-};
-
-const workerGroup: RegisteredGroup = {
-  name: 'Jarvis Worker 1',
-  folder: 'jarvis-worker-1',
   trigger: '@Andy',
   added_at: new Date().toISOString(),
 };
@@ -134,17 +155,29 @@ function emitOutputMarker(
   output: ContainerOutput,
 ) {
   const json = JSON.stringify(output);
-  proc.stdout.emit(
-    'data',
-    `${OUTPUT_START_MARKER}\n${json}\n${OUTPUT_END_MARKER}\n`,
-  );
+  proc.stdout.push(`${OUTPUT_START_MARKER}\n${json}\n${OUTPUT_END_MARKER}\n`);
 }
 
 describe('container-runner timeout behavior', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     fakeProc = createFakeProcess();
-    vi.clearAllMocks();
+    testState.isAppleContainerRuntime = false;
+    testState.authMode = 'oauth';
+    testState.applyContainerConfigMock.mockReset();
+    testState.applyContainerConfigMock.mockResolvedValue(true);
+    testState.spawnMock.mockClear();
+    testState.mockPathKinds.clear();
+    testState.copyFileSyncMock.mockClear();
+    testState.mockPathKinds.set(
+      '/tmp/nanoclaw-test-data/sessions/test-group/.claude',
+      'dir',
+    );
+    testState.mockPathKinds.set(
+      '/tmp/nanoclaw-test-data/sessions/test-group/agent-runner-src',
+      'dir',
+    );
+    testState.mockPathKinds.set(`${process.env.HOME}/.codex`, 'dir');
   });
 
   afterEach(() => {
@@ -238,267 +271,256 @@ describe('container-runner timeout behavior', () => {
     expect(result.newSessionId).toBe('session-456');
   });
 
-  it('worker heartbeat does not reset no-output timeout watchdog', async () => {
-    const onOutput = vi.fn(async () => {});
-    const workerLikeGroup: RegisteredGroup = {
-      ...testGroup,
-      containerConfig: {
-        timeout: 900000,
-        idleTimeout: 300000,
-        noOutputTimeout: 120000,
+  it('rewrites OneCLI proxy envs to the Apple bridge host before spawn', async () => {
+    testState.isAppleContainerRuntime = true;
+    testState.applyContainerConfigMock.mockImplementation(
+      async (args: string[]) => {
+        args.push(
+          '-e',
+          'HTTPS_PROXY=http://host.docker.internal:4318',
+          '-e',
+          'HTTP_PROXY=http://host.docker.internal:4318',
+        );
+        return true;
       },
-    };
-
-    const resultPromise = runContainerAgent(
-      workerLikeGroup,
-      testInput,
-      () => {},
-      onOutput,
     );
 
-    await vi.advanceTimersByTimeAsync(119000);
-    expect(exec).not.toHaveBeenCalled();
+    const resultPromise = runContainerAgent(testGroup, testInput, () => {});
+    await vi.advanceTimersByTimeAsync(0);
 
-    fakeProc.stderr.push(
-      '[agent-runner] heartbeat worker-opencode-active model=opencode/minimax-m2.5-free\n',
+    expect(testState.spawnMock).toHaveBeenCalledTimes(1);
+    const spawnArgs = testState.spawnMock.mock.calls[0]?.[1] as string[];
+    expect(spawnArgs).toContain('HTTPS_PROXY=http://192.168.64.1:4318');
+    expect(spawnArgs).toContain('HTTP_PROXY=http://192.168.64.1:4318');
+    expect(spawnArgs).not.toContain(
+      'HTTPS_PROXY=http://host.docker.internal:4318',
     );
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(exec).toHaveBeenCalledTimes(1);
-
-    fakeProc.emit('close', 137);
-    await vi.advanceTimersByTimeAsync(10);
-
-    const result = await resultPromise;
-    expect(result.status).toBe('error');
-    expect(result.error).toContain('no_output_timeout');
-  });
-
-  it('skips hidden skill entries during per-group skills sync', async () => {
-    vi.mocked(fs.existsSync).mockImplementation((target: fs.PathLike) => {
-      const targetPath = String(target);
-      return (
-        targetPath.endsWith('/container/skills') ||
-        targetPath.endsWith('/container/skills/agent-browser')
-      );
-    });
-
-    vi.mocked(fs.readdirSync).mockImplementation(((target: fs.PathLike) => {
-      const targetPath = String(target);
-      if (targetPath.endsWith('/container/skills')) {
-        return ['.docs', 'agent-browser'];
-      }
-      return [];
-    }) as unknown as typeof fs.readdirSync);
-
-    vi.mocked(fs.statSync).mockImplementation((target: fs.PathLike) => {
-      const targetPath = String(target);
-      return {
-        isDirectory: () =>
-          targetPath.endsWith('/agent-browser') ||
-          targetPath.endsWith('/container/skills/.docs'),
-      } as unknown as fs.Stats;
-    });
-
-    const resultPromise = runContainerAgent(
-      testGroup,
-      testInput,
-      () => {},
-      async () => {},
-    );
-
-    fakeProc.emit('close', 0);
-    await vi.advanceTimersByTimeAsync(10);
-
-    const result = await resultPromise;
-    expect(result.status).toBe('success');
-    expect(fs.cpSync).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(fs.cpSync).mock.calls[0]?.[0]).toContain(
-      '/container/skills/agent-browser',
-    );
-    expect(vi.mocked(fs.cpSync).mock.calls[0]?.[1]).toContain(
-      '/tmp/nanoclaw-test-data/sessions/test-group/.claude/skills/agent-browser',
-    );
-    expect(vi.mocked(fs.cpSync).mock.calls[0]?.[2]).toEqual({
-      recursive: true,
-      dereference: true,
-    });
-    expect(vi.mocked(fs.cpSync)).not.toHaveBeenCalledWith(
-      expect.stringContaining('/container/skills/.docs'),
-      expect.anything(),
-      expect.anything(),
-    );
-  });
-
-  it('does not pass --user when using Apple container runtime', async () => {
-    const resultPromise = runContainerAgent(
-      testGroup,
-      testInput,
-      () => {},
-      async () => {},
-    );
-
-    fakeProc.emit('close', 0);
-    await vi.advanceTimersByTimeAsync(10);
-
-    const result = await resultPromise;
-    expect(result.status).toBe('success');
-    const spawnArgs = vi.mocked(spawn).mock.calls[0]?.[1] as
-      | string[]
-      | undefined;
-    expect(spawnArgs).toBeDefined();
-    expect(spawnArgs).not.toContain('--user');
-  });
-
-  it('stops only worker agent-runtime runs after the first real result', () => {
-    expect(
-      shouldStopSingleShotWorkerAgentRuntime({
-        groupFolder: 'jarvis-worker-1',
-        image: 'nanoclaw-agent:latest',
-        result: '<completion>{"run_id":"jarvis-test"}</completion>',
-        stopRequestedAfterResult: false,
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldStopSingleShotWorkerAgentRuntime({
-        groupFolder: 'jarvis-worker-1',
-        image: 'nanoclaw-agent:latest',
-        result: null,
-        stopRequestedAfterResult: false,
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldStopSingleShotWorkerAgentRuntime({
-        groupFolder: 'jarvis-worker-1',
-        image: 'nanoclaw-worker:latest',
-        result: '<completion>{"run_id":"jarvis-test"}</completion>',
-        stopRequestedAfterResult: false,
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldStopSingleShotWorkerAgentRuntime({
-        groupFolder: 'andy-developer',
-        image: 'nanoclaw-agent:latest',
-        result: '<completion>{"run_id":"jarvis-test"}</completion>',
-        stopRequestedAfterResult: false,
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldStopSingleShotWorkerAgentRuntime({
-        groupFolder: 'jarvis-worker-1',
-        image: 'nanoclaw-agent:latest',
-        result: '<completion>{"run_id":"jarvis-test"}</completion>',
-        stopRequestedAfterResult: true,
-      }),
-    ).toBe(false);
-  });
-
-  it('writes a close sentinel instead of forcing an immediate stop after a worker result', async () => {
-    const previousFallbackEnabled = process.env.OAUTH_API_FALLBACK_ENABLED;
-    const previousDefaultModel = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
-    process.env.OAUTH_API_FALLBACK_ENABLED = 'true';
-    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.5';
-
-    const workerLikeInput = {
-      ...testInput,
-      groupFolder: 'jarvis-worker-1',
-    };
-
-    const resultPromise = runContainerAgent(
-      workerGroup,
-      workerLikeInput,
-      () => {},
-      async () => {},
+    expect(spawnArgs).not.toContain(
+      'HTTP_PROXY=http://host.docker.internal:4318',
     );
 
     emitOutputMarker(fakeProc, {
       status: 'success',
-      result: '<completion>{"run_id":"jarvis-test"}</completion>',
-      newSessionId: 'worker-session-1',
+      result: 'bridged',
+      newSessionId: 'session-bridge',
     });
     await vi.advanceTimersByTimeAsync(10);
-
-    const writeFileSync = vi.mocked(fs.writeFileSync);
-    const closeWrites = writeFileSync.mock.calls.filter(
-      (call) => typeof call[0] === 'string' && call[0].endsWith('_close'),
-    );
-    expect(closeWrites).toHaveLength(1);
-    expect(exec).not.toHaveBeenCalled();
-
     fakeProc.emit('close', 0);
     await vi.advanceTimersByTimeAsync(10);
 
-    const result = await resultPromise;
-    expect(result.status).toBe('success');
-
-    if (previousFallbackEnabled === undefined) {
-      delete process.env.OAUTH_API_FALLBACK_ENABLED;
-    } else {
-      process.env.OAUTH_API_FALLBACK_ENABLED = previousFallbackEnabled;
-    }
-    if (previousDefaultModel === undefined) {
-      delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
-    } else {
-      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = previousDefaultModel;
-    }
-  });
-});
-
-describe('worker runtime image selection', () => {
-  const originalWorkerRuntimeMode = process.env.WORKER_RUNTIME_MODE;
-  const originalFallbackEnabled = process.env.OAUTH_API_FALLBACK_ENABLED;
-  const originalDefaultModel = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
-
-  afterEach(() => {
-    if (originalWorkerRuntimeMode === undefined) {
-      delete process.env.WORKER_RUNTIME_MODE;
-    } else {
-      process.env.WORKER_RUNTIME_MODE = originalWorkerRuntimeMode;
-    }
-
-    if (originalFallbackEnabled === undefined) {
-      delete process.env.OAUTH_API_FALLBACK_ENABLED;
-    } else {
-      process.env.OAUTH_API_FALLBACK_ENABLED = originalFallbackEnabled;
-    }
-
-    if (originalDefaultModel === undefined) {
-      delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
-    } else {
-      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = originalDefaultModel;
-    }
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'success',
+      newSessionId: 'session-bridge',
+    });
   });
 
-  it('prefers agent runtime for workers in MiniMax API fallback mode', () => {
-    delete process.env.WORKER_RUNTIME_MODE;
-    process.env.OAUTH_API_FALLBACK_ENABLED = 'true';
-    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.5';
-
-    expect(shouldUseAgentRuntimeForWorkers()).toBe(true);
-    expect(selectContainerImageForGroup(workerGroup)).toBe(
-      'nanoclaw-agent:latest',
+  it('removes OneCLI API key env when oauth auth mode is active', async () => {
+    testState.applyContainerConfigMock.mockImplementation(
+      async (args: string[]) => {
+        args.push(
+          '-e',
+          'ANTHROPIC_API_KEY=placeholder',
+          '-e',
+          'HTTPS_PROXY=http://192.168.64.1:10255',
+        );
+        return true;
+      },
     );
+
+    const resultPromise = runContainerAgent(testGroup, testInput, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(testState.spawnMock).toHaveBeenCalledTimes(1);
+    const spawnArgs = testState.spawnMock.mock.calls[0]?.[1] as string[];
+    expect(spawnArgs).toContain('CLAUDE_CODE_OAUTH_TOKEN=placeholder');
+    expect(spawnArgs).not.toContain('ANTHROPIC_API_KEY=placeholder');
+    expect(spawnArgs).toContain('HTTPS_PROXY=http://192.168.64.1:10255');
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: 'oauth-only',
+      newSessionId: 'session-oauth',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'success',
+      newSessionId: 'session-oauth',
+    });
   });
 
-  it('allows forcing the OpenCode worker runtime explicitly', () => {
-    process.env.WORKER_RUNTIME_MODE = 'opencode';
-    process.env.OAUTH_API_FALLBACK_ENABLED = 'true';
-    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.5';
+  it('routes the main lane through the andy-bot OneCLI agent', async () => {
+    const mainGroup: RegisteredGroup = {
+      ...testGroup,
+      name: 'Andy',
+      folder: 'main',
+      isMain: true,
+    };
+    const mainInput = {
+      ...testInput,
+      groupFolder: 'main',
+      isMain: true,
+    };
 
-    expect(shouldUseAgentRuntimeForWorkers()).toBe(false);
-    expect(selectContainerImageForGroup(workerGroup)).toBe(
-      'nanoclaw-worker:latest',
+    const resultPromise = runContainerAgent(mainGroup, mainInput, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(testState.applyContainerConfigMock).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ agent: 'andy-bot' }),
     );
+    expect(testState.spawnMock).toHaveBeenCalledTimes(1);
+    const spawnArgs = testState.spawnMock.mock.calls[0]?.[1] as string[];
+    expect(spawnArgs).toContain('CLAUDE_CODE_OAUTH_TOKEN=placeholder');
+    expect(spawnArgs).toContain('GH_TOKEN=placeholder');
+    expect(spawnArgs).toContain('GITHUB_TOKEN=placeholder');
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: 'main-andy-bot',
+      newSessionId: 'session-main',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'success',
+      newSessionId: 'session-main',
+    });
   });
 
-  it('keeps non-worker groups on the agent image', () => {
-    process.env.WORKER_RUNTIME_MODE = 'opencode';
+  it('mounts the host Codex workflow root read-only into the container', async () => {
+    const resultPromise = runContainerAgent(testGroup, testInput, () => {});
+    await vi.advanceTimersByTimeAsync(0);
 
-    expect(selectContainerImageForGroup(testGroup)).toBe(
-      'nanoclaw-agent:latest',
+    expect(testState.spawnMock).toHaveBeenCalledTimes(1);
+    const spawnArgs = testState.spawnMock.mock.calls[0]?.[1] as string[];
+    expect(spawnArgs).toContain('-v');
+    expect(spawnArgs).toContain(
+      `${process.env.HOME}/.codex:/home/node/.codex:ro`,
     );
+    expect(spawnArgs).not.toContain(
+      '/tmp/nanoclaw-test-data/sessions/test-group/.claude/bin/workflow:/usr/local/bin/workflow:ro',
+    );
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: 'codex-mounted',
+      newSessionId: 'session-codex',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'success',
+      newSessionId: 'session-codex',
+    });
+  });
+
+  it('adds a no-proxy bypass for the host credential proxy', async () => {
+    testState.applyContainerConfigMock.mockImplementation(
+      async (args: string[]) => {
+        args.push(
+          '-e',
+          'HTTP_PROXY=http://192.168.64.1:10255',
+          '-e',
+          'NO_PROXY=example.internal',
+        );
+        return true;
+      },
+    );
+
+    const resultPromise = runContainerAgent(testGroup, testInput, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(testState.spawnMock).toHaveBeenCalledTimes(1);
+    const spawnArgs = testState.spawnMock.mock.calls[0]?.[1] as string[];
+    expect(spawnArgs).toContain(
+      'NO_PROXY=example.internal,127.0.0.1,localhost,host.docker.internal,192.168.64.1',
+    );
+    expect(spawnArgs).toContain(
+      'no_proxy=example.internal,127.0.0.1,localhost,host.docker.internal,192.168.64.1',
+    );
+    expect(spawnArgs).toContain('HTTP_PROXY=http://192.168.64.1:10255');
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: 'no-proxy',
+      newSessionId: 'session-no-proxy',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'success',
+      newSessionId: 'session-no-proxy',
+    });
+  });
+
+  it('stages OneCLI CA files into a directory mount for Apple Container', async () => {
+    testState.isAppleContainerRuntime = true;
+    testState.mockPathKinds.set('/tmp/onecli-proxy-ca.pem', 'file');
+    testState.mockPathKinds.set('/tmp/onecli-combined-ca.pem', 'file');
+    testState.applyContainerConfigMock.mockImplementation(
+      async (args: string[]) => {
+        args.push(
+          '-e',
+          'NODE_EXTRA_CA_CERTS=/tmp/onecli-gateway-ca.pem',
+          '-v',
+          '/tmp/onecli-proxy-ca.pem:/tmp/onecli-gateway-ca.pem:ro',
+          '-e',
+          'SSL_CERT_FILE=/tmp/onecli-combined-ca.pem',
+          '-v',
+          '/tmp/onecli-combined-ca.pem:/tmp/onecli-combined-ca.pem:ro',
+        );
+        return true;
+      },
+    );
+
+    const resultPromise = runContainerAgent(testGroup, testInput, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(testState.spawnMock).toHaveBeenCalledTimes(1);
+    const spawnArgs = testState.spawnMock.mock.calls[0]?.[1] as string[];
+    expect(spawnArgs).toContain(
+      'NODE_EXTRA_CA_CERTS=/tmp/nanoclaw-onecli/onecli-gateway-ca.pem',
+    );
+    expect(spawnArgs).toContain(
+      'SSL_CERT_FILE=/tmp/nanoclaw-onecli/onecli-combined-ca.pem',
+    );
+    expect(
+      spawnArgs.some(
+        (arg) =>
+          typeof arg === 'string' &&
+          arg.includes('/tmp/nanoclaw-test-data/onecli-mounts/') &&
+          arg.endsWith(':/tmp/nanoclaw-onecli:ro'),
+      ),
+    ).toBe(true);
+    expect(spawnArgs).not.toContain(
+      '/tmp/onecli-proxy-ca.pem:/tmp/onecli-gateway-ca.pem:ro',
+    );
+    expect(spawnArgs).not.toContain(
+      '/tmp/onecli-combined-ca.pem:/tmp/onecli-combined-ca.pem:ro',
+    );
+    expect(testState.copyFileSyncMock).toHaveBeenCalledTimes(2);
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: 'staged-certs',
+      newSessionId: 'session-certs',
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'success',
+      newSessionId: 'session-certs',
+    });
   });
 });

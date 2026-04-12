@@ -1,11 +1,13 @@
 # GitHub Quick Reference (Container)
 
-`GITHUB_TOKEN` and `GH_TOKEN` are pre-set in your environment. Git credentials are pre-configured.
+GitHub auth comes from the lane's OneCLI agent, not from a raw token stored in
+the workspace. Use plain HTTPS GitHub URLs and let the gateway inject the
+credential for this worker lane.
 
 ```bash
 # Clone a repo into your workspace
 cd /workspace/group/workspace
-git clone https://openclaw-gurusharan:$GITHUB_TOKEN@github.com/openclaw-gurusharan/REPO.git
+git clone https://github.com/openclaw-gurusharan/REPO.git
 
 # List repos
 gh repo list openclaw-gurusharan --limit 50

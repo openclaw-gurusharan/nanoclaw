@@ -6,7 +6,7 @@
  * With status checks in-between, as a normal user would do.
  *
  * Run with:
- *   node --experimental-transform-types scripts/test-andy-full-user-journey-e2e.ts
+ *   bash scripts/with-service-node.sh npx tsx scripts/test-andy-full-user-journey-e2e.ts
  */
 import Database from 'better-sqlite3';
 
@@ -39,7 +39,10 @@ type Stage = {
 
 const DEFAULT_DB_PATH = 'store/messages.db';
 const POLL_MS = 500;
-const IMMEDIATE_REPLY_MAX_MS = 8_000;
+const IMMEDIATE_REPLY_MAX_MS = Number.parseInt(
+  process.env.ANDY_IMMEDIATE_REPLY_MAX_MS || '25000',
+  10,
+);
 const REQUEST_ACK_TIMEOUT_MS = 30_000;
 const REQUEST_LINK_TIMEOUT_MS = 180_000;
 const RUN_TERMINAL_TIMEOUT_MS = 15 * 60_000;

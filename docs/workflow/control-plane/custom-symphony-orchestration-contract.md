@@ -1,19 +1,24 @@
 # Custom Symphony Orchestration Contract
 
-## Purpose
+## Symphony Contract Purpose
 
 Canonical contract for NanoClaw's custom Symphony implementation, including project registry shape, backend selection, and runtime boundaries.
 
-## Doc Type
+## Symphony Contract Type
 
 `contract`
 
-## Canonical Owner
+## Control Owner
 
-This document owns the custom Symphony framework contract for this repository.
-It does not own shared-context placement, GitHub governance, or worker runtime internals.
+Owner for:
+- the custom Symphony framework contract for this repository
 
-## Use When
+Should not contain:
+- shared-context placement that belongs in `docs/workflow/control-plane/collaboration-surface-contract.md`
+- GitHub delivery governance that belongs in `docs/workflow/github/github-delivery-governance.md`
+- worker runtime internals that belong in `docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md`
+
+## Symphony Contract Use When
 
 - changing custom Symphony architecture
 - changing project registry shape
@@ -21,13 +26,13 @@ It does not own shared-context placement, GitHub governance, or worker runtime i
 - changing how Symphony routes between `codex`, `claude-code`, and `OpenCode`
 - changing which project classes may be Symphony-enabled
 
-## Do Not Use When
+## Symphony Contract Do Not Use When
 
 - changing general Linear/Notion/GitHub surface split; use `docs/workflow/control-plane/collaboration-surface-contract.md`
 - changing general execution-lane ownership; use `docs/workflow/control-plane/execution-lane-routing-contract.md`
 - changing worker runtime behavior; use `docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md`
 
-## Verification
+## Symphony Contract Verification
 
 - `npm run symphony:setup`
 - `npm run symphony:sync-registry`
@@ -45,7 +50,7 @@ It does not own shared-context placement, GitHub governance, or worker runtime i
 - `npm test -- src/symphony-server.test.ts`
 - `bash scripts/check-workflow-contracts.sh`
 
-## Related Docs
+## Symphony Contract Related Docs
 
 - `docs/workflow/control-plane/execution-lane-routing-contract.md`
 - `docs/workflow/control-plane/collaboration-surface-contract.md`
@@ -53,7 +58,7 @@ It does not own shared-context placement, GitHub governance, or worker runtime i
 - `docs/workflow/control-plane/symphony-operations-runbook.md`
 - `docs/operations/update-requirements-matrix.md`
 
-## Requirements
+## Symphony Contract Requirements
 
 ### Core framework
 
@@ -167,7 +172,7 @@ Downstream projects may allow:
 
 Each project must explicitly list its allowed backends in the registry.
 
-## Field Rules
+## Symphony Contract Field Rules
 
 Symphony-routed issues must include:
 
@@ -192,7 +197,7 @@ Required issue-body section:
 
 The dispatch path must fail loud when this section is missing or malformed.
 
-## Validation Gates
+## Symphony Contract Validation Gates
 
 Before dispatch, custom Symphony must reject the issue if any are true:
 
@@ -204,7 +209,7 @@ Before dispatch, custom Symphony must reject the issue if any are true:
 6. work class is `governance` or `research`
 7. repo/base branch/context contract is incomplete
 
-## Exit Criteria
+## Symphony Contract Exit Criteria
 
 This contract is operating correctly when all are true:
 

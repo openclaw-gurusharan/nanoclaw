@@ -2,6 +2,27 @@
 
 This is mandatory for Andy-developer.
 
+## Authentication
+
+This lane uses the dedicated OneCLI agent `andy-developer`.
+
+- GitHub credentials are assigned in the OneCLI dashboard and injected by the
+  OneCLI gateway at request time.
+- Do not expect a real `GH_TOKEN` / `GITHUB_TOKEN` value in the container
+  environment.
+- Do not ask the user to run `gh auth login` for normal lane operations.
+- Use plain HTTPS GitHub URLs and let the proxy inject the lane-scoped secret.
+
+Anthropic auth is separate and remains host-provided through NanoClaw's local
+credential proxy.
+
+Capability check rule:
+
+- If asked whether this lane can access GitHub, verify by attempting the
+  GitHub action or API call through the current runtime path.
+- Do not infer "no access" just because `gh auth status` lacks a stored local
+  login session.
+
 ## Branch Policy
 
 - Never commit directly to `main`.
@@ -19,9 +40,15 @@ This is mandatory for Andy-developer.
 5. Worker checks out the dispatched `jarvis-<feature>` branch, applies fix, and pushes updates.
 6. Worker returns completion contract with test evidence and commit SHA.
 7. Andy-developer reviews code and sends `approve` or `rework`.
-8. If approved, Andy-developer syncs the approved branch/commit into `NanoClawWorkspace` and runs checks on that same branch/commit only.
+8. If approved, Andy-developer syncs the approved branch/commit into `NanoClawWorkspace` under `/workspace/extra/repos` and runs checks on that same branch/commit only.
 9. Andy-developer runs local preflight (`build` + `server start/health`), verifies no duplicate same-lane running containers, and sends user testing handoff (user-run local commands).
 10. If not approved and rework is large enough to warrant Jarvis, Andy-developer delegates rework to Jarvis using a new child `run_id`, the same `request_id`, and `parent_run_id` pointing at the reviewed run.
+
+Use plain HTTPS GitHub remotes, for example:
+
+```bash
+git clone https://github.com/openclaw-gurusharan/nanoclaw.git
+```
 
 ## Ownership Split
 

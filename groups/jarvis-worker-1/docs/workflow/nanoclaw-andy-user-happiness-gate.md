@@ -62,7 +62,7 @@ This runbook is a hard requirement in addition to script checks.
 Equivalent expanded form (for debugging):
 
 - `bash scripts/jarvis-ops.sh status`
-- `node --experimental-transform-types scripts/test-andy-user-e2e.ts`
+- `bash scripts/with-service-node.sh npx tsx scripts/test-andy-user-e2e.ts`
 
 ## Probe Script
 

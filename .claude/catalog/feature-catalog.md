@@ -1,6 +1,6 @@
 # NanoClaw Feature Catalog
 
-Generated: 2026-03-17T05:44:32.333Z
+Generated: 2026-04-11T09:11:18.161Z
 Project: nanoclaw
 
 ## Features
@@ -43,6 +43,9 @@ Project: nanoclaw
   - src/channels/whatsapp.ts
   - src/config.ts
   - src/types.ts
+- Validation Warnings:
+  - missing file: src/whatsapp-auth.ts
+  - missing test: src/channels/whatsapp.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/channels/whatsapp.test.ts
@@ -65,6 +68,11 @@ Project: nanoclaw
   - src/dispatch-validator.ts
   - src/event-bridge.ts
   - src/ipc.ts
+- Validation Warnings:
+  - missing file: src/dispatch-validator.ts
+  - missing file: src/event-bridge.ts
+  - missing test: src/extensions/jarvis/frontdesk-service.test.ts
+  - missing test: src/jarvis-worker-dispatch.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/extensions/jarvis/frontdesk-service.test.ts src/ipc-auth.test.ts src/jarvis-worker-dispatch.test.ts
@@ -86,6 +94,9 @@ Project: nanoclaw
   - src/container-runner.ts
   - src/container-runtime.ts
   - src/worker-run-supervisor.ts
+- Validation Warnings:
+  - missing file: src/worker-run-supervisor.ts
+  - missing test: src/worker-run-supervisor.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/container-runner.test.ts src/container-runtime.test.ts src/worker-run-supervisor.test.ts
@@ -119,6 +130,10 @@ Project: nanoclaw
   - src/config.ts
   - src/db.ts
   - src/index.ts
+- Validation Warnings:
+  - missing file: src/runtime-ownership.ts
+  - missing test: src/channels/whatsapp.test.ts
+  - missing test: src/runtime-ownership.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/channels/whatsapp.test.ts src/db.test.ts src/runtime-ownership.test.ts
@@ -202,6 +217,11 @@ Project: nanoclaw
   - src/dispatch-validator.ts
   - src/ipc.ts
   - src/worker-run-supervisor.ts
+- Validation Warnings:
+  - missing file: src/dispatch-validator.ts
+  - missing file: src/worker-run-supervisor.ts
+  - missing test: src/jarvis-worker-dispatch.test.ts
+  - missing test: src/worker-run-supervisor.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/jarvis-worker-dispatch.test.ts src/worker-run-supervisor.test.ts
@@ -238,6 +258,11 @@ Project: nanoclaw
   - src/ipc.ts
   - src/types.ts
   - src/worker-run-supervisor.ts
+- Validation Warnings:
+  - missing file: src/event-bridge.ts
+  - missing file: src/worker-run-supervisor.ts
+  - missing test: src/jarvis-worker-dispatch.test.ts
+  - missing test: src/worker-run-supervisor.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/ipc-auth.test.ts src/jarvis-worker-dispatch.test.ts src/worker-run-supervisor.test.ts
@@ -277,6 +302,16 @@ Project: nanoclaw
   - src/index.ts
   - src/ipc.ts
   - src/types.ts
+- Validation Warnings:
+  - missing file: src/extensions/jarvis/dispatch-service.ts
+  - missing file: src/extensions/jarvis/frontdesk-service.ts
+  - missing file: src/extensions/jarvis/index.ts
+  - missing file: src/extensions/jarvis/lane-control-service.test.ts
+  - missing file: src/extensions/jarvis/lane-control-service.ts
+  - missing file: src/extensions/jarvis/lanes.ts
+  - missing file: src/extensions/jarvis/request-state-service.ts
+  - missing test: src/extensions/jarvis/lane-control-service.test.ts
+  - missing test: src/jarvis-worker-dispatch.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/extensions/jarvis/lane-control-service.test.ts src/group-queue.test.ts src/ipc-auth.test.ts src/jarvis-worker-dispatch.test.ts
@@ -310,6 +345,11 @@ Project: nanoclaw
   - src/extensions/jarvis/frontdesk-service.ts
   - src/extensions/jarvis/request-state-service.ts
   - src/index.ts
+- Validation Warnings:
+  - missing file: src/extensions/jarvis/frontdesk-service.ts
+  - missing file: src/extensions/jarvis/request-state-service.ts
+  - missing test: src/extensions/jarvis/frontdesk-service.test.ts
+  - missing test: src/jarvis-worker-dispatch.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/db.test.ts src/extensions/jarvis/frontdesk-service.test.ts src/jarvis-worker-dispatch.test.ts
@@ -327,6 +367,8 @@ Project: nanoclaw
 - Shared Files:
   - .claude/catalog/feature-catalog.seed.json
   - scripts/jarvis-ops.sh
+- Validation Warnings:
+  - missing test: src/jarvis-reconcile-stale-andy-requests.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/jarvis-reconcile-stale-andy-requests.test.ts
@@ -428,6 +470,11 @@ Project: nanoclaw
   - docs/workflow/runtime/session-recall.md
   - docs/workflow/strategy/workflow-optimization-loop.md
   - scripts/check-workflow-contracts.sh
+- Validation Warnings:
+  - missing file: groups/jarvis-worker-1/AGENTS.md
+  - missing file: groups/jarvis-worker-1/DOCS.md
+  - missing file: groups/jarvis-worker-1/scripts/jarvis-happiness-gate.sh
+  - missing file: groups/jarvis-worker-1/scripts/test-andy-user-e2e.ts
 - Suggested Verify:
   - npm run typecheck
 
@@ -565,6 +612,12 @@ Project: nanoclaw
   - container/worker/runner/src/lib.ts
 - Tests (1):
   - container/worker/runner/src/lib.test.ts
+- Validation Warnings:
+  - missing file: container/worker/build.sh
+  - missing file: container/worker/Dockerfile
+  - missing file: container/worker/runner/src/index.ts
+  - missing file: container/worker/runner/src/lib.ts
+  - missing test: container/worker/runner/src/lib.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run container/worker/runner/src/lib.test.ts
@@ -689,6 +742,15 @@ Project: nanoclaw
   - scripts/workflow/run-platform-claude-session.sh
   - scripts/workflow/start-platform-loop.sh
   - scripts/workflow/trigger-platform-pickup-now.sh
+- Validation Warnings:
+  - missing file: src/nightly-improvement.test.ts
+  - missing file: src/platform-loop-sync.test.ts
+  - missing file: src/platform-loop.test.ts
+  - missing file: src/run-platform-claude-session.test.ts
+  - missing test: src/nightly-improvement.test.ts
+  - missing test: src/platform-loop-sync.test.ts
+  - missing test: src/platform-loop.test.ts
+  - missing test: src/run-platform-claude-session.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/nightly-improvement.test.ts src/platform-loop-sync.test.ts src/platform-loop.test.ts src/run-platform-claude-session.test.ts
@@ -746,6 +808,14 @@ Project: nanoclaw
   - scripts/workflow/run-platform-claude-session.sh
   - scripts/workflow/start-platform-loop.sh
   - scripts/workflow/trigger-platform-pickup-now.sh
+- Validation Warnings:
+  - missing test: src/platform-loop-sync.test.ts
+  - missing test: src/platform-loop-worktree-hygiene.test.ts
+  - missing test: src/platform-loop.test.ts
+  - missing test: src/run-platform-claude-session.test.ts
+  - missing test: src/start-autonomy-reliability.test.ts
+  - missing test: src/start-platform-loop.test.ts
+  - missing test: src/start-pr-guardian.test.ts
 - Suggested Verify:
   - npm run typecheck
   - npx vitest run src/platform-loop-sync.test.ts src/platform-loop-worktree-hygiene.test.ts src/platform-loop.test.ts src/run-platform-claude-session.test.ts src/start-autonomy-reliability.test.ts src/start-platform-loop.test.ts src/start-pr-guardian.test.ts

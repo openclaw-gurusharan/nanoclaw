@@ -1,18 +1,21 @@
 # GitHub Access
 
-Account: `openclaw-gurusharan`. Full access to push, pull, commit, branch, and manage all repos under this account.
+This lane uses the dedicated OneCLI agent `andy-bot`.
 
 ## Authentication
 
-`GITHUB_TOKEN` is available in your environment. Use it for all git operations:
+GitHub credentials are selected in the OneCLI dashboard and injected by the
+OneCLI gateway at request time. Do not expect a real `GITHUB_TOKEN` or
+`GH_TOKEN` value in the environment, and do not write credentials into
+`.git-credentials`, remote URLs, shell profiles, or memory files.
+
+Anthropic auth is separate: the host provides Claude OAuth via NanoClaw's local
+credential proxy.
+
+Use plain HTTPS GitHub URLs and let the proxy inject the lane-scoped secret:
 
 ```bash
-# Configure git to use the token for HTTPS (run once per session)
-git config --global credential.helper store
-echo "https://openclaw-gurusharan:$GITHUB_TOKEN@github.com" > ~/.git-credentials
-
-# Or embed directly in remote URL for one-off ops
-git clone https://openclaw-gurusharan:$GITHUB_TOKEN@github.com/openclaw-gurusharan/REPO.git
+git clone https://github.com/openclaw-gurusharan/REPO.git
 ```
 
 Always set git identity before committing:
@@ -24,11 +27,11 @@ git config --global user.name "Andy (openclaw-gurusharan)"
 
 ## Workspace
 
-Clone repos into `/workspace/extra/repos/` — persists on host at `~/Documents/remote-claude/NanoClawWorkspace`:
+Clone repos into `/workspace/extra/repos/` — persists on host at `~/Documents/remote-claude/active/apps/NanoClawWorkspace`:
 
 ```bash
 cd /workspace/extra/repos
-git clone https://openclaw-gurusharan:$GITHUB_TOKEN@github.com/openclaw-gurusharan/REPO.git
+git clone https://github.com/openclaw-gurusharan/REPO.git
 cd REPO
 git add -A && git commit -m "message" && git push
 ```
@@ -43,5 +46,5 @@ gh repo list openclaw-gurusharan --limit 50
 ## Access Scope
 
 - Any public repo on GitHub — clone without auth
-- Any private repo where `openclaw-gurusharan` is a collaborator — use `$GITHUB_TOKEN`
-- Private repos on other accounts where not a collaborator — not accessible
+- Any private repo or API path allowed by the current `andy-bot` OneCLI secret assignment
+- If a GitHub request fails with 401/403, inspect the `andy-bot` agent access in OneCLI instead of hunting for a missing local token

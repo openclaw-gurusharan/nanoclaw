@@ -2,6 +2,15 @@
 
 Runtime contract for OpenCode-based worker containers.
 
+## Control Owner
+
+Owner for:
+- OpenCode-based worker container runtime behavior and boundaries
+
+Should not contain:
+- dispatch payload and completion contract rules that belong in `docs/workflow/runtime/nanoclaw-jarvis-dispatch-contract.md`
+- execution-lane routing or shared-context policy that belongs in the control-plane contracts
+
 ## Worker Image
 
 - Default image: `nanoclaw-worker:latest` (`WORKER_CONTAINER_IMAGE`)
@@ -95,11 +104,13 @@ Andy-bot rules include:
 
 ## Secrets and Identity
 
-- Worker receives `GITHUB_TOKEN_WORKER` (fallback: `GITHUB_TOKEN`).
-- Worker sets `GH_TOKEN = GITHUB_TOKEN` for CLI compatibility.
-- `andy-developer` receives `GITHUB_TOKEN_ANDY_DEVELOPER` (fallback: `GITHUB_TOKEN`).
-- `andy-bot` receives `GITHUB_TOKEN_ANDY_BOT` (fallback: `GITHUB_TOKEN`).
-- Resolved token is exposed in-container as `GITHUB_TOKEN`/`GH_TOKEN` for CLI compatibility.
+- Anthropic auth stays host-provided through NanoClaw's local credential proxy.
+- GitHub and other lane-scoped credentials come from OneCLI, not repo-local keychains or raw env files.
+- OneCLI lane mapping is:
+  - `main` chat container -> `andy-bot`
+  - `andy-developer` -> `andy-developer`
+  - `jarvis-worker-*` -> same identifier as the group folder
+- Containers may expose placeholder `GH_TOKEN` / `GITHUB_TOKEN` values only to trigger authenticated GitHub client flows; the OneCLI gateway injects the real secret at request time.
 - `andy-bot` GitHub usage scope: research, repository inspection, and reporting (not worker dispatch control).
 - Git identity defaults:
   - `WORKER_GIT_NAME=Andy (openclaw-gurusharan)`
@@ -204,7 +215,7 @@ Token counts are zero-filled until OpenCode exposes deterministic per-call usage
 2. Non-worker groups remain on the Claude Agent SDK runtime path.
 3. Worker-specific behavior is bounded by folder/image detection and does not alter main-group orchestration semantics.
 
-## Agent Routing
+## Worker Agent Routing
 
 Use the canonical routing owners in:
 

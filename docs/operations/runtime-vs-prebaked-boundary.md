@@ -2,6 +2,14 @@
 
 Canonical guide for where to place changes and which files to update, based on NanoClaw architecture and Claude Code/OpenCode operating patterns.
 
+## Control Owner
+
+Owner for:
+- `docs/operations/runtime-vs-prebaked-boundary.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Best-Practice Synthesis
 
 1. Keep NanoClaw core small and generic; enforce contracts in host code.

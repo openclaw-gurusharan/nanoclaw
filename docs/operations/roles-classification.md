@@ -2,6 +2,14 @@
 
 Role contract for NanoClaw orchestration, NanoClaw repo execution, and downstream project execution.
 
+## Control Owner
+
+Owner for:
+- `docs/operations/roles-classification.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Role Matrix
 
 | Role | Runtime | Primary Scope | Must Not Do |

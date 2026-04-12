@@ -4,6 +4,14 @@ Use this workflow when Codex should consult Claude Code CLI as an additional rea
 
 Mission anchor: `docs/MISSION.md`.
 
+## Control Owner
+
+Owner for:
+- `docs/workflow/delivery/claude-cli-resume-consult-lane.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Objective
 
 Use Claude Code as a scoped consult/review lane while keeping Codex as primary orchestrator and executor.

@@ -2,6 +2,14 @@
 
 Maps the same workflow intent to each tool's internal controls so implementation/review can be assigned to either tool without process drift.
 
+## Control Owner
+
+Owner for:
+- `docs/operations/claude-codex-adapter-matrix.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Policy Ownership
 
 1. Canonical source: `CLAUDE.md`.

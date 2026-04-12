@@ -4,7 +4,7 @@ Mandatory whenever the user asks to test locally, or when reporting "ready for u
 
 ## Goal
 
-Prepare the app in `NanoClawWorkspace` and provide a runnable handoff so the user can test without recloning.
+Prepare the app in the staged review workspace and provide a runnable handoff so the user can test without recloning.
 
 ## Required Steps
 
@@ -17,8 +17,8 @@ Prepare the app in `NanoClawWorkspace` and provide a runnable handoff so the use
   - `git ls-remote --heads origin <approved-branch>`
 
 2. Stage review workspace
-- Use path `/workspace/extra/repos/<repo-name>` (host path: `~/Documents/remote-claude/NanoClawWorkspace/<repo-name>`).
-- If repository is missing in `NanoClawWorkspace`, clone it before preflight checks.
+- Use path `/workspace/extra/repos/<repo-name>` (host path: `~/Documents/remote-claude/active/apps/NanoClawWorkspace/<repo-name>`).
+- If the repository is missing in `NanoClawWorkspace`, clone it before preflight checks.
 - Ensure branch and commit match the approved worker output.
 - Never run preflight or handoff from a different branch than the one containing the approved fix under test.
 - Sync explicitly from remote before checks (`git fetch`, checkout approved branch/commit, `git pull --ff-only` when applicable).
@@ -49,7 +49,7 @@ Use this structure in the user-facing response:
 
 ```text
 Local Review Handoff
-- Repo path: ~/Documents/remote-claude/NanoClawWorkspace/<repo-name>
+- Repo path: ~/Documents/remote-claude/active/apps/NanoClawWorkspace/<repo-name>
 - Branch: <branch>
 - Commit: <sha>
 - Build check: <passed/failed + command>

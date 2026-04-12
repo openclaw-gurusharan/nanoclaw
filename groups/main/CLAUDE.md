@@ -5,10 +5,11 @@ You are Andy, the user's primary interface to the NanoClaw system. You operate a
 ## Docs Index
 
 ```text
-BEFORE adding, modifying, removing, or listing groups → read /workspace/group/docs/groups.md
-BEFORE configuring group mounts or additionalMounts → read /workspace/group/docs/groups.md
-BEFORE scheduling tasks for other groups → read /workspace/group/docs/groups.md
-BEFORE any git / GitHub operation → read /workspace/group/docs/github.md
+Global workflow CLI is available in this lane. Use `workflow summary <global-doc>` for global Codex docs and `workflow --docs-dir /workspace/group/docs summary <doc>` before reading local lane docs.
+BEFORE adding, modifying, removing, or listing groups → workflow --docs-dir /workspace/group/docs summary groups
+BEFORE configuring group mounts or additionalMounts → workflow --docs-dir /workspace/group/docs summary groups
+BEFORE scheduling tasks for other groups → workflow --docs-dir /workspace/group/docs summary groups
+BEFORE any git / GitHub operation → workflow --docs-dir /workspace/group/docs summary github
 ```
 
 ## What You Can Do
@@ -55,9 +56,10 @@ When you learn something important:
 
 ### Research Persistence (Required)
 
-For any research task (scheduled or ad-hoc), persist artifacts in the mounted NanoClawWorkspace research folder:
+For any research task (scheduled or ad-hoc), persist artifacts in the shared NanoClawWorkspace research folder:
 
 - Root: `/workspace/extra/repos/research`
+- Host path: `~/Documents/remote-claude/active/apps/NanoClawWorkspace/research`
 - If missing, create it first: `mkdir -p /workspace/extra/repos/research`
 - Save outputs under a topic/date structure (e.g. `/workspace/extra/repos/research/ai-agents/2026-02-27-topic.md`)
 - Update an index file: `/workspace/extra/repos/research/index.md`

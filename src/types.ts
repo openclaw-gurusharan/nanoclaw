@@ -1,35 +1,3 @@
-export function isJarvisWorkerFolder(folder: string): boolean {
-  return folder.startsWith('jarvis-worker');
-}
-
-export type LaneId =
-  | 'main'
-  | 'andy-developer'
-  | 'jarvis-worker-1'
-  | 'jarvis-worker-2';
-
-export type LaneKind = 'external' | 'agent' | 'worker';
-
-export type RuntimeOwnerMode = 'service' | 'manual';
-
-export interface RuntimeOwnerRecord {
-  owner_name: string;
-  owner_mode: RuntimeOwnerMode;
-  pid: number;
-  started_at: string;
-  heartbeat_at: string;
-  auth_scope: string;
-  launchd_label: string | null;
-  claimed_by: string;
-}
-
-export interface LaneAddress {
-  laneId: LaneId;
-  laneKind: LaneKind;
-  syntheticJid?: string;
-  externalChatJid?: string;
-}
-
 export interface AdditionalMount {
   hostPath: string; // Absolute path on host (supports ~ for home)
   containerPath?: string; // Optional — defaults to basename of hostPath. Mounted at /workspace/extra/{value}
@@ -61,12 +29,7 @@ export interface AllowedRoot {
 
 export interface ContainerConfig {
   additionalMounts?: AdditionalMount[];
-  timeout?: number; // Hard container timeout (default from CONTAINER_TIMEOUT, 30 minutes)
-  noOutputTimeout?: number; // No-output fail-fast timeout (default from CONTAINER_NO_OUTPUT_TIMEOUT, 12 minutes)
-  idleTimeout?: number; // Idle stdin-close delay (default from IDLE_TIMEOUT, 5 minutes)
-  model?: string; // Claude model to use (e.g. 'claude-haiku-4-5-20251001')
-  image?: string; // Override container image (e.g. 'nanoclaw-worker:latest')
-  secrets?: string[]; // Env var names to pass (defaults to all if not specified)
+  timeout?: number; // Default: 300000 (5 minutes)
 }
 
 export interface RegisteredGroup {
@@ -76,7 +39,7 @@ export interface RegisteredGroup {
   added_at: string;
   containerConfig?: ContainerConfig;
   requiresTrigger?: boolean; // Default: true for groups, false for solo chats
-  isMain?: boolean; // Legacy compatibility for tests and DB round-trips
+  isMain?: boolean; // True for the main control group (no trigger, elevated privileges)
 }
 
 export interface NewMessage {
@@ -86,9 +49,12 @@ export interface NewMessage {
   sender_name: string;
   content: string;
   timestamp: string;
-  ingest_seq?: number;
   is_from_me?: boolean;
   is_bot_message?: boolean;
+  thread_id?: string;
+  reply_to_message_id?: string;
+  reply_to_message_content?: string;
+  reply_to_sender_name?: string;
 }
 
 export interface ScheduledTask {
@@ -96,6 +62,7 @@ export interface ScheduledTask {
   group_folder: string;
   chat_jid: string;
   prompt: string;
+  script?: string | null;
   schedule_type: 'cron' | 'interval' | 'once';
   schedule_value: string;
   context_mode: 'group' | 'isolated';
@@ -135,7 +102,7 @@ export type OnInboundMessage = (chatJid: string, message: NewMessage) => void;
 
 // Callback for chat metadata discovery.
 // name is optional — channels that deliver names inline (Telegram) pass it here;
-// channels that sync names separately (WhatsApp syncGroupMetadata) omit it.
+// channels that sync names separately (via syncGroups) omit it.
 export type OnChatMetadata = (
   chatJid: string,
   timestamp: string,
@@ -143,23 +110,3 @@ export type OnChatMetadata = (
   channel?: string,
   isGroup?: boolean,
 ) => void;
-
-export interface WorkerProgressEvent {
-  kind: 'worker_progress';
-  run_id: string;
-  group_folder: string;
-  timestamp: string;
-  phase: string; // active phase label (e.g. "using bash", "thinking")
-  summary: string; // 1-line human-readable progress summary
-  tool_used?: string; // last tool call name if relevant
-  seq: number; // monotonic sequence number
-}
-
-export interface WorkerSteerEvent {
-  kind: 'worker_steer';
-  run_id: string;
-  from_group: string;
-  timestamp: string;
-  message: string; // plain text steering instruction
-  steer_id: string; // unique id for ack tracking
-}

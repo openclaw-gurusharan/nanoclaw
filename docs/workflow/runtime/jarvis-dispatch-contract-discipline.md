@@ -2,6 +2,14 @@
 
 Applies when changing worker dispatch flow, worker CLAUDE docs, or `src/dispatch-validator.ts`.
 
+## Control Owner
+
+Owner for:
+- `docs/workflow/runtime/jarvis-dispatch-contract-discipline.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Non-Negotiables
 
 1. `docs/workflow/runtime/nanoclaw-jarvis-dispatch-contract.md` is the only field-level source of truth for dispatch and completion requirements.

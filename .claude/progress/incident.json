@@ -1,89 +1,243 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-17T22:48:00+05:30",
+  "updated_at": "2026-04-11T10:02:36Z",
   "incidents": [
     {
-      "id": "inc-20260316-worker-timeout-retry-loop",
+      "id": "incident-20260411-jarvis-synthetic-worker-routing",
+      "title": "Synthetic worker lane routing missing in host loop",
       "status": "resolved",
-      "summary": "Jarvis worker OpenCode stalls were failing host no-output timeout correctly but the same dispatch message was being automatically retried, causing repeat respawns of the same run_id instead of a terminal fail-loud outcome.",
+      "severity": "high",
+      "created_at": "2026-04-11T09:22:46.024463+00:00",
+      "updated_at": "2026-04-11T10:28:32Z",
+      "summary": {
+        "symptom": "Synthetic jarvis-worker lanes were not reachable from the host loop, so worker probes died before any valid worker lifecycle completed.",
+        "suspected_cause": "The branch had lost the internal host routing path for jarvis-worker-*@nanoclaw and still carried stale worker-run/tooling assumptions from older schemas and E2E expectations.",
+        "impact": "Worker delegation and Andy status flows were blocked or misreported until the internal worker ingress path, stale-run recovery path, and Andy smoke harness were aligned with the live runtime.",
+        "next_action": "Monitor credential-proxy stability separately if TLS upstream errors recur, but synthetic worker routing itself is restored and the required gates are passing."
+      },
+      "evidence": {
+        "bundle_count": 0
+      },
+      "context": {
+        "lane": "andy-developer"
+      },
       "notes": [
-        "Confirmed live on run jarvis-nan-54-probe-1773664524945-378xt.",
-        "Host watchdog fix landed in src/container-runner.ts: synthetic worker-opencode-active heartbeats no longer re-arm no-output timeout.",
-        "Retry policy fix landed in src/index.ts with src/worker-agent-error-policy.ts: worker timeout errors are treated as terminal and should not be automatically retried.",
-        "Pending verification: timeout of the replayed run under the new runtime must stay terminal and avoid another respawn.",
-        "2026-03-17 deterministic recovery coverage now proves terminal timeout messages are drained instead of replayed, including deferred Andy replay messages in src/extensions/jarvis/runtime-recovery.test.ts.",
-        "2026-03-16 reliability hardening: andy-developer now defers older review backlog behind fresh intake, review requests force a fresh Andy session, and fresh-intake preemption escalates from close sentinel to bounded force-stop if the stale session does not yield.",
-        "2026-03-16 worker shutdown hardening: single-shot worker agent-runtime now writes a graceful _close sentinel first and only falls back to container stop after a grace window, reducing normal post-completion exit 137 dependence.",
-        "2026-03-16 worker confidence: live probes reached review_requested on both jarvis-worker-1 (probe-jarvis-worker-1-1773688332-4691) and jarvis-worker-2 (probe-jarvis-worker-2-1773687505-30281); verify-worker-connectivity now passes.",
-        "2026-03-16 ops signal cleanup: preflight/status now report recent successful worker evidence instead of misclassifying quiet lanes as inactive from chat message timestamps alone."
+        {
+          "ts": "2026-04-11T09:22:46.024463+00:00",
+          "author": "codex",
+          "text": "reported: Worker connectivity probe reaches andy-developer but fails before any worker_runs row is created."
+        },
+        {
+          "ts": "2026-04-11T09:27:17.246951+00:00",
+          "author": "codex",
+          "text": "2026-04-11 progress: restored registered_groups rows for andy-developer plus synthetic jarvis-worker-1@nanoclaw and jarvis-worker-2@nanoclaw, confirmed service restart with groupCount=4 and OneCLI agent ensure for all three non-main lanes. Added container-runner Apple Container rewrites for OneCLI proxy hosts and staged CA file directory mounts; targeted tests now pass (container-runner, container-runtime, ipc-auth). Remaining live blockers: verify-worker-connectivity still fails because synthetic worker JIDs do not have an internal host ingress/runtime path; host throws No channel for JID for jarvis-worker-* and no worker_runs rows are created. Andy user E2E still times out: host sees @Andy hi and spawns nanoclaw-andy-developer, but no bot reply is produced within SLA."
+        },
+        {
+          "ts": "2026-04-11T10:02:36Z",
+          "author": "codex",
+          "text": "2026-04-11 follow-up: enforced oauth-only launch env for agent containers by stripping OneCLI's injected ANTHROPIC_API_KEY placeholder, added host credential-proxy bypass handling, and set the same bypass inside container/agent-runner before SDK startup. Verification: npm run typecheck passed; src/container-runner.test.ts now covers oauth-only auth env and no-proxy handling. Live result improved materially: a fresh Andy container streamed assistant output and NanoClaw sent a real reply back to 120363407693898924@g.us ('Andy: Hey! How can I help you today?'). Remaining gaps: verify-worker-connectivity is still blocked by missing synthetic worker ingress/runtime, and the DB-based scripts/test-andy-user-e2e.ts probe is still timing out even though the bot reply is now being sent and later appears in the messages table."
+        },
+        {
+          "ts": "2026-04-11T10:28:32Z",
+          "author": "codex",
+          "text": "2026-04-11 resolution: restored synthetic worker ingress in src/index.ts so jarvis-worker-*@nanoclaw dispatches create and complete worker_runs internally, and closed worker containers immediately after a valid completion contract arrives. verify-worker-connectivity now passes end-to-end with fresh review_requested probe runs for jarvis-worker-1 and jarvis-worker-2. Also fixed the stale-run recovery script to match the current worker_runs schema, reconciled the orphaned pre-fix probe row, and updated the Andy DB smoke harness to use deterministic local-bot rows plus realistic live greeting/status expectations. Verification: bash scripts/jarvis-ops.sh verify-worker-connectivity --skip-prechecks => PASS; bash scripts/with-service-node.sh npx tsx scripts/test-andy-user-e2e.ts => PASS."
+        }
       ]
     },
     {
-      "id": "inc-20260317-feature-catalog-missing-refs",
-      "status": "resolved",
-      "summary": "Feature catalog strict validation is failing because several legacy docs and launchd references in the seed catalog no longer exist, which weakens the feature-tracking gate for docs and workflow work.",
+      "id": "incident-20260407-main-lane-auth-bridge",
+      "title": "Main WhatsApp lane container auth bridge missing",
+      "status": "open",
+      "severity": "high",
+      "created_at": "2026-04-07T18:15:23.325678+00:00",
+      "updated_at": "2026-04-08T06:18:03.745030+00:00",
+      "summary": {
+        "symptom": "Main WhatsApp lane replied to status probes with login/auth failures instead of concrete control-plane status.",
+        "suspected_cause": "Container runtime was missing the credential-proxy startup and Anthropic proxy env injection path; earlier in the same outage broken stag...",
+        "impact": "Main lane could ingest WhatsApp messages but could not reliably execute the container agent end to end, so Andy status queries failed from the user point of view.",
+        "next_action": "Keep incident open until user confirms the repaired main lane is stable in normal use; watch for any recurrence of container auth or startup errors."
+      },
+      "evidence": {
+        "bundle_count": 0
+      },
+      "context": {
+        "lane": "main",
+        "chat_jid": "919960438648@s.whatsapp.net"
+      },
       "notes": [
-        "Discovered while mapping the LaunchDeck proving-program docs under docs-topology-cleanup.",
-        "build-feature-catalog still generates output, but validate-feature-catalog fails with missing refs under docs-topology-cleanup, workflow-collaboration-surfaces, and autonomous-lane-control-plane.",
-        "2026-03-17 seed cleanup replaced dead legacy docs-discipline, launchd, and start-nightly references with current governance/optimization/runtime artifacts in .claude/catalog/feature-catalog.seed.json.",
-        "2026-03-17 strict validation now passes again after rebuilding the catalog: feature_count=29, missing_refs=0."
+        {
+          "ts": "2026-04-07T18:15:23.325678+00:00",
+          "author": "operator",
+          "text": "reported: Main WhatsApp lane replied to status probes with login/auth failures instead of concrete control-plane status."
+        },
+        {
+          "ts": "2026-04-07T18:15:29.244189+00:00",
+          "author": "operator",
+          "text": "Applied fixes in src/container-runner.ts, src/container-runtime.ts, src/index.ts, src/config.ts, and new src/credential-proxy.ts. Verified build passes, targeted src/container-runner.test.ts passes, launchd service runs on Node v20.19.2, and bash scripts/with-service-node.sh npx tsx scripts/test-main-lane-status-e2e.ts now passes both scenarios with concrete Andy status output."
+        },
+        {
+          "ts": "2026-04-08T06:18:03.745025+00:00",
+          "author": "codex",
+          "text": "2026-04-08 verification: com.nanoclaw launchd service is running and main WhatsApp lane status E2E passed via scripts/test-main-lane-status-e2e.ts, but andy-developer remains offline. Evidence: container ls shows only nanoclaw-agent main container, runtime_owners table is empty, verify-worker-connectivity fails at preflight on missing runtime owner row and missing worker_runs columns run_generation/stop_reason, and logs/nanoclaw.error.log shows OneCLI gateway not reachable so container has no credentials."
+        }
       ]
     },
     {
-      "id": "inc-20260317-dispatch-without-worker-link",
-      "status": "resolved",
-      "summary": "Andy can emit a user-facing 'Dispatched' message for a request while the backing andy_requests row remains coordinator_active with no worker_run_id and no worker_runs row, creating a trust-breaking mismatch between visible status and actual execution state.",
+      "id": "incident-20260331T052251Z",
+      "title": "NanoClaw start blocked by missing env/auth in active checkout",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-31T05:22:51.803048+00:00",
+      "updated_at": "2026-04-07T04:54:14Z",
+      "summary": {
+        "symptom": "NanoClaw start blocked by missing env/auth in active checkout",
+        "suspected_cause": "unknown"
+      },
+      "evidence": {
+        "bundle_count": 0
+      },
+      "context": {
+        "lane": "andy-developer"
+      },
       "notes": [
-        "Discovered during the first live LaunchDeck proving run on request req-1773692784606-5274h0tr for NAN-57 / LD-01.",
-        "User-facing evidence: Andy sent a 'Dispatched: NAN-57 LD-01' message naming jarvis-worker-1 and a branch.",
-        "Database evidence after the dispatch message: andy_requests row stayed state=coordinator_active with worker_run_id empty, and worker_runs had no row for request_id=req-1773692784606-5274h0tr.",
-        "Follow-up status query repeated the coordinator_active state ('Coordinator is processing your request'), confirming the visible dispatch message did not correspond to a linked worker run.",
-        "2026-03-17 fix landed in src/extensions/jarvis/user-facing-output.ts and src/index.ts: Andy dispatch-like output now waits for persisted worker-run confirmation before rendering a user-facing 'Dispatched ...' sentence, otherwise it falls back to truthful coordination text.",
-        "2026-03-17 regression coverage added in src/extensions/jarvis/user-facing-output.test.ts for confirmed, delayed, and unconfirmed dispatch states.",
-        "2026-03-17 live validation after restart: request req-1773693466333-pprimary stayed coordinator_active on immediate status reply, then linked to worker_run_id=req-1773693466333-pprimary before the worker stage advanced. This reproducer no longer showed the premature dispatch claim.",
-        "2026-03-17 later live validation on token 1773727125503-8oz5v also linked worker_run_id=userflow-1773727125503-8oz5v on the first attempt before the worker entered review_requested, confirming the user-visible dispatch message now corresponds to a real linked run."
+        {
+          "ts": "2026-03-31T05:22:51.803048+00:00",
+          "author": "user",
+          "text": "reported: NanoClaw start blocked by missing env/auth in active checkout"
+        },
+        {
+          "ts": "2026-03-31T05:30:55.895520+00:00",
+          "author": "operator",
+          "text": "Resolved startup in active checkout: local .env restored, WhatsApp re-authenticated, better-sqlite3 rebuilt against Node 20 because npm ignore-scripts=true suppressed native addon build, Apple Container default kernel installed via container system start, main chat registered to 919960438648@s.whatsapp.net, launchd com.nanoclaw now running with pid 1519 and WA connected. Follow-up bugs: setup groups helper fails with invalid node --input-type eval quoting; setup verify misreports launchd service as stopped while preflight confirms running."
+        },
+        {
+          "ts": "2026-04-07T04:54:14Z",
+          "author": "operator",
+          "text": "Follow-up runtime fix: session cleanup hook was wired to src/session-cleanup.ts but scripts/cleanup-sessions.sh does not exist in this checkout or cached worktrees. Changed startup to skip scheduling cleanup when the hook is absent, log a debug-only notice once, and added regression test src/session-cleanup.test.ts so service startup no longer emits recurring 'Session cleanup failed' errors."
+        }
       ]
     },
     {
-      "id": "inc-20260317-andy-frontdesk-restart-sla",
-      "status": "resolved",
-      "summary": "Andy frontdesk status/progress replies remain flaky around restart/recovery windows: natural-language progress queries can be misclassified as new work, and immediate status replies can miss the 8s SLA when stale pending messages are being recovered.",
+      "id": "incident-20260406T202320Z",
+      "title": "Update workflow blocked in active checkout",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-04-06T20:23:20.489210+00:00",
+      "updated_at": "2026-04-06T20:23:26.751932+00:00",
+      "summary": {
+        "symptom": "Upstream update could not complete verification in the active checkout without local fixes",
+        "suspected_cause": "skills-engine snapshot and backup helpers used copyFileSync on symlinked tracked paths; npm ignore-scripts=true left better-sqlite3 on th...",
+        "impact": "Update apply initially failed, then post-update verification failed until local tooling and config were repaired",
+        "next_action": "Keep symlink-safe copy helpers and stale-permission pruning in the checkout; document native addon rebuild expectation when ignore-scripts=true"
+      },
+      "evidence": {
+        "bundle_count": 0
+      },
+      "context": {
+        "lane": "andy-developer"
+      },
       "notes": [
-        "Discovered while running scripts/test-andy-full-user-journey-e2e.ts after the dispatch-truthfulness fix.",
-        "Live evidence on token 1773693464880-u8hef: '@Andy what is the current progress' created req-1773693529520-sstm8g7x instead of returning an immediate frontdesk progress reply.",
-        "Code hardening landed in src/extensions/jarvis/frontdesk-service.ts: frontdesk now handles pure greetings/status queries before intake ack, and the query matcher now recognizes 'what is the current progress' / 'what is the current status'.",
-        "Regression coverage added in src/extensions/jarvis/frontdesk-service.test.ts for the exact natural-language phrase that failed live.",
-        "A second live run immediately after service restart still missed the immediate status-reply SLA for req-1773693659172-pprimary; logs show recovery reopened stale pending Andy messages around startup, so restart/recovery interference is still unresolved.",
-        "2026-03-17 follow-up fix landed in src/index.ts: newly arrived Andy frontdesk queries are pre-handled before older pending work is merged, and already-processed messages are filtered out of the later allPending prompt batch.",
-        "2026-03-17 recover-path hardening landed in scripts/jarvis-recover.sh plus src/index.ts: recover now waits for a post-restart runtime-owner heartbeat and host_message_loop_ready_at signal instead of returning on launchctl kickstart alone.",
-        "2026-03-17 live verification on token 1773727125503-8oz5v after recovery shows intake ack in 493ms and immediate status in 380ms, restoring the restart-path frontdesk SLA."
-      ]
-    },
-    {
-      "id": "inc-20260317-andy-stale-message-bleed",
-      "status": "resolved",
-      "summary": "In multi-stage Andy journeys, stale control/retry messages from earlier requests can still bleed into later coordinator prompts, causing Andy to emit dispatch JSON for an older request while a newer request remains coordinator_active.",
-      "notes": [
-        "Observed during the live full-user-journey run for token 1773694440374-38luj when stage two request req-1773694551674-eprimary was active but Andy emitted a dispatch payload for req-1773694442351-pprimary instead.",
-        "The bleed is narrower after filtering already-processed messages from allPending, but a later run still showed Andy outputting raw JSON for older retry request req-1773694737377-reretry2 while fresh build request req-1773694747631-pprimary was active.",
-        "2026-03-17 replay identity is now preserved with <andy_request_replay> metadata, frontdesk no longer re-acks deferred coordinator messages as fresh intake, and recovery resolves terminal replay messages by request identity.",
-        "2026-03-17 live validation narrowed the remaining defect: token 1773727125503-8oz5v stage one now passes end-to-end, but stage two request req-1773727302976-eprimary still reported 'Coordinator picked up 3 pending message(s)' and failed to produce a fresh worker link inside the timeout window, so follow-up multi-stage batching is still not fully clean.",
-        "2026-03-17 fix tranche: processGroupMessages now applies the same Andy batch-selection/defer logic as the active-container path, replayed messages are parked instead of being replayed recursively, older review replays stay parked while a newer coordinator request is still active in the same chat, and mixed batches now prioritize non-replay coordinator requests ahead of replayed coordinator/review messages for frontdesk context and dispatch repair.",
-        "2026-03-17 live verification: full three-stage user journey token 1773732025501-6jh67 passed end-to-end after a clean UAT queue reset. Build App linked req-1773732026179-pprimary on attempt 1, Add Feature linked req-1773732211182-eprimary on attempt 1, and Customization linked req-1773732486520-nprimary on attempt 1; all three worker runs reached review_requested with immediate status/progress replies preserved."
+        {
+          "ts": "2026-04-06T20:23:20.489210+00:00",
+          "author": "operator",
+          "text": "reported: Upstream update could not complete verification in the active checkout without local fixes"
+        },
+        {
+          "ts": "2026-04-06T20:23:26.751928+00:00",
+          "author": "operator",
+          "text": "Local mitigation applied in working tree: skills-engine symlink-safe copy helpers added, better-sqlite3 rebuilt against Node ABI 131 via node-gyp, stale permissions.allow entry for ./container/worker/build.sh removed, npm run build passed, npm test passed (389/389)."
+        }
       ]
     },
     {
       "id": "inc-20260317-pr68-tooling-governance-ci",
-      "status": "resolved",
-      "summary": "PR #68 CI failed at tooling governance because the lint still expected a deleted skills-vs-docs map file and the max allow-entry budget no longer matched the current governed tool surface on the branch.",
-      "notes": [
-        "Observed from GitHub Actions run 23185790699 on PR #68 with errors for missing docs/operations/skills-vs-docs-map.md and permissions.allow budget overflow (103 > 62).",
-        "2026-03-17 fix: scripts/check-tooling-governance.sh now validates MCP-routing policy against the canonical .claude/rules/docs-governance.md rule instead of the removed map file, matching the repo's docs-governance contract.",
-        "2026-03-17 fix: .claude/rules/docs-governance.md now carries the built-in-first MCP routing sentence plus the required token-efficient, chrome-devtools, context7, and deepwiki entries enforced by governance lint.",
-        "2026-03-17 fix: docs/operations/tooling-governance-budget.json max_allow_entries rebaselined to 110 to match the current Symphony/Notion/GitHub governed tool surface without relaxing wildcard budget.",
-        "2026-03-17 verification: bash scripts/check-workflow-contracts.sh, bash scripts/check-claude-codex-mirror.sh, bash scripts/check-tooling-governance.sh, npm run format:check, npm run typecheck, and npm test all pass locally after the governance and launcher test fixes.",
-        "2026-03-17 follow-up fix: start-platform-loop/start-autonomy-reliability launchers now honor source-root overrides in dry-run tests, and the paired Vitest cases provide a fake session runner plus a 15s timeout to avoid parallel-suite flake."
-      ]
+      "title": "Incident inc-20260317-pr68-tooling-governance-ci",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-31T05:22:51.803037+00:00",
+      "updated_at": "2026-03-31T05:22:51.803037+00:00",
+      "summary": {
+        "symptom": "Incident inc-20260317-pr68-tooling-governance-ci",
+        "suspected_cause": "unknown"
+      },
+      "evidence": {
+        "bundle_count": 0
+      }
+    },
+    {
+      "id": "inc-20260317-andy-stale-message-bleed",
+      "title": "Incident inc-20260317-andy-stale-message-bleed",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-31T05:22:51.803032+00:00",
+      "updated_at": "2026-03-31T05:22:51.803032+00:00",
+      "summary": {
+        "symptom": "Incident inc-20260317-andy-stale-message-bleed",
+        "suspected_cause": "unknown"
+      },
+      "evidence": {
+        "bundle_count": 0
+      }
+    },
+    {
+      "id": "inc-20260317-andy-frontdesk-restart-sla",
+      "title": "Incident inc-20260317-andy-frontdesk-restart-sla",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-31T05:22:51.803027+00:00",
+      "updated_at": "2026-03-31T05:22:51.803027+00:00",
+      "summary": {
+        "symptom": "Incident inc-20260317-andy-frontdesk-restart-sla",
+        "suspected_cause": "unknown"
+      },
+      "evidence": {
+        "bundle_count": 0
+      }
+    },
+    {
+      "id": "inc-20260317-dispatch-without-worker-link",
+      "title": "Incident inc-20260317-dispatch-without-worker-link",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-31T05:22:51.803021+00:00",
+      "updated_at": "2026-03-31T05:22:51.803021+00:00",
+      "summary": {
+        "symptom": "Incident inc-20260317-dispatch-without-worker-link",
+        "suspected_cause": "unknown"
+      },
+      "evidence": {
+        "bundle_count": 0
+      }
+    },
+    {
+      "id": "inc-20260317-feature-catalog-missing-refs",
+      "title": "Incident inc-20260317-feature-catalog-missing-refs",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-31T05:22:51.803011+00:00",
+      "updated_at": "2026-03-31T05:22:51.803011+00:00",
+      "summary": {
+        "symptom": "Incident inc-20260317-feature-catalog-missing-refs",
+        "suspected_cause": "unknown"
+      },
+      "evidence": {
+        "bundle_count": 0
+      }
+    },
+    {
+      "id": "inc-20260316-worker-timeout-retry-loop",
+      "title": "Incident inc-20260316-worker-timeout-retry-loop",
+      "status": "open",
+      "severity": "unknown",
+      "created_at": "2026-03-31T05:22:51.802899+00:00",
+      "updated_at": "2026-03-31T05:22:51.802899+00:00",
+      "summary": {
+        "symptom": "Incident inc-20260316-worker-timeout-retry-loop",
+        "suspected_cause": "unknown"
+      },
+      "evidence": {
+        "bundle_count": 0
+      }
     }
   ]
 }

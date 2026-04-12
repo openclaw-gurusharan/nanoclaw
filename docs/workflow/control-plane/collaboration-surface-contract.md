@@ -1,32 +1,37 @@
 # Collaboration Surface Contract
 
-## Purpose
+## Surface Contract Purpose
 
 Canonical day-to-day workflow for how WhatsApp, Notion, Linear, Symphony, GitHub, and repo-local artifacts work together without creating duplicate trackers.
 
-## Doc Type
+## Surface Contract Type
 
 `workflow-loop`
 
-## Canonical Owner
+## Control Owner
 
-This document owns collaboration-surface usage and boundary rules.
-It does not own execution-lane routing, GitHub governance, or worker runtime behavior.
+Owner for:
+- collaboration-surface usage and boundary rules
 
-## Use When
+Should not contain:
+- execution-lane routing that belongs in `docs/workflow/control-plane/execution-lane-routing-contract.md`
+- GitHub delivery governance that belongs in `docs/workflow/github/github-delivery-governance.md`
+- worker runtime behavior that belongs in `docs/workflow/runtime/nanoclaw-jarvis-worker-runtime.md`
+
+## Surface Contract Use When
 
 - deciding where a new request should start
 - deciding when context becomes committed execution work
 - deciding what belongs in Linear vs Notion vs GitHub
 - changing cross-surface operating agreements
 
-## Do Not Use When
+## Surface Contract Do Not Use When
 
 - changing which lane executes work; use `docs/workflow/control-plane/execution-lane-routing-contract.md`
 - changing GitHub review or merge policy; use `docs/workflow/github/github-delivery-governance.md`
 - deciding GitHub-vs-local automation placement; use `docs/workflow/github/github-offload-boundary-loop.md`
 
-## Verification
+## Surface Contract Verification
 
 - `bash scripts/check-workflow-contracts.sh`
 - `bash scripts/check-claude-codex-mirror.sh`
@@ -34,7 +39,7 @@ It does not own execution-lane routing, GitHub governance, or worker runtime beh
 - `zsh -lc 'set -a; source .env; set +a; node scripts/workflow/work-control-plane.js'`
 - `zsh -lc 'set -a; source .env; set +a; node scripts/workflow/linear-work-sweep.js --agent codex'`
 
-## Related Docs
+## Surface Contract Related Docs
 
 - `docs/workflow/control-plane/execution-lane-routing-contract.md`
 - `docs/workflow/github/github-delivery-governance.md`
@@ -233,7 +238,7 @@ Rules:
 5. keep Notion limited to shared context
 6. keep repository files limited to execution contracts and machine artifacts
 
-## Exit Criteria
+## Surface Contract Exit Criteria
 
 This contract is operating correctly when all are true:
 

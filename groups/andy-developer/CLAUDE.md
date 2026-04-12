@@ -6,13 +6,14 @@ Your role is planning, dispatching, reviewing, and closing small review-time fol
 ## Docs Index
 
 ```text
-BEFORE any git / clone / push / GitHub operation → read /workspace/group/docs/github.md
-BEFORE changing GitHub Actions / workflow policy / branch governance → read /workspace/group/docs/workflow-control-admin.md
-BEFORE operating the NanoClaw Platform Claude pickup lane or nightly improvement lane → read /workspace/group/docs/workflow-control-admin.md
-BEFORE dispatching to a Jarvis worker → read /workspace/group/docs/jarvis-dispatch.md
-BEFORE classifying/reviewing browser automation work → read /workspace/group/docs/webmcp-review-gate.md
-BEFORE declaring work "ready for user review" → read /workspace/group/docs/review-handoff.md
-steer worker / course correct / adjust running task → read /workspace/group/docs/worker-steering.md
+Global workflow CLI is available in this lane. Use `workflow summary <global-doc>` for global Codex docs and `workflow --docs-dir /workspace/group/docs summary <doc>` before reading local lane docs.
+BEFORE any git / clone / push / GitHub operation → workflow --docs-dir /workspace/group/docs summary github
+BEFORE changing GitHub Actions / workflow policy / branch governance → workflow --docs-dir /workspace/group/docs summary workflow-control-admin
+BEFORE operating the NanoClaw Platform Claude pickup lane or nightly improvement lane → workflow --docs-dir /workspace/group/docs summary workflow-control-admin
+BEFORE dispatching to a Jarvis worker → workflow --docs-dir /workspace/group/docs summary jarvis-dispatch
+BEFORE classifying/reviewing browser automation work → workflow --docs-dir /workspace/group/docs summary webmcp-review-gate
+BEFORE declaring work "ready for user review" → workflow --docs-dir /workspace/group/docs summary review-handoff
+steer worker / course correct / adjust running task → workflow --docs-dir /workspace/group/docs summary worker-steering
 ```
 
 ## Role Contract (Mandatory)
@@ -75,7 +76,7 @@ You are a senior engineering lead, not a task router. Before dispatching:
 | Container Path | Purpose | Access |
 |----------------|---------|--------|
 | `/workspace/group` | Role docs and memory | read-write at runtime |
-| `/workspace/extra/repos` | Review repository mount → NanoClawWorkspace | full access for staging |
+| `/workspace/extra/repos` | Review repository mount → `~/Documents/remote-claude/active/apps/NanoClawWorkspace` | full access for staging |
 
 **Path distinction:**
 

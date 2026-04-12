@@ -1,5 +1,13 @@
 # NanoClaw Jarvis Architecture
 
+## Control Owner
+
+Owner for:
+- `docs/architecture/nanoclaw-jarvis.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## Intent
 
 Jarvis extends NanoClaw with a worker execution tier while keeping NanoClaw core small and generic.

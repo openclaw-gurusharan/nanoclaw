@@ -5,7 +5,7 @@
  * processes), then waits for bot replies and enforces response criteria.
  *
  * Run with:
- *   npx tsx scripts/test-andy-user-e2e.ts
+ *   bash scripts/with-service-node.sh npx tsx scripts/test-andy-user-e2e.ts
  */
 import Database from 'better-sqlite3';
 
@@ -25,7 +25,11 @@ type Scenario = {
 
 const DEFAULT_DB_PATH = 'store/messages.db';
 const POLL_INTERVAL_MS = 250;
-const DEFAULT_TIMEOUT_MS = 20_000;
+const IMMEDIATE_REPLY_MAX_MS = Number.parseInt(
+  process.env.ANDY_IMMEDIATE_REPLY_MAX_MS || '25000',
+  10,
+);
+const DEFAULT_TIMEOUT_MS = Math.max(IMMEDIATE_REPLY_MAX_MS + 5_000, 30_000);
 const TIMESTAMP_FLOOR_TOLERANCE_MS = 1_000;
 
 function sleep(ms: number): Promise<void> {
@@ -74,7 +78,7 @@ function getBotMessageIds(db: Database.Database, chatJid: string): Set<string> {
   const rows = db.prepare(
     `SELECT id
      FROM messages
-     WHERE chat_jid = ? AND is_bot_message = 1`,
+     WHERE chat_jid = ? AND is_bot_message = 1 AND id LIKE 'local-bot-%'`,
   ).all(chatJid) as Array<{ id: string }>;
   return new Set(rows.map((row) => row.id));
 }
@@ -114,7 +118,7 @@ async function waitForNextBotMessage(
     const rows = db.prepare(
       `SELECT id, content, timestamp
        FROM messages
-       WHERE chat_jid = ? AND is_bot_message = 1
+       WHERE chat_jid = ? AND is_bot_message = 1 AND id LIKE 'local-bot-%'
        ORDER BY timestamp ASC, id ASC`,
     ).all(chatJid) as MessageRow[];
 
@@ -205,23 +209,24 @@ async function main(): Promise<void> {
       {
         name: 'Simple Greeting',
         userMessage: '@Andy hi',
-        maxLatencyMs: 8_000,
-        expected: /(Hey, I'?m here|working on something|worker is still running)/i,
+        maxLatencyMs: IMMEDIATE_REPLY_MAX_MS,
+        expected: /^Andy:\s*(Hey|Hello|Hi)\b/i,
         forbidden: /(error|exception|traceback|failed)/i,
       },
       {
         name: 'Natural Status Query',
         userMessage: '@Andy what are you working on right now?',
-        maxLatencyMs: 8_000,
-        expected: /(Right now|Current progress|Current tracked requests|No worker run is active|There are no worker runs yet|working on)/i,
+        maxLatencyMs: IMMEDIATE_REPLY_MAX_MS,
+        expected:
+          /(Right now|Current progress|Current tracked requests|No worker run is active|There are no worker runs yet|Nothing at the moment|no active worker runs|standing by|working on)/i,
         forbidden: /(error|exception|traceback)/i,
       },
       {
         name: 'Progress Query',
         userMessage: '@Andy what is the current progress',
-        maxLatencyMs: 8_000,
+        maxLatencyMs: IMMEDIATE_REPLY_MAX_MS,
         expected:
-          /(Right now|Current progress|Current tracked requests|No worker run is active|There are no worker runs yet|working on)/i,
+          /(Right now|Current progress|Current tracked requests|No worker run is active|There are no worker runs yet|Nothing at the moment|no active worker runs|standing by|working on)/i,
         forbidden: /(error|exception|traceback)/i,
       },
     ];

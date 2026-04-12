@@ -6,7 +6,7 @@
 |----------------|-----------|--------|
 | `/workspace/project` | Project root | read-only |
 | `/workspace/group` | `groups/main/` | read-write |
-| `/workspace/extra/repos` | NanoClawWorkspace | read-write |
+| `/workspace/extra/repos` | `~/Documents/remote-claude/active/apps/NanoClawWorkspace` | read-write |
 
 When configured via `additionalMounts`, shared mounts appear under `/workspace/extra/<containerPath>`.
 

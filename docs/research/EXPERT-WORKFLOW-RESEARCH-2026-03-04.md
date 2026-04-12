@@ -6,6 +6,14 @@
 
 ---
 
+## Control Owner
+
+Owner for:
+- `docs/research/EXPERT-WORKFLOW-RESEARCH-2026-03-04.md` guidance, decisions, and maintenance in this document
+
+Should not contain:
+- policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
+
 ## 1. Boris Cherny (Creator of Claude Code)
 
 ### Core Workflow

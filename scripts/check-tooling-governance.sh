@@ -39,6 +39,27 @@ function exists(rel) {
   return fs.existsSync(abs(rel));
 }
 
+function walkTextFiles(relDir, out, skipDirs) {
+  if (!exists(relDir)) {
+    return;
+  }
+  const absDir = abs(relDir);
+  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+    const relPath = path.join(relDir, entry.name);
+    if (entry.isDirectory()) {
+      if (skipDirs.has(relPath) || skipDirs.has(entry.name)) {
+        continue;
+      }
+      walkTextFiles(relPath, out, skipDirs);
+      continue;
+    }
+    if (!/\.(md|sh|ts)$/.test(entry.name) && entry.name !== "CLAUDE.md") {
+      continue;
+    }
+    out.push(relPath);
+  }
+}
+
 function readText(rel, label) {
   if (!exists(rel)) {
     addError(`${label} missing: ${rel}`);
@@ -327,6 +348,38 @@ if (docsGovernanceRule) {
       const re = new RegExp("`" + escapeRegExp(mcpName) + "`");
       if (!re.test(docsGovernanceRule)) {
         addError(`docs governance rule missing required MCP router entry: ${mcpName}`);
+      }
+    }
+  }
+}
+
+const dbBackedProbePaths = [
+  "scripts/test-andy-user-e2e.ts",
+  "scripts/test-main-lane-status-e2e.ts",
+  "scripts/test-andy-full-user-journey-e2e.ts"
+];
+const probeScanFiles = [];
+walkTextFiles(".", probeScanFiles, new Set([".git", "node_modules", "dist", ".claude/worktrees", "data/sessions"]));
+
+for (const relPath of probeScanFiles.sort()) {
+  const text = readText(relPath, "probe invocation scan");
+  if (!text) {
+    continue;
+  }
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    for (const probePath of dbBackedProbePaths) {
+      if (!line.includes(probePath)) {
+        continue;
+      }
+      const mentionsDirectNode = line.includes(`node --experimental-transform-types ${probePath}`);
+      const mentionsTsx = line.includes(`npx tsx ${probePath}`);
+      const mentionsWrapper = line.includes(`scripts/with-service-node.sh npx tsx ${probePath}`);
+      if ((mentionsDirectNode || mentionsTsx) && !mentionsWrapper) {
+        addError(
+          `db-backed E2E probe must run via scripts/with-service-node.sh: ${relPath}:${i + 1}`
+        );
       }
     }
   }

@@ -23,7 +23,13 @@ import {
   WA_RECONNECT_JITTER_MS,
   WA_RECONNECT_MAX_DELAY_MS,
 } from '../config.js';
-import { getLastGroupSync, setLastGroupSync, updateChatName } from '../db.js';
+import {
+  getLastGroupSync,
+  setLastGroupSync,
+  storeChatMetadata,
+  storeMessageDirect,
+  updateChatName,
+} from '../db.js';
 import { logger } from '../logger.js';
 import {
   Channel,
@@ -164,6 +170,16 @@ export class WhatsAppChannel implements Channel {
     fs.mkdirSync(authDir, { recursive: true });
 
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
+
+    // Clear the cached props hash before each connect. Baileys only updates
+    // this on a successful fetchProps response; if WA returns bad-request the
+    // stale hash persists on disk and causes the same bad-request on every
+    // reconnect, degrading the connection until a manual restart clears it.
+    // Clearing it forces WA to send full props (slightly more data, harmless).
+    if (state.creds.lastPropHash !== undefined) {
+      state.creds.lastPropHash = undefined;
+      await saveCreds();
+    }
 
     const { version } = await fetchLatestWaWebVersion({}).catch((err) => {
       logger.warn(
@@ -386,6 +402,24 @@ export class WhatsAppChannel implements Channel {
     }
     try {
       await this.sock.sendMessage(jid, { text: prefixed });
+      const timestamp = new Date().toISOString();
+      storeChatMetadata(
+        jid,
+        timestamp,
+        undefined,
+        'whatsapp',
+        jid.endsWith('@g.us'),
+      );
+      storeMessageDirect({
+        id: `local-bot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        chat_jid: jid,
+        sender: 'nanoclaw-bot@local',
+        sender_name: ASSISTANT_NAME,
+        content: prefixed,
+        timestamp,
+        is_from_me: true,
+        is_bot_message: true,
+      });
       logger.info({ jid, length: prefixed.length }, 'Message sent');
     } catch (err) {
       // If send fails, queue it for retry on reconnect
