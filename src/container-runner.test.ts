@@ -178,6 +178,9 @@ describe('container-runner timeout behavior', () => {
       'dir',
     );
     testState.mockPathKinds.set(`${process.env.HOME}/.codex`, 'dir');
+    testState.mockPathKinds.set(`${process.env.HOME}/.codex/bin`, 'dir');
+    testState.mockPathKinds.set(`${process.env.HOME}/.codex/docs`, 'dir');
+    testState.mockPathKinds.set(`${process.env.HOME}/.codex/knowledge`, 'dir');
   });
 
   afterEach(() => {
@@ -392,7 +395,7 @@ describe('container-runner timeout behavior', () => {
     });
   });
 
-  it('mounts the host Codex workflow root read-only into the container', async () => {
+  it('mounts only workflow retrieval surfaces read-only into the container', async () => {
     const resultPromise = runContainerAgent(testGroup, testInput, () => {});
     await vi.advanceTimersByTimeAsync(0);
 
@@ -400,10 +403,16 @@ describe('container-runner timeout behavior', () => {
     const spawnArgs = testState.spawnMock.mock.calls[0]?.[1] as string[];
     expect(spawnArgs).toContain('-v');
     expect(spawnArgs).toContain(
-      `${process.env.HOME}/.codex:/home/node/.codex:ro`,
+      `${process.env.HOME}/.codex/bin:/home/node/.codex/bin:ro`,
+    );
+    expect(spawnArgs).toContain(
+      `${process.env.HOME}/.codex/docs:/home/node/.codex/docs:ro`,
+    );
+    expect(spawnArgs).toContain(
+      `${process.env.HOME}/.codex/knowledge:/home/node/.codex/knowledge:ro`,
     );
     expect(spawnArgs).not.toContain(
-      '/tmp/nanoclaw-test-data/sessions/test-group/.claude/bin/workflow:/usr/local/bin/workflow:ro',
+      `${process.env.HOME}/.codex:/home/node/.codex:ro`,
     );
 
     emitOutputMarker(fakeProc, {

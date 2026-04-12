@@ -47,6 +47,11 @@ const CREDENTIAL_PROXY_NO_PROXY_HOSTS = [
   CONTAINER_HOST_GATEWAY,
 ];
 const HOST_CODEX_DIR = path.join(os.homedir(), '.codex');
+const WORKFLOW_READONLY_PATHS = [
+  ['bin', '/home/node/.codex/bin'],
+  ['docs', '/home/node/.codex/docs'],
+  ['knowledge', '/home/node/.codex/knowledge'],
+] as const;
 
 export interface ContainerInput {
   prompt: string;
@@ -120,12 +125,14 @@ function buildVolumeMounts(
   );
   fs.mkdirSync(groupSessionsDir, { recursive: true });
 
-  // Mount the host Codex control-plane root read-only so every lane can use
-  // the same `workflow` CLI implementation and global docs/knowledge surfaces.
-  if (fs.existsSync(HOST_CODEX_DIR)) {
+  // Expose only the workflow retrieval surfaces Andy needs instead of the
+  // entire host ~/.codex tree.
+  for (const [relativePath, containerPath] of WORKFLOW_READONLY_PATHS) {
+    const hostPath = path.join(HOST_CODEX_DIR, relativePath);
+    if (!fs.existsSync(hostPath)) continue;
     mounts.push({
-      hostPath: HOST_CODEX_DIR,
-      containerPath: '/home/node/.codex',
+      hostPath,
+      containerPath,
       readonly: true,
     });
   }
@@ -259,6 +266,7 @@ function buildVolumeMounts(
       fs.cpSync(srcDir, dstDir, { recursive: true, dereference: true });
     }
   }
+
   mounts.push({
     hostPath: groupSessionsDir,
     containerPath: '/home/node/.claude',

@@ -88,6 +88,7 @@ let lastTimestamp = '';
 let sessions: Record<string, string> = {};
 let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
+let pendingAgentTimestamp: Record<string, string> = {};
 let messageLoopRunning = false;
 
 const channels: Channel[] = [];
@@ -149,6 +150,26 @@ function getOrRecoverCursor(chatJid: string): string {
     return botTs;
   }
   return '';
+}
+
+function getDispatchCursor(chatJid: string): string {
+  return pendingAgentTimestamp[chatJid] || getOrRecoverCursor(chatJid);
+}
+
+function acknowledgePendingCursor(chatJid: string): string | undefined {
+  const timestamp = pendingAgentTimestamp[chatJid];
+  if (!timestamp) return undefined;
+  lastAgentTimestamp[chatJid] = timestamp;
+  delete pendingAgentTimestamp[chatJid];
+  saveState();
+  return timestamp;
+}
+
+function clearPendingCursor(chatJid: string): string | undefined {
+  const timestamp = pendingAgentTimestamp[chatJid];
+  if (!timestamp) return undefined;
+  delete pendingAgentTimestamp[chatJid];
+  return timestamp;
 }
 
 function saveState(): void {
@@ -457,6 +478,13 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
       logger.info({ group: group.name }, `Agent output: ${raw.length} chars`);
       if (text) {
+        const acknowledgedCursor = acknowledgePendingCursor(chatJid);
+        if (acknowledgedCursor) {
+          logger.info(
+            { group: group.name, chatJid, acknowledgedCursor },
+            'Acknowledged piped follow-up messages after agent output',
+          );
+        }
         await channel.sendMessage(chatJid, text);
         outputSentToUser = true;
       }
@@ -475,6 +503,15 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
+
+  const unacknowledgedPipedCursor = clearPendingCursor(chatJid);
+  if (unacknowledgedPipedCursor) {
+    logger.warn(
+      { group: group.name, chatJid, pendingCursor: unacknowledgedPipedCursor },
+      'Active session ended with unacknowledged piped follow-up messages; requeueing in a fresh container',
+    );
+    queue.enqueueMessageCheck(chatJid);
+  }
 
   if (output === 'error' || hadError) {
     // If we already sent output to the user, don't roll back the cursor —
@@ -669,7 +706,7 @@ async function startMessageLoop(): Promise<void> {
           // context that accumulated between triggers is included.
           const allPending = getMessagesSince(
             chatJid,
-            getOrRecoverCursor(chatJid),
+            getDispatchCursor(chatJid),
             ASSISTANT_NAME,
             MAX_MESSAGES_PER_PROMPT,
           );
@@ -682,9 +719,8 @@ async function startMessageLoop(): Promise<void> {
               { chatJid, count: messagesToSend.length },
               'Piped messages to active container',
             );
-            lastAgentTimestamp[chatJid] =
+            pendingAgentTimestamp[chatJid] =
               messagesToSend[messagesToSend.length - 1].timestamp;
-            saveState();
             // Show typing indicator while the container processes the piped message
             channel
               .setTyping?.(chatJid, true)

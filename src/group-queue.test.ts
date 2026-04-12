@@ -62,6 +62,32 @@ describe('GroupQueue', () => {
     expect(maxConcurrent).toBe(1);
   });
 
+  it('drains a queued follow-up message after the active run completes', async () => {
+    const processed: string[] = [];
+    const completionCallbacks: Array<() => void> = [];
+
+    const processMessages = vi.fn(async (groupJid: string) => {
+      processed.push(groupJid);
+      await new Promise<void>((resolve) => completionCallbacks.push(resolve));
+      return true;
+    });
+
+    queue.setProcessMessagesFn(processMessages);
+
+    queue.enqueueMessageCheck('group1@g.us');
+    await vi.advanceTimersByTimeAsync(10);
+    queue.enqueueMessageCheck('group1@g.us');
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(processMessages).toHaveBeenCalledTimes(1);
+
+    completionCallbacks[0]();
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(processMessages).toHaveBeenCalledTimes(2);
+    expect(processed).toEqual(['group1@g.us', 'group1@g.us']);
+  });
+
   // --- Global concurrency limit ---
 
   it('respects global concurrency limit', async () => {

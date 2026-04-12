@@ -33,8 +33,9 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 # Install agent-browser and claude-code globally
 RUN npm install -g agent-browser @anthropic-ai/claude-code
 
-# Expose the host-mounted Codex workflow CLI inside the container.
-# The implementation lives under /home/node/.codex, mounted read-only by the host.
+# Create the workflow mountpoints and expose a native entrypoint.
+# The host only bind-mounts the workflow bundle subpaths under /home/node/.codex.
+RUN mkdir -p /home/node/.codex/bin /home/node/.codex/docs /home/node/.codex/knowledge
 RUN printf '#!/bin/sh\nexport CODEX_WORKFLOW_PUBLIC_ENTRYPOINT=1\nexec python3 /home/node/.codex/bin/workflow.py "$@"\n' > /usr/local/bin/workflow \
     && chmod +x /usr/local/bin/workflow
 
@@ -64,9 +65,9 @@ RUN mkdir -p /workspace/group /workspace/global /workspace/extra /workspace/ipc/
 # Shared bootstrap-env.sh sources all present OneCLI startup hooks so OneCLI SSL
 # trust and placeholder-secret bootstrap compose safely regardless of PR merge
 # order.
-COPY container/bootstrap-env.sh /app/bootstrap-env.sh
-COPY container/bootstrap-ssl.sh /app/bootstrap-ssl.sh
-COPY container/onecli-secrets-manifest.sh /app/onecli-secrets-manifest.sh
+COPY bootstrap-env.sh /app/bootstrap-env.sh
+COPY bootstrap-ssl.sh /app/bootstrap-ssl.sh
+COPY onecli-secrets-manifest.sh /app/onecli-secrets-manifest.sh
 RUN chmod +x /app/bootstrap-env.sh /app/bootstrap-ssl.sh /app/onecli-secrets-manifest.sh
 RUN printf '#!/bin/bash\nset -e\n. /app/bootstrap-env.sh\ncd /app && npx tsc --outDir /tmp/dist 2>&1 >&2\nln -s /app/node_modules /tmp/dist/node_modules\nchmod -R a-w /tmp/dist\ncat > /tmp/input.json\nnode /tmp/dist/index.js < /tmp/input.json\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 

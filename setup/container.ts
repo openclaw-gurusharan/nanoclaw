@@ -119,7 +119,7 @@ export async function run(args: string[]): Promise<void> {
     logger.info('Testing container');
     try {
       const output = execSync(
-        `echo '{}' | ${runCmd} run -i --rm --entrypoint /bin/echo ${image} "Container OK"`,
+        `echo '{}' | ${runCmd} run -i --rm --mount type=bind,source=${process.env.HOME}/.codex/bin,target=/home/node/.codex/bin,readonly --mount type=bind,source=${process.env.HOME}/.codex/docs,target=/home/node/.codex/docs,readonly --mount type=bind,source=${process.env.HOME}/.codex/knowledge,target=/home/node/.codex/knowledge,readonly --entrypoint /bin/sh ${image} -lc 'workflow --help >/dev/null && echo Container OK'`,
         { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
       );
       testOk = output.includes('Container OK');
