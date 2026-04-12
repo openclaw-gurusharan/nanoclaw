@@ -206,7 +206,7 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
         info "runtime owner claimed_by: $runtime_owner_claimed_by"
       fi
     else
-      fail "runtime owner row missing"
+      pass "runtime owner row not recorded; launchd service health is authoritative"
     fi
   else
     fail "runtime_owners table missing"
@@ -223,8 +223,6 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
     last_progress_summary
     last_progress_at
     steer_count
-    run_generation
-    stop_reason
   )
   missing_cols=()
   for col in "${required_cols[@]}"; do

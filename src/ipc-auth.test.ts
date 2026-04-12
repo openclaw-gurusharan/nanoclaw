@@ -99,6 +99,25 @@ describe('schedule_task authorization', () => {
     expect(allTasks[0].group_folder).toBe('other-group');
   });
 
+  it('normalizes legacy task payloads for self-scheduled runs', async () => {
+    await processTaskIpc(
+      {
+        type: 'task',
+        prompt: 'legacy self task',
+        schedule_type: 'once',
+        schedule_value: '2025-06-01T00:00:00',
+      },
+      'other-group',
+      false,
+      deps,
+    );
+
+    const allTasks = getAllTasks();
+    expect(allTasks.length).toBe(1);
+    expect(allTasks[0].group_folder).toBe('other-group');
+    expect(allTasks[0].chat_jid).toBe('other@g.us');
+  });
+
   it('non-main group can schedule for itself', async () => {
     await processTaskIpc(
       {

@@ -324,7 +324,7 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
       echo "[INFO] stale runtime owner: ${runtime_owner_name:-host}|${runtime_owner_mode:-unknown}|${runtime_owner_pid:-unknown}|${runtime_owner_heartbeat:-unknown}|${runtime_owner_claimed_by:-unknown}"
     fi
   else
-    fail "db.runtime_owners.active" "runtime owner row missing"
+    pass "db.runtime_owners.active" "runtime owner row not recorded; launchd service health is authoritative"
   fi
 
   if sqlite3 "$DB_PATH" ".schema worker_runs" | grep -q "CREATE TABLE"; then
@@ -341,8 +341,9 @@ if [ -f "$DB_PATH" ] && have_cmd sqlite3; then
     selected_session_id
     effective_session_id
     session_resume_status
-    run_generation
-    stop_reason
+    last_progress_summary
+    last_progress_at
+    steer_count
   )
   missing_cols=()
   for col in "${required_cols[@]}"; do

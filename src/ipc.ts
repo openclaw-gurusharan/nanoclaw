@@ -166,6 +166,65 @@ export function startIpcWatcher(deps: IpcDeps): void {
   logger.info('IPC watcher started (per-group namespaces)');
 }
 
+function findGroupJidByFolder(
+  registeredGroups: Record<string, RegisteredGroup>,
+  folder: string,
+): string | undefined {
+  for (const [jid, group] of Object.entries(registeredGroups)) {
+    if (group.folder === folder) return jid;
+  }
+
+  return undefined;
+}
+
+function normalizeTaskIpcPayload(
+  data: {
+    type: string;
+    taskId?: string;
+    prompt?: string;
+    schedule_type?: string;
+    schedule_value?: string;
+    context_mode?: string;
+    script?: string;
+    groupFolder?: string;
+    chatJid?: string;
+    targetJid?: string;
+    jid?: string;
+    name?: string;
+    folder?: string;
+    trigger?: string;
+    requiresTrigger?: boolean;
+    containerConfig?: RegisteredGroup['containerConfig'];
+  },
+  sourceGroup: string,
+  isMain: boolean,
+  registeredGroups: Record<string, RegisteredGroup>,
+): typeof data {
+  if (data.type !== 'task') return data;
+
+  const targetJid =
+    data.targetJid ||
+    data.chatJid ||
+    (data.groupFolder
+      ? findGroupJidByFolder(registeredGroups, data.groupFolder)
+      : undefined) ||
+    (!isMain ? findGroupJidByFolder(registeredGroups, sourceGroup) : undefined);
+
+  if (data.prompt && data.schedule_type && data.schedule_value && targetJid) {
+    logger.info(
+      { sourceGroup, targetJid },
+      'Normalizing legacy IPC task payload to schedule_task',
+    );
+    return {
+      ...data,
+      type: 'schedule_task',
+      targetJid,
+    };
+  }
+
+  return data;
+}
+
 export async function processTaskIpc(
   data: {
     type: string;
@@ -191,6 +250,7 @@ export async function processTaskIpc(
   deps: IpcDeps,
 ): Promise<void> {
   const registeredGroups = deps.registeredGroups();
+  data = normalizeTaskIpcPayload(data, sourceGroup, isMain, registeredGroups);
 
   switch (data.type) {
     case 'schedule_task':
@@ -475,6 +535,6 @@ export async function processTaskIpc(
       break;
 
     default:
-      logger.warn({ type: data.type }, 'Unknown IPC task type');
+      logger.warn({ sourceGroup, type: data.type }, 'Unknown IPC task type');
   }
 }

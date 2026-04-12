@@ -63,35 +63,35 @@ step() {
 
 wait_for_nanoclaw_ready() {
   local restart_started_at="$1"
-
-  if ! command -v sqlite3 >/dev/null 2>&1; then
-    echo "[WARN] sqlite3 not available; skipping runtime readiness wait"
-    return 0
-  fi
-
-  if [ ! -f "$DB_PATH" ]; then
-    echo "[WARN] sqlite DB missing; skipping runtime readiness wait ($DB_PATH)"
-    return 0
-  fi
+  local launchd_label="gui/$(id -u)/com.nanoclaw"
+  local log_file="$ROOT_DIR/logs/nanoclaw.log"
 
   local deadline=$((SECONDS + RUNTIME_READY_TIMEOUT_SEC))
   while [ "$SECONDS" -lt "$deadline" ]; do
-    local owner_row
-    owner_row="$(sqlite3 -separator '|' "$DB_PATH" \
-      "SELECT pid, heartbeat_at FROM runtime_owners WHERE owner_name = 'host' AND heartbeat_at >= '$restart_started_at' LIMIT 1;" \
-      2>/dev/null || true)"
-    local loop_ready_at
-    loop_ready_at="$(sqlite3 "$DB_PATH" \
-      "SELECT value FROM router_state WHERE key = 'host_message_loop_ready_at' AND value >= '$restart_started_at' LIMIT 1;" \
-      2>/dev/null || true)"
-    if [ -n "$owner_row" ]; then
-      local runtime_pid runtime_heartbeat
-      IFS='|' read -r runtime_pid runtime_heartbeat <<<"$owner_row"
-      if [[ "$runtime_pid" =~ ^[0-9]+$ ]] && kill -0 "$runtime_pid" 2>/dev/null && [ -n "$loop_ready_at" ]; then
-        echo "[PASS] runtime ready (pid=$runtime_pid heartbeat=$runtime_heartbeat loop_ready=$loop_ready_at)"
+    local runtime_pid=""
+    if command -v launchctl >/dev/null 2>&1; then
+      runtime_pid="$(launchctl print "$launchd_label" 2>/dev/null | awk -F'= ' '/pid = /{print $2; exit}' | tr -d ';')"
+    fi
+
+    local loop_ready_at=""
+    if command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB_PATH" ]; then
+      loop_ready_at="$(sqlite3 "$DB_PATH" \
+        "SELECT value FROM router_state WHERE key = 'host_message_loop_ready_at' AND value >= '$restart_started_at' LIMIT 1;" \
+        2>/dev/null || true)"
+    fi
+
+    if [[ "$runtime_pid" =~ ^[0-9]+$ ]] && kill -0 "$runtime_pid" 2>/dev/null; then
+      if [ -n "$loop_ready_at" ]; then
+        echo "[PASS] runtime ready (pid=$runtime_pid loop_ready=$loop_ready_at)"
+        return 0
+      fi
+
+      if [ -f "$log_file" ] && tail -n 200 "$log_file" | grep -F "($runtime_pid)" | grep -Eq 'Connected to WhatsApp|NanoClaw running|IPC watcher started'; then
+        echo "[PASS] runtime ready (pid=$runtime_pid log_ready=true)"
         return 0
       fi
     fi
+
     sleep 1
   done
 

@@ -224,6 +224,13 @@ function buildVolumeMounts(
   if (fs.existsSync(skillsSrc)) {
     for (const skillDir of fs.readdirSync(skillsSrc)) {
       const srcDir = path.join(skillsSrc, skillDir);
+      if (!fs.existsSync(srcDir)) {
+        logger.debug(
+          { skillDir, srcDir },
+          'Skipping staged skill entry with missing target',
+        );
+        continue;
+      }
       let srcStat: fs.Stats;
       try {
         srcStat = fs.statSync(srcDir);
