@@ -11,6 +11,12 @@ Owner for:
 Should not contain:
 - policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
 
+## [Unreleased]
+
+### Bug Fixes
+
+- fix(control-plane): add TTL guard in `groups/main/CLAUDE.md` for stale `control_plane_status.json` — if `lastUpdated` is >5 min old, fall back to `groups/andy-developer/logs/` for current state. Prevents false "offline" reports when the status file is stale.
+
 ## 2026-03-04
 
 - Synced from: `upstream/main` into `andy-autonomous`
