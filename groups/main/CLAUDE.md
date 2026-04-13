@@ -81,7 +81,13 @@ For any research task (scheduled or ad-hoc), persist artifacts in the shared Nan
 
 This is the **main channel**, which has elevated privileges.
 
-When the user asks about `andy-developer` status, progress, or whether it is busy, read `/workspace/ipc/control_plane_status.json` and summarize `lanes["andy-developer"]`. Treat that snapshot as source of truth. If unavailable, say the control-plane status is temporarily unavailable. If `mcp__nanoclaw__get_lane_status` is available, it is equivalent, but do not depend on it.
+When the user asks about `andy-developer` status, progress, or whether it is busy, read `/workspace/ipc/control_plane_status.json` and check the `lastUpdated` field:
+
+- If `lastUpdated` is **≤5 minutes ago**: summarize `lanes["andy-developer"]` as source of truth.
+- If `lastUpdated` is **>5 minutes ago** (stale): treat the file as unreliable. Fall back to checking `/workspace/project/groups/andy-developer/logs/` for the latest container run timestamp to infer current state. Report to the user that the control-plane status is stale and the fallback source was used.
+- If the file is missing or unreadable: say the control-plane status is temporarily unavailable.
+
+If `mcp__nanoclaw__get_lane_status` is available, it is equivalent, but do not depend on it.
 
 Main-lane control shortcuts:
 
