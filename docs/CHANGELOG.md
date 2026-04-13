@@ -11,6 +11,13 @@ Owner for:
 Should not contain:
 - policy, workflow detail, or implementation behavior that belongs in a more specific owner doc, skill, or enforcement surface
 
+## [Unreleased]
+
+### Bug Fixes
+
+- fix(container): auto-configure OneCLI CA cert SSL env vars at container startup
+  - Motivation: `npx skills add` and other npm/git/curl calls failed with SSL cert errors because the OneCLI CA bundle at `/tmp/nanoclaw-onecli/onecli-combined-ca.pem` was not picked up automatically. The new `bootstrap-ssl.sh` sourced at entrypoint detects the bundle and exports `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS`, and `SSL_CERT_FILE` before any network operation runs.
+
 ## 2026-03-04
 
 - Synced from: `upstream/main` into `andy-autonomous`
